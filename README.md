@@ -17,11 +17,11 @@ cd ssh-key-manager
 & ./generate_key_test.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]"
 ```
 
-
 # Todo
 - [ ] Finish Function #6
 - [ ] Ability to list and `cat` the public keys
 - [ ] Ability to list and `cat` the private keys
-- [ ] Reduce the amount of prompts needed by querying the Config file more
-- [ ] Reduce the amount of prompts by SSHing via the available Config file if it already exists.
 - [ ] Implement Delete IdentityFile from a certain config block
+- [ ] Reduce the amount of prompts needed by querying the Config file more
+- [ ] Use the SSH key if it's already installed rather than logging in with the user.
+- [ ] Reduce the amount of prompts by SSHing via the available Config file if it already exists.
