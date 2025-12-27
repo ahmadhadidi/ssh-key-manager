@@ -8,3 +8,9 @@ $sb = [scriptblock]::Create((irm $u))
 
 & $sb -DefaultUserName "username_of_target_machine" -DefaultSubnetPrefix "192.168.0" -DefaultCommentSuffix "-[my-machine]"
 ```
+
+
+# Todo
+- [ ] Finish Function #6
+- [ ] Ability to list and `cat` the public keys
+- [ ] Ability to list and `cat` the private keys
