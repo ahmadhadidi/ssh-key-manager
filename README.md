@@ -1,4 +1,4 @@
-# ssh-key-manager
+# 🌊 HDD SSH Keys
 A powershell script that manages your SSH keys
 
 Give it a go:
