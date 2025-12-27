@@ -4,17 +4,22 @@
 # Todo: Reduce the amount of prompts needed by querying the Config file more.
 # Todo: Reduce the amount of prompts by SSHing via the available Config file if it already exists.
 # Todo: Implement Delete IdentityFile from a certain config block
+param(
+  [string]$DefaultUserName = "default_non_root_username",
+  [string]$DefaultSubnetPrefix = "192.168.0",
+  [string]$DefaultCommentSuffix = "-[my-machine]"
+)
 
 # Default user name in target machines that the script will default back to, usually 'root'
-$DefaultUserName = "hdd"
+# $DefaultUserName = "hdd"
 
 # Default Subnet prefix when populating the ssh config file on the network and to 
 # quickly connect to LXCs, for me, my network has "192.168.0.".
-$DefaultSubnetPrefix = "192.168.0"
+# $DefaultSubnetPrefix = "192.168.0"
 
 # Default comment suffix to my ssh key on my local machine. It's useful to distinguish which host machine
 # has the key pair.
-$DefaultCommentSuffix = "-[my-machine]"
+# $DefaultCommentSuffix = "-[my-machine]"
 function Show-MainMenu {
     do {
         $RunAgain = $true
