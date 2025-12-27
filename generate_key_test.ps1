@@ -123,8 +123,8 @@ Enter your choice (1–10)
             "10" { # Conf: Global Defaults
                 Write-Host "`n`e[1mGlobal Defaults:`e[0m`n" -ForegroundColor Cyan
                 Write-Host "1. `e[1m`$DefaultUserName`e[0m=$DefaultUserName⏹" -ForegroundColor Cyan
-                Write-Host "2. `e[1m`$DefaultCommentSuffix`e[0m=$DefaultCommentSuffix⏹" -ForegroundColor Cyan
-                Write-Host "3. `e[1m`$DefaultSubnetPrefix`e[0m=$DefaultSubnetPrefix⏹" -ForegroundColor Cyan
+                Write-Host "2. `e[1m`$DefaultSubnetPrefix`e[0m=$DefaultSubnetPrefix⏹" -ForegroundColor Cyan
+                Write-Host "3. `e[1m`$DefaultCommentSuffix`e[0m=$DefaultCommentSuffix⏹" -ForegroundColor Cyan
                 Write-Host "`nVariables can be changed by editing the variables at the top of the file" -ForegroundColor Yellow
             }
             "q" { # Exit
