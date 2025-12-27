@@ -90,6 +90,13 @@ Enter your choice (1–10)
             "6" { # Add SSH Key to Host Config
 
                 $KeyName = Read-SSHKeyName
+                
+                # After taking the key we need to do the following:
+                # ask about the Host of the target machine (sonarr / radarr)
+                # If it exists, we just append the Identity file
+                # If it does not exist, we need to ask about the IP Address of the CT and the user and then we can add the identity file.
+                # Below is not correct
+
                 $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
 
                 Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
