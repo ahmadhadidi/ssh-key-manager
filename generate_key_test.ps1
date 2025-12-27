@@ -1,25 +1,9 @@
-# Check the guy who made the ameliorated windows key and see how I can use this powershell file from the internet, similar to how the proxmox community scripts work.
-
-# https://gist.github.com/ahmadhadidi/37ac7d5a3fa5dec29725fbd8b005be5b
-# Todo: Reduce the amount of prompts needed by querying the Config file more.
-# Todo: Reduce the amount of prompts by SSHing via the available Config file if it already exists.
-# Todo: Implement Delete IdentityFile from a certain config block
 param(
   [string]$DefaultUserName = "default_non_root_username",
   [string]$DefaultSubnetPrefix = "192.168.0",
   [string]$DefaultCommentSuffix = "-[my-machine]"
 )
 
-# Default user name in target machines that the script will default back to, usually 'root'
-# $DefaultUserName = "hdd"
-
-# Default Subnet prefix when populating the ssh config file on the network and to 
-# quickly connect to LXCs, for me, my network has "192.168.0.".
-# $DefaultSubnetPrefix = "192.168.0"
-
-# Default comment suffix to my ssh key on my local machine. It's useful to distinguish which host machine
-# has the key pair.
-# $DefaultCommentSuffix = "-[my-machine]"
 function Show-MainMenu {
     do {
         $RunAgain = $true
@@ -91,6 +75,7 @@ Enter your choice (1–10)
 
                 $KeyName = Read-SSHKeyName
                 
+                # 🚧 TODO:
                 # After taking the key we need to do the following:
                 # ask about the Host of the target machine (sonarr / radarr)
                 # If it exists, we just append the Identity file
@@ -132,7 +117,7 @@ Enter your choice (1–10)
                 Write-Host "1. `e[1m`$DefaultUserName`e[0m=$DefaultUserName⏹" -ForegroundColor Cyan
                 Write-Host "2. `e[1m`$DefaultSubnetPrefix`e[0m=$DefaultSubnetPrefix⏹" -ForegroundColor Cyan
                 Write-Host "3. `e[1m`$DefaultCommentSuffix`e[0m=$DefaultCommentSuffix⏹" -ForegroundColor Cyan
-                Write-Host "`nVariables can be changed by editing the variables at the top of the file" -ForegroundColor Yellow
+                Write-Host "`nℹ️  Variables can be changed by editing the variables when invoking the script" -ForegroundColor Yellow
             }
             "q" { # Exit
 
@@ -296,7 +281,7 @@ function Deploy-PromotedKey {
 
 
 function Remove-SSHKeyLocally {
-    # TODO: lessa ma itgayyaf
+    # 🚧 TODO: lessa ma itgayyaf
     $KeyName = Read-SSHKeyName
 
     $PrivateKeyPath = "$env:USERPROFILE\.ssh\$KeyName"
@@ -513,7 +498,7 @@ Host $RemoteHostName
 
 function Disable-SSHRootLogin {
     pass
-    # TODO: calls sed on /etc/ssh/sshd_config
+    # 🚧 TODO: calls sed on /etc/ssh/sshd_config
 }
 #endregion
 

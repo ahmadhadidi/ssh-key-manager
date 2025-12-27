@@ -22,3 +22,6 @@ cd ssh-key-manager
 - [ ] Finish Function #6
 - [ ] Ability to list and `cat` the public keys
 - [ ] Ability to list and `cat` the private keys
+- [ ] Reduce the amount of prompts needed by querying the Config file more
+- [ ] Reduce the amount of prompts by SSHing via the available Config file if it already exists.
+- [ ] Implement Delete IdentityFile from a certain config block
