@@ -93,11 +93,10 @@ Enter your choice (1–10)
             }
             "8" { # Delete an SSH Key Locally
 
-                Write-Host "❌  Not yet implemented!"
-                $KeyName = Read-SSHKeyName
-                $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-                $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-                $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+                Show-Comment -Prompt "🔨 Experimental" -ForegroundColor "Red"
+                                
+                Show-SSHKeyInventory
+                Remove-SSHKeyLocally -KeyName $KeyName
 
             }
             "9" { # Remove an SSH Key From Config
@@ -192,6 +191,7 @@ function Test-SSHConnection {
         [switch]$ReturnResult
     )
 
+    Show-Comment -Prompt "⏳ Connecting..." -Color Yellow
     $testCommand = {
         ssh "$RemoteUser@$RemoteHost" "echo SSH Connection Successful" 2>&1
     }
@@ -201,6 +201,11 @@ function Test-SSHConnection {
 
         if ($result -match "ssh: connect to host .* port 22: Connection refused") {
             Write-Host "❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
+            Write-Host "`n"
+            if ($ReturnResult) { return $false } else { return }
+        }
+        elseif ($result -match "ssh: connect to host .* port 22: Connection timed out") {
+            Write-Host "❌ Connection timeout: $RemoteHost probably does not have an SSH server/agent running." -ForegroundColor Red
             Write-Host "`n"
             if ($ReturnResult) { return $false } else { return }
         }
@@ -622,7 +627,7 @@ Host $RemoteHostName
 
 
 function Disable-SSHRootLogin {
-    pass
+    return
     # 🚧 TODO: calls sed on /etc/ssh/sshd_config
 }
 
@@ -1061,5 +1066,15 @@ function Get-PublicKeyInHost {
 }
 #endregion
 
+#region Decorators
+function Show-Comment {
+    param (
+        [string]$Prompt,
+        [ConsoleColor]$Color = "Cyan"
+    )
+
+    Write-Host -NoNewline "$Prompt " -ForegroundColor $Color
+}
+#endRegion
 
 Show-MainMenu
