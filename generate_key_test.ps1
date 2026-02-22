@@ -23,14 +23,15 @@ function Show-MainMenu {
 `e[1m  Local`e[0m
   ------
   5. Generate SSH Key (Without installation)
-  6. Append SSH Key to Hostname in Host Config
-  7. Delete an SSH Key Locally
-  8. Remove an SSH Key From Config
+  6. List SSH Keys
+  7. Append SSH Key to Hostname in Host Config
+  8. Delete an SSH Key Locally
+  9. Remove an SSH Key From Config
 
 `e[1m  🌊`e[0m
   ------
-  9. Help: Best Practices
-  10. Conf: Global Defaults
+  10. Help: Best Practices
+  11. Conf: Global Defaults
   Q. Exit
 
 Enter your choice (1–10)
@@ -71,7 +72,10 @@ Enter your choice (1–10)
                 Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
 
             }
-            "6" { # Add SSH Key to Host Config
+            "6" { # List SSH Keys
+                Show-SSHKeyInventory
+            }
+            "7" { # Add SSH Key to Host Config
 
                 $KeyName = Read-SSHKeyName
                 
@@ -87,7 +91,7 @@ Enter your choice (1–10)
                 Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
 
             }
-            "7" { # Delete an SSH Key Locally
+            "8" { # Delete an SSH Key Locally
 
                 Write-Host "❌  Not yet implemented!"
                 $KeyName = Read-SSHKeyName
@@ -96,14 +100,14 @@ Enter your choice (1–10)
                 $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
 
             }
-            "8" { # Remove an SSH Key From Config
+            "9" { # Remove an SSH Key From Config
 
                 $KeyName = Read-SSHKeyName
                 $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
                 Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $RemoteHostName
 
             }
-            "9" { # Help: Best practice
+            "10" { # Help: Best practice
 
                 Write-Host "The general practice behind this utility is to do the following:" -ForegroundColor Cyan
                 Write-Host "1. CTs accessed through LAN that are being demo'ed shall have a common key -- e.g. demo-lan" -ForegroundColor Cyan
@@ -112,7 +116,7 @@ Enter your choice (1–10)
                 Write-Host "4. CTs accessed through the Interwebs (regardless of status) shall have their own individual key -- e.g. sonarr-wan" -ForegroundColor Red
 
             }
-            "10" { # Conf: Global Defaults
+            "11" { # Conf: Global Defaults
                 Write-Host "`n`e[1mGlobal Defaults:`e[0m`n" -ForegroundColor Cyan
                 Write-Host "1. `e[1m`$DefaultUserName`e[0m=$DefaultUserName⏹" -ForegroundColor Cyan
                 Write-Host "2. `e[1m`$DefaultSubnetPrefix`e[0m=$DefaultSubnetPrefix⏹" -ForegroundColor Cyan
@@ -389,6 +393,127 @@ function Remove-IdentityFileFromConfigEntry {
     Set-Content -Path $ConfigPath -Value $newConfig -Encoding UTF8
     Write-Host "✅ IdentityFile '$KeyName' removed from Host '$RemoteHostName'" -ForegroundColor Green
 }
+
+
+function Show-SSHKeyInventory {
+    param(
+        [string]$SshDir = "$env:USERPROFILE\.ssh",
+        [string]$ConfigPath = "$env:USERPROFILE\.ssh\config"
+    )
+
+    if (-not (Test-Path $SshDir)) {
+        Write-Host "❌ .ssh directory not found at $SshDir" -ForegroundColor Red
+        return
+    }
+
+    # ----------------------------
+    # 1) Inventory keys from .ssh/
+    # ----------------------------
+    $allFiles = Get-ChildItem -Path $SshDir -File -ErrorAction SilentlyContinue
+
+    # Public keys are *.pub
+    $pubFiles = $allFiles | Where-Object { $_.Extension -ieq ".pub" }
+
+    # Private keys: common exclusions + not *.pub
+    # (We keep this conservative; if a file is referenced as IdentityFile later, it will also be included in usage map.)
+    $excludeNames = @(
+        "config", "known_hosts", "known_hosts.old", "authorized_keys",
+        "authorized_keys2", "environment", "rc"
+    )
+
+    $privateCandidates = $allFiles | Where-Object {
+        $_.Extension -ine ".pub" -and
+        ($excludeNames -notcontains $_.Name.ToLowerInvariant())
+    }
+
+    # Build key name sets
+    $pubKeyNames = $pubFiles | ForEach-Object { $_.BaseName }
+    $privKeyNames = $privateCandidates | ForEach-Object { $_.Name }
+
+    $allKeyNames = @($pubKeyNames + $privKeyNames) | Sort-Object -Unique
+
+    # ----------------------------
+    # 2) Parse config usage map
+    # ----------------------------
+    $usageMap = @{}  # keyName -> HashSet(hosts)
+
+    if (Test-Path $ConfigPath) {
+        $config = Get-Content -Path $ConfigPath -Raw -Encoding UTF8
+
+        # Each Host block
+        $hostBlockPattern = "(?ms)^Host\s+(.+?)\s*$.*?(?=^Host\s|\z)"
+        $hostBlocks = [regex]::Matches($config, $hostBlockPattern)
+
+        foreach ($hb in $hostBlocks) {
+            $hostHeader = $hb.Groups[1].Value.Trim()
+            $block = $hb.Value
+
+            # Host line can include multiple aliases: "Host a b c"
+            $hosts = $hostHeader -split '\s+' | Where-Object { $_ }
+
+            # IdentityFile lines
+            $identityMatches = [regex]::Matches($block, '(?m)^\s*IdentityFile\s+(.+?)\s*$')
+            foreach ($im in $identityMatches) {
+                $rawPath = $im.Groups[1].Value.Trim().Trim('"')
+
+                # Normalize `$HOME` / `~`
+                $p = $rawPath
+                $p = $p -replace '^\~', $env:USERPROFILE
+                $p = $p -replace '^\$HOME', $env:USERPROFILE
+                $p = $p -replace '^\`$HOME', $env:USERPROFILE
+
+                # Convert to full path if relative (rare, but possible)
+                if (-not [System.IO.Path]::IsPathRooted($p)) {
+                    $p = Join-Path $SshDir $p
+                }
+
+                $keyName = [System.IO.Path]::GetFileName($p)
+
+                if (-not $usageMap.ContainsKey($keyName)) {
+                    $usageMap[$keyName] = New-Object System.Collections.Generic.HashSet[string]
+                }
+
+                foreach ($h in $hosts) { [void]$usageMap[$keyName].Add($h) }
+            }
+        }
+    }
+
+    # ----------------------------
+    # 3) Build output rows
+    # ----------------------------
+    $rows = @()
+    $i = 1
+
+    foreach ($keyName in $allKeyNames) {
+        $privatePath = Join-Path $SshDir $keyName
+        $publicPath  = "$privatePath.pub"
+
+        $privateOk = Test-Path $privatePath -PathType Leaf
+        $publicOk  = Test-Path $publicPath -PathType Leaf
+
+        $usage = ""
+        if ($usageMap.ContainsKey($keyName)) {
+            $usage = ($usageMap[$keyName] | Sort-Object) -join ", "
+        }
+
+        $rows += [pscustomobject]@{
+            "#"       = $i
+            "Key"     = $keyName
+            "Public"  = $(if ($publicOk) { "✅" } else { "❌" })
+            "Private" = $(if ($privateOk) { "✅" } else { "❌" })
+            "Usage"   = $usage
+        }
+
+        $i++
+    }
+
+    if ($rows.Count -eq 0) {
+        Write-Host "ℹ️ No key files found in $SshDir" -ForegroundColor Yellow
+        return
+    }
+
+    $rows | Format-Table -AutoSize
+}
 #endregion
 
 
@@ -499,6 +624,63 @@ Host $RemoteHostName
 function Disable-SSHRootLogin {
     pass
     # 🚧 TODO: calls sed on /etc/ssh/sshd_config
+}
+
+function Invoke-SSHWithKeyThenPassword {
+    param(
+        [Parameter(Mandatory)]
+        [string]$RemoteUser,
+
+        [Parameter(Mandatory)]
+        [string]$RemoteHost,
+
+        # Optional: if you can determine a specific key path (IdentityFile), pass it.
+        [string]$IdentityFile,
+
+        [Parameter(Mandatory)]
+        [string]$RemoteCommand
+    )
+
+    $baseArgs = @(
+        "-o", "ConnectTimeout=6",
+        "-o", "StrictHostKeyChecking=accept-new"
+    )
+
+    if ($IdentityFile) {
+        $baseArgs += @("-i", $IdentityFile)
+    }
+
+    # 1) Key-only attempt (no prompts)
+    $keyOnlyArgs = $baseArgs + @(
+        "-o", "BatchMode=yes",
+        "$RemoteUser@$RemoteHost",
+        $RemoteCommand
+    )
+
+    $out = & ssh @keyOnlyArgs 2>&1
+    $code = $LASTEXITCODE
+
+    if ($code -eq 0) {
+        return @{ Success = $true; UsedPassword = $false; Output = $out }
+    }
+
+    # If auth failed, fall back to password (interactive)
+    if ($out -match "Permission denied" -or $out -match "Authentication failed") {
+        Write-Host "🔑 No usable SSH key found for $RemoteUser@$RemoteHost. Falling back to password..." -ForegroundColor Yellow
+
+        $passwordArgs = $baseArgs + @(
+            "$RemoteUser@$RemoteHost",
+            $RemoteCommand
+        )
+
+        $out2 = & ssh @passwordArgs 2>&1
+        $code2 = $LASTEXITCODE
+
+        return @{ Success = ($code2 -eq 0); UsedPassword = $true; Output = $out2 }
+    }
+
+    # Other failures (DNS, refused, timeout, etc.) – return as-is
+    return @{ Success = $false; UsedPassword = $false; Output = $out }
 }
 #endregion
 
@@ -670,6 +852,25 @@ function Confirm-UserChoice {
             return (Confirm-UserChoice -Message $Message -Action $Action -DefaultAnswer $DefaultAnswer)
         }
     }
+}
+
+
+function Get-IdentityFileFromHostConfigEntry {
+    param([Parameter(Mandatory)][string]$RemoteHostName)
+
+    $sshConfig = Find-ConfigFileOnHost
+    if (-not $sshConfig) { return $null }
+
+    $config = Get-Content -Path $sshConfig -Raw -Encoding UTF8
+    $pattern = "(?ms)^Host\s+$RemoteHostName\b.*?(?=^Host\s|\z)"
+    $match = [regex]::Match($config, $pattern)
+    if (-not $match.Success) { return $null }
+
+    if ($match.Value -match '(?m)^\s*IdentityFile\s+(.+)$') {
+        return $matches[1].Trim().Replace("`$HOME", $env:USERPROFILE)
+    }
+
+    return $null
 }
 #endregion
 
