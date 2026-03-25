@@ -68,42 +68,39 @@ function Show-MainMenu {
     $running = $true
 
     while ($running) {
-        # Move cursor to top-left and overwrite in-place (no flicker)
-        [Console]::Write("`e[H")
-        Write-Host ""
-        Write-Host "  =====================================================" -ForegroundColor Cyan
-        Write-Host "                   🌊 HDD SSH Keys                    " -ForegroundColor Cyan
-        Write-Host "  =====================================================" -ForegroundColor Cyan
+        # Build the entire frame as one string, then emit it in a single write.
+        # This renders atomically — no partial-frame flicker.
+        $frame  = "`e[H"   # cursor to top-left
+        $frame += "`n"
+        $frame += "`e[96m  =====================================================`e[0m`n"
+        $frame += "`e[96m                   🌊 HDD SSH Keys                    `e[0m`n"
+        $frame += "`e[96m  =====================================================`e[0m`n"
 
         $navIdx = 0
         foreach ($entry in $menuDef) {
             if ($entry.Type -eq "header") {
-                Write-Host ""
-                Write-Host "  `e[1m$($entry.Label)`e[0m"
-                Write-Host "  ------"
+                $frame += "`n"
+                $frame += "  `e[1m$($entry.Label)`e[0m`n"
+                $frame += "  ------`n"
             } elseif ($entry.Type -eq "item") {
                 if ($navIdx -eq $sel) {
-                    Write-Host "  `e[1;36m▶ $($entry.Label)`e[0m"
+                    $frame += "  `e[1;36m▶ $($entry.Label)`e[0m`n"
                 } else {
-                    Write-Host "    $($entry.Label)" -ForegroundColor Gray
+                    $frame += "`e[37m    $($entry.Label)`e[0m`n"
                 }
                 $navIdx++
             }
         }
 
-        Write-Host ""
-        Write-Host "  ─────────────────────────────────────────────────────" -ForegroundColor DarkGray
-        Write-Host "  ↑↓ navigate   Enter select   Q quit" -ForegroundColor DarkGray
-        # Clear anything below the menu from a previous render
-        [Console]::Write("`e[J")
+        $frame += "`n"
+        $frame += "`e[90m  ─────────────────────────────────────────────────────`e[0m`n"
+        $frame += "`e[90m  ↑↓ navigate   Enter select   Q quit`e[0m"
+        $frame += "`e[J"   # clear any leftover lines below the menu
 
-        # Hide cursor while navigating
-        [Console]::Write("`e[?25l")
-        try {
-            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        } finally {
-            [Console]::Write("`e[?25h")
-        }
+        [Console]::Write("`e[?25l")  # hide cursor before render
+        [Console]::Write($frame)
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        [Console]::Write("`e[?25h")  # restore cursor
 
         switch ($key.VirtualKeyCode) {
             38 { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
