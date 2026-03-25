@@ -41,12 +41,6 @@ function Show-Paged {
 
 
 function Show-MainMenu {
-    # Switch to alternate screen buffer (like nano/vim/htop)
-    # On exit (normal or error), the original terminal content is restored.
-    [Console]::Write("`e[?1049h")
-
-    try {
-
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
         [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1" }
@@ -65,69 +59,98 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
     )
 
-    $navItems = @($menuDef | Where-Object { $_.Type -eq "item" })
-    $sel = 0
-    $running = $true
+    $navItems  = @($menuDef | Where-Object { $_.Type -eq "item" })
+    $sel       = 0
+    $prevSel   = -1
+    $itemRows  = @{}   # navIdx -> terminal row (1-indexed), populated on full render
+    $needFull  = $true # draw full frame on first paint and after returning from an operation
+    $running   = $true
 
-    while ($running) {
-        # Build the entire frame as one string, then emit it in a single write.
-        # This renders atomically — no partial-frame flicker.
-        $frame  = "`e[2J`e[H"   # clear screen + cursor to top-left
-        $frame += "`e[96m  =====================================================`e[0m`n"
-        $frame += "`e[96m                   🌊 HDD SSH Keys                    `e[0m`n"
-        $frame += "`e[96m  =====================================================`e[0m`n"
+    # Enter alternate screen and hide cursor for the lifetime of the menu.
+    [Console]::Write("`e[?1049h`e[?25l")
 
-        $navIdx = 0
-        foreach ($entry in $menuDef) {
-            if ($entry.Type -eq "header") {
-                $frame += "`n"
-                $frame += "  `e[1m$($entry.Label)`e[0m`n"
-                $frame += "  ------`n"
-            } elseif ($entry.Type -eq "item") {
-                if ($navIdx -eq $sel) {
-                    $frame += "  `e[1;36m▶ $($entry.Label)`e[0m`n"
-                } else {
-                    $frame += "`e[37m    $($entry.Label)`e[0m`n"
+    try {
+        while ($running) {
+
+            # ── Full render ────────────────────────────────────────────────
+            # Only runs on first paint or after an operation clears the screen.
+            # Builds the complete frame in one string and writes it atomically,
+            # while recording each nav-item's terminal row for differential updates.
+            if ($needFull) {
+                $f  = "`e[2J`e[H"   # clear alternate screen, cursor to (1,1)
+                $f += "`e[96m  =====================================================`e[0m`n"
+                $f += "`e[96m                   🌊 HDD SSH Keys                    `e[0m`n"
+                $f += "`e[96m  =====================================================`e[0m`n"
+
+                $row    = 4   # rows 1-3 consumed by the header above
+                $nIdx   = 0
+                $itemRows = @{}
+
+                foreach ($entry in $menuDef) {
+                    if ($entry.Type -eq "header") {
+                        $f   += "`n  `e[1m$($entry.Label)`e[0m`n  ------`n"
+                        $row += 3
+                    } else {
+                        $itemRows[$nIdx] = $row
+                        if ($nIdx -eq $sel) {
+                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K`n"
+                        } else {
+                            $f += "`e[37m    $($entry.Label)`e[0m`e[K`n"
+                        }
+                        $nIdx++
+                        $row++
+                    }
                 }
-                $navIdx++
+
+                $f += "`n`e[90m  ─────────────────────────────────────────────────────`e[0m`n"
+                $f += "`e[90m  ↑↓ navigate   Enter select   Q quit`e[0m`e[J"
+
+                [Console]::Write($f)
+                $prevSel  = $sel
+                $needFull = $false
+            }
+
+            # ── Differential update ────────────────────────────────────────
+            # On navigation, rewrite only the two rows that changed:
+            # the previously highlighted item and the newly highlighted item.
+            # Nothing else on screen is touched — zero flicker.
+            elseif ($prevSel -ne $sel) {
+                $r = $itemRows[$prevSel]
+                [Console]::Write("`e[${r};1H`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
+                $r = $itemRows[$sel]
+                [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
+                $prevSel = $sel
+            }
+
+            # ── Wait for input ─────────────────────────────────────────────
+            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+            switch ($key.VirtualKeyCode) {
+                38 { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
+                40 { $sel = ($sel + 1) % $navItems.Count }                     # Down
+                13 {                                                            # Enter
+                    $choice = $navItems[$sel].Choice
+                    if ($choice -eq 'q') {
+                        $running = $false
+                    } else {
+                        # Clear the alternate screen and restore cursor for the operation.
+                        [Console]::Write("`e[2J`e[H`e[?25h")
+                        Invoke-MenuChoice -Choice $choice
+                        Wait-UserAcknowledge
+                        # Hide cursor again and schedule a full menu redraw.
+                        [Console]::Write("`e[?25l")
+                        $needFull = $true
+                    }
+                }
+            }
+
+            if ($key.Character -eq 'q' -or $key.Character -eq 'Q') {
+                $running = $false
             }
         }
-
-        $frame += "`n"
-        $frame += "`e[90m  ─────────────────────────────────────────────────────`e[0m`n"
-        $frame += "`e[90m  ↑↓ navigate   Enter select   Q quit`e[0m"
-        $frame += "`e[J"   # clear any leftover lines below the menu
-
-        [Console]::Write("`e[?25l")  # hide cursor before render
-        [Console]::Write($frame)
-        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        [Console]::Write("`e[?25h")  # restore cursor
-
-        switch ($key.VirtualKeyCode) {
-            38 { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
-            40 { $sel = ($sel + 1) % $navItems.Count }                     # Down
-            13 {                                                            # Enter
-                $choice = $navItems[$sel].Choice
-                if ($choice -eq 'q') {
-                    $running = $false
-                } else {
-                    Clear-Host
-                    Invoke-MenuChoice -Choice $choice
-                    Wait-UserAcknowledge
-                }
-            }
-        }
-
-        # Also allow Q key to quit
-        if ($key.Character -eq 'q' -or $key.Character -eq 'Q') {
-            $running = $false
-        }
-    }
-
     } finally {
-        # Always restore the original terminal screen
-        [Console]::Write("`e[?25h")    # ensure cursor is visible
-        [Console]::Write("`e[?1049l")  # exit alternate screen buffer
+        # Always restore cursor and original terminal screen, even on error.
+        [Console]::Write("`e[?25h`e[?1049l")
     }
 }
 
