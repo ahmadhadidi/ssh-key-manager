@@ -50,6 +50,7 @@ function Show-MainMenu {
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
         [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1" }
+        [pscustomobject]@{ Type = "item";   Label = "Install SSH Key on A Remote Machine";            Choice = "15" }
         [pscustomobject]@{ Type = "item";   Label = "Test SSH Connection";                            Choice = "2" }
         [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3" }
         [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4" }
@@ -264,6 +265,14 @@ function Invoke-MenuChoice {
             Write-Host "  ✅ Defaults updated for this session." -ForegroundColor Green
             Write-Host "  ℹ  To persist: -DefaultUserName / -DefaultSubnetPrefix / -DefaultCommentSuffix" -ForegroundColor Yellow
         }
+        "15" {
+            $KeyName = Read-SSHKeyName
+            if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
+                Write-Host "❌ Key '$KeyName' not found locally. Use 'Generate & Install' to create it first." -ForegroundColor Red
+                return
+            }
+            Install-SSHKeyOnRemote -KeyName $KeyName
+        }
         "12" { Remove-HostFromSSHConfig }
         "13" { Show-SSHConfigFile }
         "14" { Edit-SSHConfigFile }
@@ -272,41 +281,27 @@ function Invoke-MenuChoice {
 
 
 #region Main Functions
-function Deploy-SSHKeyToRemote {
+function Install-SSHKeyOnRemote {
+    # Installs an already-existing local key onto a remote machine and registers
+    # the host in ~/.ssh/config. Called by both Deploy-SSHKeyToRemote (which may
+    # generate the key first) and directly from the "Install only" menu item.
     param (
         [string]$KeyName
     )
 
-    # Check if key exists
-    if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
-        Write-Host "`n🔑 Key does not exist. Generating..." -ForegroundColor Yellow
-        
-        $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
-
-        Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
-
-    } else {
-        Write-Host "`nℹ  Key already exists. Proceeding with installation...`n" -ForegroundColor Cyan
-    }
-
-    # Get the public key entered locally
-    # $PublicKeyPath = Get-PublicKeyInHost -KeyName $KeyName
     $PublicKey = Get-PublicKeyInHost -KeyName $KeyName
-    
-    # Prompt the user for the remote host and username
+    if (-not $PublicKey) { return }
+
     $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-    $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+    $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
     Write-Host "🔃 Connecting to $target..."
 
     try {
         $RemoteHostName = $PublicKey | ssh $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
-        # type "$PublicKeyPath" | ssh "$RemoteUser@$RemoteHost" "mkdir -p .ssh && cat >> .ssh/authorized_keys"
         Write-Host "✅ SSH Public Key installed successfully." -ForegroundColor Green
 
-        # Ask the user what to call this Host in the config, defaulting to the
-        # actual hostname reported by the remote machine.
         Write-Host "🏷  Remote hostname is: $RemoteHostName" -ForegroundColor DarkGray
         $hostAlias = Read-ColoredInput -Prompt "  Name this Host in ~/.ssh/config (default: $RemoteHostName):" -ForegroundColor "Cyan"
         if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostName }
@@ -316,6 +311,23 @@ function Deploy-SSHKeyToRemote {
     } catch {
         Write-Host "❌ Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
     }
+}
+
+
+function Deploy-SSHKeyToRemote {
+    param (
+        [string]$KeyName
+    )
+
+    if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
+        Write-Host "`n🔑 Key does not exist. Generating..." -ForegroundColor Yellow
+        $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
+        Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
+    } else {
+        Write-Host "`nℹ  Key already exists. Proceeding with installation...`n" -ForegroundColor Cyan
+    }
+
+    Install-SSHKeyOnRemote -KeyName $KeyName
 }
 
 function Test-SSHConnection {
