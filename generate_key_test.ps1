@@ -1,17 +1,19 @@
 param(
-  [string]$DefaultUserName = "default_non_root_username",
+  [string]$DefaultUserName     = "default_non_root_username",
   [string]$DefaultSubnetPrefix = "192.168.0",
-  [string]$DefaultCommentSuffix = "-[my-machine]"
+  [string]$DefaultCommentSuffix = "-[my-machine]",
+  [string]$DefaultPassword     = ""
 )
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Wait-UserAcknowledge {
-    # Pin the prompt to the last terminal row as a status-bar style message.
     $h = $Host.UI.RawUI.WindowSize.Height
-    [Console]::Write("`e[$h;1H`e[0m`e[7m  Press Enter to return to menu  `e[0m`e[K")
+    $w = $Host.UI.RawUI.WindowSize.Width
+    $msg = "  Press any key to return to menu  "
+    [Console]::Write("`e[$h;1H`e[7m$msg$(" " * [Math]::Max(0, $w - $msg.Length))`e[0m")
     try {
-        do { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } while ($k.VirtualKeyCode -ne 13)
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
     } catch {
         $null = Read-Host
     }
@@ -123,8 +125,9 @@ function Show-MainMenu {
                     }
                 }
 
-                # Status bar pinned to last row; ESC[K before ESC[0m fills full width.
-                $f += "`e[$termHeight;1H`e[7m  ↑↓ / Home / End  navigate     Enter  select     Q  quit  `e[K`e[0m"
+                # Status bar pinned to last row; padded to fill full width with reverse-video.
+                $statusBar = "  ↑↓ / Home / End  navigate     Enter  select     Q  quit  "
+                $f += "`e[$termHeight;1H`e[7m$statusBar$(" " * [Math]::Max(0, $termWidth - $statusBar.Length))`e[0m"
 
                 [Console]::Write($f)
                 $prevSel  = $sel
@@ -207,8 +210,8 @@ function Invoke-MenuChoice {
             Deploy-SSHKeyToRemote -KeyName $KeyName
         }
         "2" {
-            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
             $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
             Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
         }
         "3" {
@@ -257,24 +260,64 @@ function Invoke-MenuChoice {
             Write-Host "  4. CTs accessed over the WAN   → individual key (e.g. sonarr-wan)" -ForegroundColor Red
         }
         "11" {
-            Write-Host ""
-            Write-Host "  `e[1mGlobal Defaults`e[0m" -ForegroundColor Cyan
-            Write-Host "  ───────────────" -ForegroundColor DarkGray
-            Write-Host "  Leave blank to keep the current value." -ForegroundColor DarkGray
-            Write-Host ""
+            $fieldDefs = @(
+                @{ Name = "DefaultUserName";      Label = "Default Username      " }
+                @{ Name = "DefaultSubnetPrefix";  Label = "Default Subnet Prefix " }
+                @{ Name = "DefaultCommentSuffix"; Label = "Default Comment Suffix" }
+                @{ Name = "DefaultPassword";      Label = "Default Password      " }
+            )
+            $confSel = 0
+            $confRun = $true
+            [Console]::Write("`e[?25l")
 
-            $newUser = Read-ColoredInput -Prompt "  DefaultUserName     [$DefaultUserName]:" -ForegroundColor "Cyan"
-            if (![string]::IsNullOrWhiteSpace($newUser)) { $script:DefaultUserName = $newUser }
+            while ($confRun) {
+                $tw = $Host.UI.RawUI.WindowSize.Width
+                $th = $Host.UI.RawUI.WindowSize.Height
+                $rule  = "─" * [Math]::Max(0, $tw - 4)
+                $title = "Conf: Global Defaults"
+                $tpad  = " " * [Math]::Max(0, [int](($tw - 4 - $title.Length) / 2))
+                $cf  = "`e[2J`e[H"
+                $cf += "`e[2;1H  `e[96m$rule`e[0m`e[K"
+                $cf += "`e[3;1H  `e[96m$tpad$title`e[0m`e[K"
+                $cf += "`e[4;1H  `e[96m$rule`e[0m`e[K"
+                for ($i = 0; $i -lt $fieldDefs.Count; $i++) {
+                    $val = (Get-Variable -Name $fieldDefs[$i].Name -Scope Script -ErrorAction SilentlyContinue).Value
+                    $disp = if ($fieldDefs[$i].Name -eq "DefaultPassword" -and $val) { "*" * $val.Length } else { $val }
+                    $row = 6 + $i
+                    $cf += "`e[$row;1H"
+                    if ($i -eq $confSel) {
+                        $cf += "  `e[1;36m▶ $($fieldDefs[$i].Label)  `e[0;36m$disp`e[0m`e[K"
+                    } else {
+                        $cf += "  `e[0;37m    $($fieldDefs[$i].Label)  `e[90m$disp`e[0m`e[K"
+                    }
+                }
+                $hint = "  ↑↓  navigate     Enter  edit     Q  back  "
+                $cf += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
+                [Console]::Write($cf)
 
-            $newPrefix = Read-ColoredInput -Prompt "  DefaultSubnetPrefix [$DefaultSubnetPrefix]:" -ForegroundColor "Cyan"
-            if (![string]::IsNullOrWhiteSpace($newPrefix)) { $script:DefaultSubnetPrefix = $newPrefix }
+                try { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
 
-            $newSuffix = Read-ColoredInput -Prompt "  DefaultCommentSuffix [$DefaultCommentSuffix]:" -ForegroundColor "Cyan"
-            if (![string]::IsNullOrWhiteSpace($newSuffix)) { $script:DefaultCommentSuffix = $newSuffix }
+                switch ($k.VirtualKeyCode) {
+                    38 { $confSel = ($confSel - 1 + $fieldDefs.Count) % $fieldDefs.Count }
+                    40 { $confSel = ($confSel + 1) % $fieldDefs.Count }
+                    13 {
+                        $row = 6 + $confSel
+                        [Console]::Write("`e[$row;1H`e[K  `e[1;33m▶ $($fieldDefs[$confSel].Label)  `e[0;33m")
+                        [Console]::Write("`e[?25h")
+                        $newVal = Read-Host
+                        [Console]::Write("`e[?25l")
+                        if (![string]::IsNullOrWhiteSpace($newVal)) {
+                            Set-Variable -Name $fieldDefs[$confSel].Name -Value $newVal -Scope Script
+                        }
+                    }
+                }
+                if ($k.Character -eq 'q' -or $k.Character -eq 'Q') { $confRun = $false }
+            }
 
+            [Console]::Write("`e[?25h")
             Write-Host ""
             Write-Host "  ✅ Defaults updated for this session." -ForegroundColor Green
-            Write-Host "  ℹ  To persist: -DefaultUserName / -DefaultSubnetPrefix / -DefaultCommentSuffix" -ForegroundColor Yellow
+            Write-Host "  ℹ  To persist: pass as script parameters (-DefaultUserName, etc.)" -ForegroundColor Yellow
         }
         "15" {
             $KeyName = Read-SSHKeyName
@@ -307,20 +350,25 @@ function Install-SSHKeyOnRemote {
     $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-    Write-Host "🔃 Connecting to $target..."
+    Write-Host "  🔃 Connecting to $target..."
 
     try {
-        $RemoteHostName = $PublicKey | ssh $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
-        Write-Host "✅ SSH Public Key installed successfully." -ForegroundColor Green
+        if (![string]::IsNullOrEmpty($DefaultPassword) -and (Get-Command sshpass -ErrorAction SilentlyContinue)) {
+            Write-Host "  ℹ  Using sshpass with stored password." -ForegroundColor DarkGray
+            $RemoteHostName = $PublicKey | sshpass -p $DefaultPassword ssh -o StrictHostKeyChecking=accept-new $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
+        } else {
+            $RemoteHostName = $PublicKey | ssh $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
+        }
+        Write-Host "  ✅ SSH Public Key installed successfully." -ForegroundColor Green
 
-        Write-Host "🏷  Remote hostname is: $RemoteHostName" -ForegroundColor DarkGray
+        Write-Host "  🏷  Remote hostname is: $RemoteHostName" -ForegroundColor DarkGray
         $hostAlias = Read-ColoredInput -Prompt "  Name this Host in ~/.ssh/config (default: $RemoteHostName):" -ForegroundColor "Cyan"
         if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostName }
 
-        Write-Host "Registering key to SSH config as '$hostAlias'..."
+        Write-Host "  Registering key to SSH config as '$hostAlias'..."
         Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
     } catch {
-        Write-Host "❌ Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
+        Write-Host "  ❌ Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
     }
 }
 
@@ -667,7 +715,7 @@ function Show-SSHKeyInventory {
         return
     }
 
-    $tableLines = ($rows | Format-Table -AutoSize | Out-String) -split "`r?`n"
+    $tableLines = ($rows | Format-Table -AutoSize | Out-String) -split "`r?`n" | ForEach-Object { "  $_" }
     Show-Paged -Lines $tableLines
 }
 #endregion
@@ -681,7 +729,7 @@ function Add-SSHKeyInHost {
     )
 
     # Avoid scoping problems
-    $Password = Read-ColoredInput -Prompt "Enter the passphrase (leave empty for a passwordless key)" -ForegroundColor "Cyan"
+    $Password = Read-ColoredInput -Prompt "  Enter the passphrase (leave empty for a passwordless key)" -ForegroundColor "Cyan"
 
     Write-Host "`n ---> KeyName is: >$KeyName< | Comment is: >$Comment< | Password is: >$Password<`n" -ForegroundColor "Yellow"
     Write-Host "Generating SSH key...`n" -ForegroundColor "Yellow"
@@ -847,7 +895,7 @@ function Read-RemoteUser {
         [string]$DefaultUser = "$DefaultUserName"
     )
 
-    $RemoteUser = Read-ColoredInput -Prompt "Enter remote username (default: $DefaultUser)" -ForegroundColor "Cyan"
+    $RemoteUser = Read-ColoredInput -Prompt "  Enter remote username (default: $DefaultUser)" -ForegroundColor "Cyan"
     return (Resolve-NullToDefault -DefaultValue $DefaultUser -Value $RemoteUser)
 }
 
@@ -857,7 +905,7 @@ function Read-RemoteHostName {
         [string]$SubnetPrefix = "$DefaultSubnetPrefix"
     )
 
-    $RemoteHost = Read-ColoredInput -Prompt "Enter the Hostname | Full IP address | Last 2–3 digits for $SubnetPrefix.xx of the remote machine: " -ForegroundColor "Cyan"
+    $RemoteHost = Read-ColoredInput -Prompt "  Enter the Hostname | Full IP address | Last 2–3 digits for $SubnetPrefix.xx of the remote machine:" -ForegroundColor "Cyan"
 
     if ($RemoteHost -match '^\d{1,3}$') {
         # Input is a short numeric suffix like "123"
@@ -888,7 +936,7 @@ function Read-RemoteHostAddress {
         [string]$SubnetPrefix = "$DefaultSubnetPrefix"
     )
 
-    $RemoteHost = Read-ColoredInput -Prompt "Enter remote IP (or last 2–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
+    $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP (or last 2–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
 
     if ($RemoteHost -match "^\d{2,3}$") {
         return "$SubnetPrefix.$RemoteHost"
@@ -900,7 +948,7 @@ function Read-RemoteHostAddress {
 
 
 function Read-SSHKeyName {
-    $KeyName = Read-ColoredInput -Prompt "Enter the SSH key name" -ForegroundColor "Cyan"
+    $KeyName = Read-ColoredInput -Prompt "  Enter the SSH key name" -ForegroundColor "Cyan"
     $KeyName = Resolve-NullToAction -Action { Read-SSHKeyName } -RequiredValue $KeyName -RequiredValueLabel "Key Name"
 
     return $KeyName
@@ -912,7 +960,7 @@ function Read-SSHKeyComment {
         [string]$DefaultComment
     )
 
-    $Comment = Read-ColoredInput -Prompt "Enter the key comment (default: $DefaultComment)" -ForegroundColor "Cyan"
+    $Comment = Read-ColoredInput -Prompt "  Enter the key comment (default: $DefaultComment)" -ForegroundColor "Cyan"
     return (Resolve-NullToDefault -DefaultValue $DefaultComment -Value $Comment)
 }
 
@@ -1244,7 +1292,7 @@ function Resolve-SSHTarget {
 
 
 function Remove-HostFromSSHConfig {
-    $hostName = Read-ColoredInput -Prompt "Enter the Host alias to remove" -ForegroundColor "Cyan"
+    $hostName = Read-ColoredInput -Prompt "  Enter the Host alias to remove" -ForegroundColor "Cyan"
     if ([string]::IsNullOrWhiteSpace($hostName)) {
         Write-Host "❗ Host alias is required." -ForegroundColor Red
         return
@@ -1283,32 +1331,62 @@ function Remove-HostFromSSHConfig {
 function Show-SSHConfigFile {
     $configPath = "$env:USERPROFILE\.ssh\config"
     if (-not (Test-Path $configPath)) {
-        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        Write-Host "  ❌ SSH config not found at $configPath" -ForegroundColor Red
         return
     }
 
+    $lines = Get-Content $configPath
+    $out   = @()
+
+    foreach ($line in $lines) {
+        if ($line -match '^\s*$') {
+            $out += ""
+        } elseif ($line -match '^\s*#') {
+            $out += "`e[90m  $line`e[0m"
+        } elseif ($line -match '^(Host)\s+(.+)$') {
+            $out += ""
+            $out += "  `e[1;96mHost`e[0m `e[97m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(IdentityFile)\s+(.+)$') {
+            $out += "    `e[93m$($Matches[1])`e[0m `e[32m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(HostName|User|Port|ForwardAgent|ServerAliveInterval|ServerAliveCountMax|IdentitiesOnly|AddKeysToAgent)\s+(.+)$') {
+            $out += "    `e[93m$($Matches[1])`e[0m `e[37m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(\w+)\s+(.+)$') {
+            $out += "    `e[33m$($Matches[1])`e[0m `e[37m$($Matches[2])`e[0m"
+        } else {
+            $out += "  `e[37m$line`e[0m"
+        }
+    }
+
     Write-Host ""
-    Write-Host "  $configPath" -ForegroundColor DarkGray
-    Write-Host "  $('─' * $configPath.Length)" -ForegroundColor DarkGray
-    Write-Host ""
-    Show-Paged -Lines (Get-Content $configPath)
+    Write-Host "  `e[90m$configPath`e[0m"
+    Write-Host "  `e[90m$('─' * $configPath.Length)`e[0m"
+    $out | ForEach-Object { [Console]::WriteLine($_) }
 }
 
 
 function Edit-SSHConfigFile {
     $configPath = "$env:USERPROFILE\.ssh\config"
     if (-not (Test-Path $configPath)) {
-        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        Write-Host "  ❌ SSH config not found at $configPath" -ForegroundColor Red
         return
     }
 
-    $editor = if ($env:EDITOR) { $env:EDITOR } else { "notepad.exe" }
-    Write-Host "  Opening in $editor — return here when done." -ForegroundColor DarkGray
+    $editor = $null
+    if ($env:EDITOR -and (Get-Command $env:EDITOR -ErrorAction SilentlyContinue)) {
+        $editor = $env:EDITOR
+    } else {
+        foreach ($e in @("code", "nvim", "vim", "nano", "notepad.exe")) {
+            if (Get-Command $e -ErrorAction SilentlyContinue) { $editor = $e; break }
+        }
+    }
+    if (-not $editor) { $editor = "notepad.exe" }
+
+    Write-Host "  Opening in $editor..." -ForegroundColor DarkGray
     try {
         & $editor $configPath
-        Write-Host "✅ Done." -ForegroundColor Green
+        Write-Host "  ✅ Done." -ForegroundColor Green
     } catch {
-        Write-Host "❌ Could not open editor '$editor': $_" -ForegroundColor Red
+        Write-Host "  ❌ Could not open editor '$editor': $_" -ForegroundColor Red
     }
 }
 
