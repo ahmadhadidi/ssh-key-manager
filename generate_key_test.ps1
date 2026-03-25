@@ -89,14 +89,16 @@ function Show-MainMenu {
                 $termWidth  = $Host.UI.RawUI.WindowSize.Width
                 $termHeight = $Host.UI.RawUI.WindowSize.Height
 
-                $menuRule    = "─" * [Math]::Max(0, $termWidth - 4)
-                $menuTitle   = "🌊  HDD SSH Keys"
+                $menuRule     = "─" * [Math]::Max(0, $termWidth - 4)
+                $menuTitle    = "🌊  HDD SSH Keys"
                 $menuTitlePad = " " * [Math]::Max(0, [int](($termWidth - 4 - ($menuTitle.Length + 1)) / 2))
 
-                $f  = "`e[2J`e[H`n"
-                $f += "  `e[96m$menuRule`e[0m`n"
-                $f += "  `e[96m$menuTitlePad$menuTitle`e[0m`n"
-                $f += "  `e[96m$menuRule`e[0m`n"
+                # Every line is placed with an explicit ESC[row;1H so that $itemRows
+                # is guaranteed to match screen positions regardless of any line wrapping.
+                $f  = "`e[2J`e[H"
+                $f += "`e[2;1H  `e[96m$menuRule`e[0m`e[K"
+                $f += "`e[3;1H  `e[96m$menuTitlePad$menuTitle`e[0m`e[K"
+                $f += "`e[4;1H  `e[96m$menuRule`e[0m`e[K"
 
                 $row  = 5
                 $nIdx = 0
@@ -104,14 +106,17 @@ function Show-MainMenu {
 
                 foreach ($entry in $menuDef) {
                     if ($entry.Type -eq "header") {
-                        $f   += "`n  `e[90m  ▸ `e[1m$($entry.Label)`e[0m`n"
-                        $row += 2
+                        # Row $row is the blank spacer — leave it empty, just advance.
+                        $row++
+                        $f += "`e[$row;1H  `e[90m  ▸ `e[1m$($entry.Label)`e[0m`e[K"
+                        $row++
                     } else {
                         $itemRows[$nIdx] = $row
+                        $f += "`e[$row;1H"
                         if ($nIdx -eq $sel) {
-                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K`n"
+                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K"
                         } else {
-                            $f += "`e[0m`e[37m    $($entry.Label)`e[0m`e[K`n"
+                            $f += "`e[0m`e[37m    $($entry.Label)`e[0m`e[K"
                         }
                         $nIdx++
                         $row++
