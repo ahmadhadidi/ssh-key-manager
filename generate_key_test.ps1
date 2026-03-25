@@ -58,6 +58,21 @@ function Get-AvailableSSHKeys {
 }
 
 
+function Get-HostsUsingKey {
+    # Returns configured SSH hosts whose config block references $KeyName as an IdentityFile.
+    param([string]$KeyName)
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) { return @() }
+    $config  = Get-Content $configPath -Raw -Encoding UTF8
+    $escaped = [regex]::Escape($KeyName)
+    return @(Get-ConfiguredSSHHosts | Where-Object {
+        $hostEsc = [regex]::Escape($_.Alias)
+        $block   = [regex]::Match($config, "(?ms)^Host\s+$hostEsc\b.*?(?=^Host\s|\z)").Value
+        $block -match "(?m)^\s*IdentityFile\s+.*[\\/]$escaped\s*$"
+    })
+}
+
+
 function Get-ConfiguredSSHHosts {
     $configPath = "$env:USERPROFILE\.ssh\config"
     if (-not (Test-Path $configPath)) { return @() }
@@ -118,7 +133,7 @@ function Select-FromList {
         }
         $up   = if ($viewOff -gt 0)                           { "▲ " } else { "  " }
         $dn   = if ($viewOff + $maxVis -lt $filtered.Count)   { "▼ " } else { "  " }
-        $hint = "  ↑↓  navigate     Enter  select / confirm     Esc  cancel    $up$dn"
+        $hint = "  ↑↓  navigate     Enter  select     type  filter / new name     Esc  cancel    $up$dn"
         $f   += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
         [Console]::Write($f)
 
@@ -249,9 +264,11 @@ function Show-MainMenu {
                 }
                 $viewOff = [Math]::Max(0, $viewOff)
 
+                $titleContent = "  " + $menuTitlePad + $menuTitle
+                $titleFill    = " " * [Math]::Max(0, $termWidth - $titleContent.Length)
                 $f  = "`e[2J`e[H"
                 $f += "`e[2;1H  `e[96m$menuRule`e[0m`e[K"
-                $f += "`e[3;1H`e[48;5;23m`e[K`e[3;1H  `e[48;5;23m`e[1;97m$menuTitlePad$menuTitle`e[0m`e[48;5;23m`e[K`e[0m"
+                $f += "`e[3;1H`e[48;5;23m`e[1;97m$titleContent$titleFill`e[0m"
                 $f += "`e[4;1H  `e[96m$menuRule`e[0m`e[K"
 
                 $itemRows = @{}
@@ -339,12 +356,14 @@ function Show-MainMenu {
                     if ($choice -eq 'q') {
                         $running = $false
                     } else {
-                        $opLabel = $navItems[$sel].Label
-                        $rule    = "─" * [Math]::Max(0, $termWidth - 4)
-                        $opPad   = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
+                        $opLabel   = $navItems[$sel].Label
+                        $rule      = "─" * [Math]::Max(0, $termWidth - 4)
+                        $opPad     = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
+                        $opTitle   = "  " + $opPad + $opLabel
+                        $opFill    = " " * [Math]::Max(0, $termWidth - $opTitle.Length)
                         $f  = "`e[2J`e[H`e[?25h`n"
                         $f += "  `e[96m$rule`e[0m`n"
-                        $f += "  `e[96m$opPad$opLabel`e[0m`n"
+                        $f += "`e[48;5;23m`e[1;97m$opTitle$opFill`e[0m`n"
                         $f += "  `e[96m$rule`e[0m`n`n"
                         [Console]::Write($f)
                         $skipWait = Invoke-MenuChoice -Choice $choice
@@ -404,16 +423,61 @@ function Invoke-MenuChoice {
             Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
         }
         "8" {
-            Write-Host "❌  Not yet implemented!" -ForegroundColor Yellow
             $KeyName = Read-SSHKeyName
-            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+            if (-not $KeyName) { return }
+
+            # Find hosts in SSH config that reference this key
+            $keyHosts = Get-HostsUsingKey -KeyName $KeyName
+
+            if ($keyHosts.Count -gt 0) {
+                # Build selector list: ALL option + individual hosts
+                $allLabel = "── ALL  ($($keyHosts.Count) host$(if ($keyHosts.Count -ne 1){'s'}))"
+                $hostLabels = @($allLabel) + @($keyHosts | ForEach-Object {
+                    if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
+                })
+                $selectedHost = Select-FromList -Items $hostLabels -Prompt "Remove key from remote host(s)  (Esc = skip)"
+
+                $targetsToRemove = if ($selectedHost -and $selectedHost.StartsWith("──")) {
+                    $keyHosts
+                } elseif ($selectedHost) {
+                    $alias = ($selectedHost -split '\s+\(')[0].Trim()
+                    @($keyHosts | Where-Object { $_.Alias -eq $alias })
+                } else { @() }
+
+                foreach ($h in $targetsToRemove) {
+                    $rUser = if ($h.User) { $h.User } else { $DefaultUserName }
+                    $rHost = if ($h.HostName) { $h.HostName } else { $h.Alias }
+                    Write-Host "  🔒 Removing key from $($h.Alias)…" -ForegroundColor DarkGray
+                    Remove-SSHKeyFromRemote -RemoteUser $rUser -RemoteHost $rHost -KeyName $KeyName
+                }
+            } else {
+                Write-Host "  ℹ  No configured hosts reference this key." -ForegroundColor DarkGray
+            }
+
+            # Delete local key files
+            $privPath = "$env:USERPROFILE\.ssh\$KeyName"
+            $pubPath  = "$privPath.pub"
+            $deleted  = @()
+            if (Test-Path $privPath) { Remove-Item $privPath -Force; $deleted += $privPath }
+            if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; $deleted += $pubPath  }
+            if ($deleted.Count -gt 0) {
+                $deleted | ForEach-Object { Write-Host "  🗑  Deleted: $_" -ForegroundColor Green }
+                Write-Host "  ✅ Key '$KeyName' removed locally." -ForegroundColor Green
+            } else {
+                Write-Host "  ⚠  No local key files found for '$KeyName'." -ForegroundColor Yellow
+            }
         }
         "9" {
             $KeyName = Read-SSHKeyName
-            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
-            Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $RemoteHostName
+            if (-not $KeyName) { return }
+            $keyHosts = Get-HostsUsingKey -KeyName $KeyName
+            $hostName = $null
+            if ($keyHosts.Count -gt 0) {
+                $labels   = @($keyHosts | ForEach-Object { $_.Alias })
+                $hostName = Select-FromList -Items $labels -Prompt "Select host to remove key from"
+            }
+            if (-not $hostName) { $hostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix" }
+            if ($hostName) { Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $hostName }
         }
         "10" {
             Write-Host ""
@@ -1088,7 +1152,7 @@ function Read-RemoteHostName {
     $hosts = Get-ConfiguredSSHHosts
     if ($hosts.Count -gt 0) {
         $labels   = @($hosts | ForEach-Object { $_.Alias })
-        $selected = Select-FromList -Items $labels -Prompt "Select host alias  (Esc → type manually)"
+        $selected = Select-FromList -Items $labels -Prompt "Select host alias"
         if ($selected) { return $selected }
     }
 
@@ -1111,7 +1175,7 @@ function Read-RemoteHostAddress {
         $labels   = @($hosts | ForEach-Object {
             if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
         })
-        $selected = Select-FromList -Items $labels -Prompt "Select remote host  (Esc → enter IP / hostname manually)"
+        $selected = Select-FromList -Items $labels -Prompt "Select remote host"
         if ($selected) {
             $alias = ($selected -split '\s+\(')[0].Trim()
             $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
@@ -1131,7 +1195,7 @@ function Read-RemoteHostAddress {
 function Read-SSHKeyName {
     $keys = Get-AvailableSSHKeys
     if ($keys.Count -gt 0) {
-        $selected = Select-FromList -Items $keys -Prompt "Select SSH key  (Esc → type manually)"
+        $selected = Select-FromList -Items $keys -Prompt "Select SSH key"
         if ($selected) { return $selected }
     }
     $KeyName = Read-ColoredInput -Prompt "  Enter SSH key name" -ForegroundColor "Cyan"
@@ -1508,7 +1572,7 @@ function Remove-HostFromSSHConfig {
     $hostName = $null
     if ($hosts.Count -gt 0) {
         $labels   = @($hosts | ForEach-Object { $_.Alias })
-        $hostName = Select-FromList -Items $labels -Prompt "Select host to remove  (Esc → type manually)"
+        $hostName = Select-FromList -Items $labels -Prompt "Select host to remove"
     }
     if (-not $hostName) {
         $hostName = Read-ColoredInput -Prompt "  Enter the Host alias to remove" -ForegroundColor "Cyan"
