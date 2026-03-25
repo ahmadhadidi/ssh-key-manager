@@ -89,10 +89,14 @@ function Show-MainMenu {
                 $termWidth  = $Host.UI.RawUI.WindowSize.Width
                 $termHeight = $Host.UI.RawUI.WindowSize.Height
 
+                $menuRule    = "─" * [Math]::Max(0, $termWidth - 4)
+                $menuTitle   = "🌊  HDD SSH Keys"
+                $menuTitlePad = " " * [Math]::Max(0, [int](($termWidth - 4 - ($menuTitle.Length + 1)) / 2))
+
                 $f  = "`e[2J`e[H`n"
-                $f += "  `e[96m=====================================================`e[0m`n"
-                $f += "  `e[96m             🌊  HDD SSH Keys                       `e[0m`n"
-                $f += "  `e[96m=====================================================`e[0m`n"
+                $f += "  `e[96m$menuRule`e[0m`n"
+                $f += "  `e[96m$menuTitlePad$menuTitle`e[0m`n"
+                $f += "  `e[96m$menuRule`e[0m`n"
 
                 $row  = 5
                 $nIdx = 0
@@ -162,11 +166,12 @@ function Show-MainMenu {
                     if ($choice -eq 'q') {
                         $running = $false
                     } else {
-                        $opLabel = $navItems[$sel].Label
-                        $rule    = "─" * [Math]::Max(0, $termWidth - 4)
+                        $opLabel   = $navItems[$sel].Label
+                        $rule      = "─" * [Math]::Max(0, $termWidth - 4)
+                        $opPad     = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
                         $f  = "`e[2J`e[H`e[?25h`n"
                         $f += "  `e[96m$rule`e[0m`n"
-                        $f += "  `e[1;97m$opLabel`e[0m`n"
+                        $f += "  `e[96m$opPad$opLabel`e[0m`n"
                         $f += "  `e[96m$rule`e[0m`n`n"
                         [Console]::Write($f)
                         Invoke-MenuChoice -Choice $choice
