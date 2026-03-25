@@ -68,7 +68,8 @@ function Show-MainMenu {
     $running = $true
 
     while ($running) {
-        Clear-Host
+        # Move cursor to top-left and overwrite in-place (no flicker)
+        [Console]::Write("`e[H")
         Write-Host ""
         Write-Host "  =====================================================" -ForegroundColor Cyan
         Write-Host "                   🌊 HDD SSH Keys                    " -ForegroundColor Cyan
@@ -93,6 +94,8 @@ function Show-MainMenu {
         Write-Host ""
         Write-Host "  ─────────────────────────────────────────────────────" -ForegroundColor DarkGray
         Write-Host "  ↑↓ navigate   Enter select   Q quit" -ForegroundColor DarkGray
+        # Clear anything below the menu from a previous render
+        [Console]::Write("`e[J")
 
         # Hide cursor while navigating
         [Console]::Write("`e[?25l")
