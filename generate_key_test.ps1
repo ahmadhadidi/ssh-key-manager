@@ -76,6 +76,7 @@ function Get-ConfiguredSSHHosts {
 
 
 function Select-FromList {
+    # Combo-box: ↑↓ navigates list, typing filters/creates new entry, Enter selects, Esc cancels.
     param(
         [string[]]$Items,
         [string]$Prompt = "Select"
@@ -84,52 +85,76 @@ function Select-FromList {
 
     $tw  = $Host.UI.RawUI.WindowSize.Width
     $th  = $Host.UI.RawUI.WindowSize.Height
-    try { $startRow = [Console]::CursorTop + 2 } catch { $startRow = 7 }
+    try { $startRow = [Console]::CursorTop + 3 } catch { $startRow = 8 }
     $maxVis  = [Math]::Max(1, $th - $startRow - 2)
-    $sel     = 0
+    $sel     = -1    # -1 = cursor in text input, >=0 = list item highlighted
     $viewOff = 0
+    $filter  = ""
+    $filtered = $Items
 
     [Console]::Write("`e[?25l")
 
     while ($true) {
-        if ($sel -lt $viewOff) { $viewOff = $sel }
-        elseif ($sel -ge $viewOff + $maxVis) { $viewOff = $sel - $maxVis + 1 }
+        # Re-filter list
+        $filtered = if ($filter) { @($Items | Where-Object { $_ -like "*$filter*" }) } else { $Items }
+        if ($sel -ge $filtered.Count) { $sel = $filtered.Count - 1 }
+        if ($sel -lt $viewOff -and $sel -ge 0) { $viewOff = $sel }
+        elseif ($sel -ge 0 -and $sel -ge $viewOff + $maxVis) { $viewOff = $sel - $maxVis + 1 }
+        if ($viewOff -lt 0) { $viewOff = 0 }
 
-        $promptRow = $startRow - 1
+        $promptRow = $startRow - 2
+        $inputRow  = $startRow - 1
+        $inputDisp = if ($filter) { "`e[37m$filter`e[90m▌`e[0m" } else { "`e[90m(type to filter or create new)`e[0m" }
         $f  = "`e[$promptRow;1H`e[K  `e[90m$Prompt`e[0m"
+        $f += "`e[$inputRow;1H`e[K  `e[36m›`e[0m $inputDisp"
         for ($i = 0; $i -lt $maxVis; $i++) {
             $idx = $viewOff + $i
             $r   = $startRow + $i
             $f  += "`e[$r;1H`e[K"
-            if ($idx -lt $Items.Count) {
-                if ($idx -eq $sel) { $f += "  `e[1;36m▶ $($Items[$idx])`e[0m" }
-                else               { $f += "  `e[37m  $($Items[$idx])`e[0m" }
+            if ($idx -lt $filtered.Count) {
+                if ($idx -eq $sel) { $f += "  `e[1;36m▶ $($filtered[$idx])`e[0m" }
+                else               { $f += "  `e[37m  $($filtered[$idx])`e[0m" }
             }
         }
-        $up   = if ($viewOff -gt 0)                      { "▲ " } else { "  " }
-        $dn   = if ($viewOff + $maxVis -lt $Items.Count) { "▼ " } else { "  " }
-        $hint = "  ↑↓  navigate     Enter  select     Esc  type manually    $up$dn"
+        $up   = if ($viewOff -gt 0)                           { "▲ " } else { "  " }
+        $dn   = if ($viewOff + $maxVis -lt $filtered.Count)   { "▼ " } else { "  " }
+        $hint = "  ↑↓  navigate     Enter  select / confirm     Esc  cancel    $up$dn"
         $f   += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
         [Console]::Write($f)
 
         try { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
+
+        $clr = ""; for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) { $clr += "`e[$ci;1H`e[K" }
+
         switch ($k.VirtualKeyCode) {
-            38 { if ($sel -gt 0) { $sel-- } }
-            40 { if ($sel -lt $Items.Count - 1) { $sel++ } }
-            13 {
-                $chosen = $Items[$sel]
-                $clr = ""; for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) { $clr += "`e[$ci;1H`e[K" }
-                [Console]::Write($clr)
-                [Console]::Write("`e[$promptRow;1H  `e[90m$Prompt`e[0m  `e[36m$chosen`e[0m`n`e[?25h")
+            38 {  # Up
+                if ($sel -gt 0) { $sel-- }
+                elseif ($sel -eq 0) { $sel = -1 }
+            }
+            40 {  # Down
+                if ($sel -eq -1 -and $filtered.Count -gt 0) { $sel = 0 }
+                elseif ($sel -lt $filtered.Count - 1) { $sel++ }
+            }
+            8 {  # Backspace
+                if ($filter.Length -gt 0) { $filter = $filter.Substring(0, $filter.Length - 1); $sel = -1 }
+            }
+            13 {  # Enter
+                $chosen = if ($sel -ge 0 -and $sel -lt $filtered.Count) { $filtered[$sel] }
+                          elseif ($filter) { $filter }
+                          else { $null }
+                [Console]::Write($clr + "`e[$th;1H`e[K")
+                if ($chosen) { [Console]::Write("`e[$promptRow;1H  `e[90m$Prompt`e[0m  `e[36m$chosen`e[0m`n`e[?25h") }
+                else         { [Console]::Write("`e[$promptRow;1H`e[?25h") }
                 return $chosen
             }
-            27 {
-                $clr = ""; for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) { $clr += "`e[$ci;1H`e[K" }
-                [Console]::Write($clr)
-                [Console]::Write("`e[$promptRow;1H`e[?25h")
+            27 {  # Esc
+                [Console]::Write($clr + "`e[$th;1H`e[K`e[$promptRow;1H`e[?25h")
                 return $null
             }
         }
+
+        # Printable character → append to filter
+        if ([int]$k.Character -ge 32) { $filter += $k.Character; $sel = -1 }
     }
 
     [Console]::Write("`e[?25h")
@@ -226,7 +251,7 @@ function Show-MainMenu {
 
                 $f  = "`e[2J`e[H"
                 $f += "`e[2;1H  `e[96m$menuRule`e[0m`e[K"
-                $f += "`e[3;1H  `e[96m$menuTitlePad$menuTitle`e[0m`e[K"
+                $f += "`e[3;1H`e[48;5;23m`e[K`e[3;1H  `e[48;5;23m`e[1;97m$menuTitlePad$menuTitle`e[0m`e[48;5;23m`e[K`e[0m"
                 $f += "`e[4;1H  `e[96m$menuRule`e[0m`e[K"
 
                 $itemRows = @{}
@@ -322,8 +347,8 @@ function Show-MainMenu {
                         $f += "  `e[96m$opPad$opLabel`e[0m`n"
                         $f += "  `e[96m$rule`e[0m`n`n"
                         [Console]::Write($f)
-                        Invoke-MenuChoice -Choice $choice
-                        Wait-UserAcknowledge
+                        $skipWait = Invoke-MenuChoice -Choice $choice
+                        if (-not $skipWait) { Wait-UserAcknowledge }
                         [Console]::Write("`e[?25l")
                         $needFull = $true
                     }
@@ -469,7 +494,7 @@ function Invoke-MenuChoice {
         }
         "12" { Remove-HostFromSSHConfig }
         "13" { Show-SSHConfigFile }
-        "14" { Edit-SSHConfigFile }
+        "14" { Edit-SSHConfigFile; return $true }  # returns directly to menu (no "press any key")
     }
 }
 
@@ -501,8 +526,8 @@ function Install-SSHKeyOnRemote {
         }
         Write-Host "  ✅ SSH Public Key installed successfully." -ForegroundColor Green
 
-        Write-Host "  🏷  Remote hostname is: $RemoteHostName" -ForegroundColor DarkGray
-        $hostAlias = Read-ColoredInput -Prompt "  Name this Host in ~/.ssh/config (default: $RemoteHostName):" -ForegroundColor "Cyan"
+        Write-Host "  🏷  Remote hostname: $RemoteHostName" -ForegroundColor DarkGray
+        $hostAlias = Read-HostWithDefault -Prompt "Name this Host in ~/.ssh/config:" -Default $RemoteHostName
         if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostName }
 
         Write-Host "  Registering key to SSH config as '$hostAlias'..."
@@ -855,7 +880,22 @@ function Show-SSHKeyInventory {
         return
     }
 
-    $tableLines = ($rows | Format-Table -AutoSize | Out-String) -split "`r?`n" | ForEach-Object { "  $_" }
+    # Build custom ANSI table
+    $wNum = ([string]$rows.Count).Length
+    $wKey = [Math]::Max(3, ($rows | ForEach-Object { $_.Key.Length } | Measure-Object -Maximum).Maximum)
+    $wUse = [Math]::Max(5, ($rows | ForEach-Object { $_.Usage.Length } | Measure-Object -Maximum).Maximum)
+
+    $tableLines = @()
+    $tableLines += "  `e[1;37m$("  ".PadLeft($wNum + 2))$("Key".PadRight($wKey))  Pub   Priv  Usage`e[0m"
+    $tableLines += "  `e[90m$("  ".PadLeft($wNum + 2))$("─" * $wKey)  ─────  ─────  $("─" * $wUse)`e[0m"
+
+    foreach ($r in $rows) {
+        $num  = [string]$r."#"
+        $pub  = if ($r.Public  -eq "✅") { "`e[32m  ✓`e[0m  " } else { "`e[31m  ✗`e[0m  " }
+        $priv = if ($r.Private -eq "✅") { "`e[32m  ✓`e[0m  " } else { "`e[31m  ✗`e[0m  " }
+        $tableLines += "  `e[90m$($num.PadLeft($wNum))`e[0m  `e[36m$($r.Key.PadRight($wKey))`e[0m  $pub  $priv  `e[37m$($r.Usage)`e[0m"
+    }
+
     Show-Paged -Lines $tableLines
 }
 #endregion
@@ -868,31 +908,31 @@ function Add-SSHKeyInHost {
         [string]$Comment
     )
 
-    # Avoid scoping problems
-    $Password = Read-ColoredInput -Prompt "  Enter the passphrase (leave empty for a passwordless key)" -ForegroundColor "Cyan"
+    # Collect passphrase with masked input
+    Write-Host -NoNewline "  `e[36mPassphrase`e[0m `e[90m(empty = passwordless)`e[0m  " -ForegroundColor Cyan
+    $securePass = Read-Host -AsSecureString
+    $Password   = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+                      [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePass))
 
-    Write-Host "`n ---> KeyName is: >$KeyName< | Comment is: >$Comment< | Password is: >$Password<`n" -ForegroundColor "Yellow"
-    Write-Host "Generating SSH key...`n" -ForegroundColor "Yellow"
+    # Themed summary — password shown as stars
+    $stars = if ($Password) { "*" * $Password.Length } else { "`e[90m(none)`e[0m" }
+    Write-Host ""
+    Write-Host "  `e[90m  key      `e[0m`e[36m$KeyName`e[0m"
+    Write-Host "  `e[90m  comment  `e[0m`e[36m$Comment`e[0m"
+    Write-Host "  `e[90m  password `e[0m`e[90m$stars`e[0m"
+    Write-Host ""
 
-    # Build the initial ssh-keygen command
+    # Clear any selector status bar remnant before ssh-keygen output scrolls
+    $th = $Host.UI.RawUI.WindowSize.Height
+    [Console]::Write("`e[$th;1H`e[K")
+
+    Write-Host "  `e[90mGenerating SSH key…`e[0m"
+
     $sshKeygenCmd = "ssh-keygen -t ed25519 -f `"$env:USERPROFILE\.ssh\$KeyName`" -C `"$Comment`""
-
-    # If the user enters a password, we append it using the -N argument.
-    if ($Password -ne "") {
-        $sshKeygenCmd += " -N `"$Password`""
-    }
-
-    # If the user wants a passwordless key, we enter the -N argument as empty
-    if ($Password -eq "") {
-        $sshKeygenCmd += " -N ''"
-    }
-
-    # DEBUG: Write-Host $sshKeygenCMD
-    
-    # Call the complete command
+    $sshKeygenCmd += if ($Password) { " -N `"$Password`"" } else { " -N ''" }
     Invoke-Expression $sshKeygenCmd
 
-    Write-Host "SSH key generated: $env:USERPROFILE\.ssh\$KeyName" -ForegroundColor "Green"
+    Write-Host "  `e[32m✓`e[0m  `e[36m$env:USERPROFILE\.ssh\$KeyName`e[0m  generated." -ForegroundColor Green
 }
 
 
@@ -1117,6 +1157,34 @@ function Read-ColoredInput {
 
     Write-Host -NoNewline "$Prompt " -ForegroundColor $ForegroundColor
     return Read-Host
+}
+
+
+function Read-HostWithDefault {
+    # Shows a prompt with the default value pre-filled and editable.
+    param(
+        [string]$Prompt,
+        [string]$Default = ""
+    )
+    Write-Host -NoNewline "  `e[36m$Prompt`e[0m  " -ForegroundColor Cyan
+    [Console]::Write($Default)
+    [Console]::Write("`e[?25h")
+    $buf = $Default
+    while ($true) {
+        $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        if ($k.VirtualKeyCode -eq 13) {        # Enter
+            [Console]::WriteLine()
+            return $buf
+        } elseif ($k.VirtualKeyCode -eq 8) {   # Backspace
+            if ($buf.Length -gt 0) {
+                $buf = $buf.Substring(0, $buf.Length - 1)
+                [Console]::Write("`b `b")
+            }
+        } elseif ([int]$k.Character -ge 32) {  # Printable
+            $buf += $k.Character
+            [Console]::Write([string]$k.Character)
+        }
+    }
 }
 #endregion
 
