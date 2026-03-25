@@ -1,10 +1,10 @@
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
 param(
   [string]$DefaultUserName = "default_non_root_username",
   [string]$DefaultSubnetPrefix = "192.168.0",
   [string]$DefaultCommentSuffix = "-[my-machine]"
 )
+
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Wait-UserAcknowledge {
     Write-Host "`nPress Enter to continue..." -ForegroundColor DarkGray
