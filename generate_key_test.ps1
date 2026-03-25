@@ -1,3 +1,5 @@
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
 param(
   [string]$DefaultUserName = "default_non_root_username",
   [string]$DefaultSubnetPrefix = "192.168.0",
