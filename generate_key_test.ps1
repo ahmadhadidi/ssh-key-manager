@@ -39,6 +39,12 @@ function Show-Paged {
 
 
 function Show-MainMenu {
+    # Switch to alternate screen buffer (like nano/vim/htop)
+    # On exit (normal or error), the original terminal content is restored.
+    [Console]::Write("`e[?1049h")
+
+    try {
+
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
         [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1" }
@@ -103,8 +109,6 @@ function Show-MainMenu {
                 $choice = $navItems[$sel].Choice
                 if ($choice -eq 'q') {
                     $running = $false
-                    Clear-Host
-                    Write-Host "🌊 Exiting..." -ForegroundColor Cyan
                 } else {
                     Clear-Host
                     Invoke-MenuChoice -Choice $choice
@@ -116,9 +120,13 @@ function Show-MainMenu {
         # Also allow Q key to quit
         if ($key.Character -eq 'q' -or $key.Character -eq 'Q') {
             $running = $false
-            Clear-Host
-            Write-Host "🌊 Exiting..." -ForegroundColor Cyan
         }
+    }
+
+    } finally {
+        # Always restore the original terminal screen
+        [Console]::Write("`e[?25h")    # ensure cursor is visible
+        [Console]::Write("`e[?1049l")  # exit alternate screen buffer
     }
 }
 
