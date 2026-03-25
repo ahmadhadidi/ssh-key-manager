@@ -39,144 +39,166 @@ function Show-Paged {
 
 
 function Show-MainMenu {
-    do {
+    $menuDef = @(
+        [pscustomobject]@{ Type = "header"; Label = "Remote" }
+        [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1" }
+        [pscustomobject]@{ Type = "item";   Label = "Test SSH Connection";                            Choice = "2" }
+        [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3" }
+        [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4" }
+        [pscustomobject]@{ Type = "header"; Label = "Local" }
+        [pscustomobject]@{ Type = "item";   Label = "Generate SSH Key (Without installation)";        Choice = "5" }
+        [pscustomobject]@{ Type = "item";   Label = "List SSH Keys";                                  Choice = "6" }
+        [pscustomobject]@{ Type = "item";   Label = "Append SSH Key to Hostname in Host Config";      Choice = "7" }
+        [pscustomobject]@{ Type = "item";   Label = "Delete an SSH Key Locally";                      Choice = "8" }
+        [pscustomobject]@{ Type = "item";   Label = "Remove an SSH Key From Config";                  Choice = "9" }
+        [pscustomobject]@{ Type = "header"; Label = "🌊" }
+        [pscustomobject]@{ Type = "item";   Label = "Help: Best Practices";                           Choice = "10" }
+        [pscustomobject]@{ Type = "item";   Label = "Conf: Global Defaults";                          Choice = "11" }
+        [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
+    )
+
+    $navItems = @($menuDef | Where-Object { $_.Type -eq "item" })
+    $sel = 0
+    $running = $true
+
+    while ($running) {
         Clear-Host
-        $RunAgain = $true
-        $choice = Read-Host @"
-`n
-=====================================================
-                 🌊 HDD SSH Keys
-=====================================================
+        Write-Host ""
+        Write-Host "  =====================================================" -ForegroundColor Cyan
+        Write-Host "                   🌊 HDD SSH Keys                    " -ForegroundColor Cyan
+        Write-Host "  =====================================================" -ForegroundColor Cyan
 
-`e[1m  Remote`e[0m
-  ------
-  1. Generate & Install SSH Key on A Remote Machine
-  2. Test SSH Connection
-  3. Delete SSH Key From A Remote Machine
-  4. Promote Key on A Remote Machine
-
-`e[1m  Local`e[0m
-  ------
-  5. Generate SSH Key (Without installation)
-  6. List SSH Keys
-  7. Append SSH Key to Hostname in Host Config
-  8. Delete an SSH Key Locally
-  9. Remove an SSH Key From Config
-
-`e[1m  🌊`e[0m
-  ------
-  10. Help: Best Practices
-  11. Conf: Global Defaults
-  Q. Exit
-
-Enter your choice (1–10)
-"@
-
-        switch ($choice) {
-            "1" { # Install SSH Key on A Remote Machine
-
-                Write-Host "`n"
-                $KeyName = Read-SSHKeyName
-
-                Deploy-SSHKeyToRemote -KeyName $KeyName
-            }
-            "2" { # Test SSH connection
-
-                $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-                $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-
-                Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
-            }
-            "3" { # Delete SSH Key From A Remote Machine
-
-                $KeyName = Read-SSHKeyName
-                $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-                $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-
-                Remove-SSHKeyFromRemote -RemoteUser $RemoteUser -RemoteHost $RemoteHost -KeyName $KeyName
-
-            }
-            "4" { # Promote Key
-                Deploy-PromotedKey
-            }
-            "5" { # Generate SSH key (Without installation)
-
-                $KeyName = Read-SSHKeyName
-                $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
-
-                Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
-
-            }
-            "6" { # List SSH Keys
-                Show-SSHKeyInventory
-            }
-            "7" { # Add SSH Key to Host Config
-
-                $KeyName = Read-SSHKeyName
-                
-                # 🚧 TODO:
-                # After taking the key we need to do the following:
-                # ask about the Host of the target machine (sonarr / radarr)
-                # If it exists, we just append the Identity file
-                # If it does not exist, we need to ask about the IP Address of the CT and the user and then we can add the identity file.
-                # Below is not correct
-
-                $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
-
-                Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-
-            }
-            "8" { # Delete an SSH Key Locally
-
-                Write-Host "❌  Not yet implemented!"
-                $KeyName = Read-SSHKeyName
-                $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-                $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-                $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
-
-            }
-            "9" { # Remove an SSH Key From Config
-
-                $KeyName = Read-SSHKeyName
-                $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
-                Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $RemoteHostName
-
-            }
-            "10" { # Help: Best practice
-
-                Write-Host "The general practice behind this utility is to do the following:" -ForegroundColor Cyan
-                Write-Host "1. CTs accessed through LAN that are being demo'ed shall have a common key -- e.g. demo-lan" -ForegroundColor Cyan
-                Write-Host "2. CTs accessed through LAN that are for development shall have a common key -- e.g. dev-lan" -ForegroundColor Cyan
-                Write-Host "3. CTs accessed through LAN that have been [promoted] and enacted into my stack shall have a common key -- e.g. prod-lan" -ForegroundColor Cyan
-                Write-Host "4. CTs accessed through the Interwebs (regardless of status) shall have their own individual key -- e.g. sonarr-wan" -ForegroundColor Red
-
-            }
-            "11" { # Conf: Global Defaults
-                Write-Host "`n`e[1mGlobal Defaults:`e[0m`n" -ForegroundColor Cyan
-                Write-Host "1. `e[1m`$DefaultUserName`e[0m=$DefaultUserName⏹" -ForegroundColor Cyan
-                Write-Host "2. `e[1m`$DefaultSubnetPrefix`e[0m=$DefaultSubnetPrefix⏹" -ForegroundColor Cyan
-                Write-Host "3. `e[1m`$DefaultCommentSuffix`e[0m=$DefaultCommentSuffix⏹" -ForegroundColor Cyan
-                Write-Host "`nℹ️  Variables can be changed by editing the variables when invoking the script" -ForegroundColor Yellow
-            }
-            "q" { # Exit
-
-                Write-Host "🌊 Exiting..." -ForegroundColor Cyan
-                $RunAgain = $false
-                break
-
-            }
-            Default {
-
-                Write-Host "Invalid option. Please choose a number between 1 and 9." -ForegroundColor Red
-
+        $navIdx = 0
+        foreach ($entry in $menuDef) {
+            if ($entry.Type -eq "header") {
+                Write-Host ""
+                Write-Host "  `e[1m$($entry.Label)`e[0m"
+                Write-Host "  ------"
+            } elseif ($entry.Type -eq "item") {
+                if ($navIdx -eq $sel) {
+                    Write-Host "  `e[1;36m▶ $($entry.Label)`e[0m"
+                } else {
+                    Write-Host "    $($entry.Label)" -ForegroundColor Gray
+                }
+                $navIdx++
             }
         }
 
-        if ($RunAgain) {
-            Wait-UserAcknowledge
+        Write-Host ""
+        Write-Host "  ─────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "  ↑↓ navigate   Enter select   Q quit" -ForegroundColor DarkGray
+
+        # Hide cursor while navigating
+        [Console]::Write("`e[?25l")
+        try {
+            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        } finally {
+            [Console]::Write("`e[?25h")
         }
 
-    } while ($RunAgain)
+        switch ($key.VirtualKeyCode) {
+            38 { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
+            40 { $sel = ($sel + 1) % $navItems.Count }                     # Down
+            13 {                                                            # Enter
+                $choice = $navItems[$sel].Choice
+                if ($choice -eq 'q') {
+                    $running = $false
+                    Clear-Host
+                    Write-Host "🌊 Exiting..." -ForegroundColor Cyan
+                } else {
+                    Clear-Host
+                    Invoke-MenuChoice -Choice $choice
+                    Wait-UserAcknowledge
+                }
+            }
+        }
+
+        # Also allow Q key to quit
+        if ($key.Character -eq 'q' -or $key.Character -eq 'Q') {
+            $running = $false
+            Clear-Host
+            Write-Host "🌊 Exiting..." -ForegroundColor Cyan
+        }
+    }
+}
+
+
+function Invoke-MenuChoice {
+    param([string]$Choice)
+
+    switch ($Choice) {
+        "1" {
+            Write-Host "`n"
+            $KeyName = Read-SSHKeyName
+            Deploy-SSHKeyToRemote -KeyName $KeyName
+        }
+        "2" {
+            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
+        }
+        "3" {
+            $KeyName = Read-SSHKeyName
+            $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            Remove-SSHKeyFromRemote -RemoteUser $RemoteUser -RemoteHost $RemoteHost -KeyName $KeyName
+        }
+        "4" {
+            Deploy-PromotedKey
+        }
+        "5" {
+            $KeyName = Read-SSHKeyName
+            $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
+            Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
+        }
+        "6" {
+            Show-SSHKeyInventory
+        }
+        "7" {
+            $KeyName = Read-SSHKeyName
+
+            # 🚧 TODO:
+            # After taking the key we need to do the following:
+            # ask about the Host of the target machine (sonarr / radarr)
+            # If it exists, we just append the Identity file
+            # If it does not exist, we need to ask about the IP Address of the CT and the user and then we can add the identity file.
+            # Below is not correct
+
+            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+            Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+        }
+        "8" {
+            Write-Host "❌  Not yet implemented!" -ForegroundColor Yellow
+            $KeyName = Read-SSHKeyName
+            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+        }
+        "9" {
+            $KeyName = Read-SSHKeyName
+            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+            Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $RemoteHostName
+        }
+        "10" {
+            Write-Host ""
+            Write-Host "  Best Practices" -ForegroundColor Cyan
+            Write-Host "  ──────────────" -ForegroundColor DarkGray
+            Write-Host "  1. CTs demo'd over LAN         → shared key (e.g. demo-lan)" -ForegroundColor Cyan
+            Write-Host "  2. CTs in development over LAN → shared key (e.g. dev-lan)" -ForegroundColor Cyan
+            Write-Host "  3. CTs promoted into the stack → shared key (e.g. prod-lan)" -ForegroundColor Cyan
+            Write-Host "  4. CTs accessed over the WAN   → individual key (e.g. sonarr-wan)" -ForegroundColor Red
+        }
+        "11" {
+            Write-Host ""
+            Write-Host "  `e[1mGlobal Defaults`e[0m" -ForegroundColor Cyan
+            Write-Host "  ───────────────" -ForegroundColor DarkGray
+            Write-Host "  `$DefaultUserName     = $DefaultUserName" -ForegroundColor Cyan
+            Write-Host "  `$DefaultSubnetPrefix = $DefaultSubnetPrefix" -ForegroundColor Cyan
+            Write-Host "  `$DefaultCommentSuffix = $DefaultCommentSuffix" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  ℹ️  Pass these as parameters when invoking the script to override." -ForegroundColor Yellow
+        }
+    }
 }
 
 
