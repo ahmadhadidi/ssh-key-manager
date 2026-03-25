@@ -72,8 +72,7 @@ function Show-MainMenu {
     while ($running) {
         # Build the entire frame as one string, then emit it in a single write.
         # This renders atomically — no partial-frame flicker.
-        $frame  = "`e[H"   # cursor to top-left
-        $frame += "`n"
+        $frame  = "`e[2J`e[H"   # clear screen + cursor to top-left
         $frame += "`e[96m  =====================================================`e[0m`n"
         $frame += "`e[96m                   🌊 HDD SSH Keys                    `e[0m`n"
         $frame += "`e[96m  =====================================================`e[0m`n"
