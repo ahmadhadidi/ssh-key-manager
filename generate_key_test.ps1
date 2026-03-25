@@ -305,11 +305,14 @@ function Deploy-SSHKeyToRemote {
         # type "$PublicKeyPath" | ssh "$RemoteUser@$RemoteHost" "mkdir -p .ssh && cat >> .ssh/authorized_keys"
         Write-Host "✅ SSH Public Key installed successfully." -ForegroundColor Green
 
-        # Register the key in the SSH config file
-        Write-Host "Registering Public key to config file..."
-        Write-Host "🏷  Hostname of the target machine is: $RemoteHostName"
-        # Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHost $RemoteHost -RemoteUser $RemoteUser
-        Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $RemoteHostName -RemoteUser $RemoteUser
+        # Ask the user what to call this Host in the config, defaulting to the
+        # actual hostname reported by the remote machine.
+        Write-Host "🏷  Remote hostname is: $RemoteHostName" -ForegroundColor DarkGray
+        $hostAlias = Read-ColoredInput -Prompt "  Name this Host in ~/.ssh/config (default: $RemoteHostName):" -ForegroundColor "Cyan"
+        if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostName }
+
+        Write-Host "Registering key to SSH config as '$hostAlias'..."
+        Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
     } catch {
         Write-Host "❌ Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
     }
