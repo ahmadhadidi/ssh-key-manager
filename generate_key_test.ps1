@@ -165,8 +165,9 @@ function Show-MainMenu {
                         $opLabel = $navItems[$sel].Label
                         $rule    = "─" * [Math]::Max(0, $termWidth - 4)
                         $f  = "`e[2J`e[H`e[?25h`n"
+                        $f += "  `e[96m$rule`e[0m`n"
                         $f += "  `e[1;97m$opLabel`e[0m`n"
-                        $f += "  `e[90m$rule`e[0m`n`n"
+                        $f += "  `e[96m$rule`e[0m`n`n"
                         [Console]::Write($f)
                         Invoke-MenuChoice -Choice $choice
                         Wait-UserAcknowledge
