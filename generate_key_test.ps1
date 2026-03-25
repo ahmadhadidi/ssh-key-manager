@@ -7,8 +7,14 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 function Wait-UserAcknowledge {
-    Write-Host "`nPress Enter to continue..." -ForegroundColor DarkGray
-    $null = Read-Host
+    # Pin the prompt to the last terminal row as a status-bar style message.
+    $h = $Host.UI.RawUI.WindowSize.Height
+    [Console]::Write("`e[$h;1H`e[0m`e[7m  Press Enter to return to menu  `e[0m`e[K")
+    try {
+        do { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } while ($k.VirtualKeyCode -ne 13)
+    } catch {
+        $null = Read-Host
+    }
 }
 
 
@@ -59,85 +65,108 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
     )
 
-    $navItems  = @($menuDef | Where-Object { $_.Type -eq "item" })
-    $sel       = 0
-    $prevSel   = -1
-    $itemRows  = @{}   # navIdx -> terminal row (1-indexed), populated on full render
-    $needFull  = $true # draw full frame on first paint and after returning from an operation
-    $running   = $true
+    # Menu content is 53 chars wide (the === border defines it).
+    $menuWidth  = 53
 
-    # Enter alternate screen and hide cursor for the lifetime of the menu.
-    [Console]::Write("`e[?1049h`e[?25l")
+    $navItems   = @($menuDef | Where-Object { $_.Type -eq "item" })
+    $sel        = 0
+    $prevSel    = -1
+    $itemRows   = @{}
+    $needFull   = $true
+    $running    = $true
+    $termWidth  = 0
+    $termHeight = 0
+    $leftPad    = ""   # recomputed on every full render based on terminal width
+
+    [Console]::Write("`e[?1049h`e[?25l")   # enter alternate screen, hide cursor
 
     try {
         while ($running) {
 
-            # ── Full render ────────────────────────────────────────────────
-            # Only runs on first paint or after an operation clears the screen.
-            # Builds the complete frame in one string and writes it atomically,
-            # while recording each nav-item's terminal row for differential updates.
-            if ($needFull) {
-                $f  = "`e[2J`e[H"   # clear alternate screen, cursor to (1,1)
-                $f += "`e[96m  =====================================================`e[0m`n"
-                $f += "`e[96m                   🌊 HDD SSH Keys                    `e[0m`n"
-                $f += "`e[96m  =====================================================`e[0m`n"
+            # ── Resize detection ───────────────────────────────────────────────────
+            # Check terminal dimensions each loop; any change schedules a full redraw.
+            $w = $Host.UI.RawUI.WindowSize.Width
+            $h = $Host.UI.RawUI.WindowSize.Height
+            if ($w -ne $termWidth -or $h -ne $termHeight) {
+                $termWidth  = $w
+                $termHeight = $h
+                $needFull   = $true
+            }
 
-                $row    = 4   # rows 1-3 consumed by the header above
-                $nIdx   = 0
+            # ── Full render ────────────────────────────────────────────────────────
+            # Runs on first paint, after a resize, and after returning from an
+            # operation. Builds the complete frame atomically in one Write call
+            # and records each nav-item's exact terminal row for differential updates.
+            if ($needFull) {
+                $leftPad = " " * [Math]::Max(0, [int](($termWidth - $menuWidth) / 2))
+
+                $f  = "`e[2J`e[H`n"
+                $f += "$leftPad`e[96m=====================================================`e[0m`n"
+                $f += "$leftPad`e[96m             🌊  HDD SSH Keys                       `e[0m`n"
+                $f += "$leftPad`e[96m=====================================================`e[0m`n"
+
+                $row  = 5   # rows 1-4: blank line, ===, title, ===
+                $nIdx = 0
                 $itemRows = @{}
 
                 foreach ($entry in $menuDef) {
                     if ($entry.Type -eq "header") {
-                        $f   += "`n  `e[1m$($entry.Label)`e[0m`n  ------`n"
-                        $row += 3
+                        # Clean single-line section header — no underline noise.
+                        $f   += "`n$leftPad`e[90m  ▸ `e[1m$($entry.Label)`e[0m`n"
+                        $row += 2
                     } else {
                         $itemRows[$nIdx] = $row
                         if ($nIdx -eq $sel) {
-                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K`n"
+                            # Full-row highlight: background fills to the right edge via ESC[K.
+                            $f += "`e[48;5;24m`e[97m$leftPad  ▶ $($entry.Label)`e[K`e[0m`n"
                         } else {
-                            $f += "`e[37m    $($entry.Label)`e[0m`e[K`n"
+                            $f += "`e[0m`e[37m$leftPad    $($entry.Label)`e[0m`e[K`n"
                         }
                         $nIdx++
                         $row++
                     }
                 }
 
-                $f += "`n`e[90m  ─────────────────────────────────────────────────────`e[0m`n"
-                $f += "`e[90m  ↑↓ navigate   Enter select   Q quit`e[0m`e[J"
+                # Status bar pinned to the very last terminal row.
+                $f += "`e[$termHeight;1H`e[7m  ↑↓ / Home / End  navigate     Enter  select     Q  quit  `e[0m`e[K"
 
                 [Console]::Write($f)
                 $prevSel  = $sel
                 $needFull = $false
-            }
 
-            # ── Differential update ────────────────────────────────────────
-            # On navigation, rewrite only the two rows that changed:
-            # the previously highlighted item and the newly highlighted item.
-            # Nothing else on screen is touched — zero flicker.
-            elseif ($prevSel -ne $sel) {
+            # ── Differential update ────────────────────────────────────────────────
+            # On navigation, rewrite only the two rows that changed.
+            # Everything else on screen stays untouched — zero flicker.
+            } elseif ($prevSel -ne $sel) {
                 $r = $itemRows[$prevSel]
-                [Console]::Write("`e[${r};1H`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
+                [Console]::Write("`e[${r};1H`e[0m`e[37m$leftPad    $($navItems[$prevSel].Label)`e[0m`e[K")
                 $r = $itemRows[$sel]
-                [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
+                [Console]::Write("`e[${r};1H`e[48;5;24m`e[97m$leftPad  ▶ $($navItems[$sel].Label)`e[K`e[0m")
                 $prevSel = $sel
             }
 
-            # ── Wait for input ─────────────────────────────────────────────
+            # ── Wait for key ───────────────────────────────────────────────────────
             $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
             switch ($key.VirtualKeyCode) {
-                38 { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
-                40 { $sel = ($sel + 1) % $navItems.Count }                     # Down
-                13 {                                                            # Enter
+                38  { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up arrow
+                40  { $sel = ($sel + 1) % $navItems.Count }                     # Down arrow
+                36  { $sel = 0 }                                                 # Home
+                35  { $sel = $navItems.Count - 1 }                              # End
+                13  {                                                            # Enter
                     $choice = $navItems[$sel].Choice
                     if ($choice -eq 'q') {
                         $running = $false
                     } else {
-                        # Clear the alternate screen and restore cursor for the operation.
-                        [Console]::Write("`e[2J`e[H`e[?25h")
+                        # Clear the screen and show an operation header before running.
+                        $opLabel = $navItems[$sel].Label
+                        $f  = "`e[2J`e[H`e[?25h`n"
+                        $f += "$leftPad`e[96m=====================================================`e[0m`n"
+                        $f += "$leftPad`e[1;97m  $opLabel`e[0m`n"
+                        $f += "$leftPad`e[96m=====================================================`e[0m`n`n"
+                        [Console]::Write($f)
                         Invoke-MenuChoice -Choice $choice
                         Wait-UserAcknowledge
-                        # Hide cursor again and schedule a full menu redraw.
                         [Console]::Write("`e[?25l")
                         $needFull = $true
                     }
@@ -149,7 +178,7 @@ function Show-MainMenu {
             }
         }
     } finally {
-        # Always restore cursor and original terminal screen, even on error.
+        # Always restore cursor and original terminal, even on crash or Ctrl+C.
         [Console]::Write("`e[?25h`e[?1049l")
     }
 }
