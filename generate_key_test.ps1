@@ -48,6 +48,95 @@ function Show-Paged {
 }
 
 
+function Get-AvailableSSHKeys {
+    $sshDir  = "$env:USERPROFILE\.ssh"
+    if (-not (Test-Path $sshDir)) { return @() }
+    $exclude = @("config","known_hosts","known_hosts.old","authorized_keys","authorized_keys2","environment","rc")
+    return @(Get-ChildItem -Path $sshDir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -ine ".pub" -and $exclude -notcontains $_.Name.ToLowerInvariant() } |
+        Select-Object -ExpandProperty Name | Sort-Object)
+}
+
+
+function Get-ConfiguredSSHHosts {
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) { return @() }
+    $config  = Get-Content $configPath -Raw -Encoding UTF8
+    $hosts   = @()
+    $pattern = "(?ms)^Host\s+(\S+).*?(?=^Host\s|\z)"
+    foreach ($hb in [regex]::Matches($config, $pattern)) {
+        $alias = $hb.Groups[1].Value.Trim()
+        if ($alias -eq "*") { continue }
+        $hn = if ($hb.Value -match '(?m)^\s*HostName\s+(\S+)') { $Matches[1] } else { "" }
+        $u  = if ($hb.Value -match '(?m)^\s*User\s+(\S+)')     { $Matches[1] } else { "" }
+        $hosts += [pscustomobject]@{ Alias = $alias; HostName = $hn; User = $u }
+    }
+    return $hosts
+}
+
+
+function Select-FromList {
+    param(
+        [string[]]$Items,
+        [string]$Prompt = "Select"
+    )
+    if (-not $Items -or $Items.Count -eq 0) { return $null }
+
+    $tw  = $Host.UI.RawUI.WindowSize.Width
+    $th  = $Host.UI.RawUI.WindowSize.Height
+    try { $startRow = [Console]::CursorTop + 2 } catch { $startRow = 7 }
+    $maxVis  = [Math]::Max(1, $th - $startRow - 2)
+    $sel     = 0
+    $viewOff = 0
+
+    [Console]::Write("`e[?25l")
+
+    while ($true) {
+        if ($sel -lt $viewOff) { $viewOff = $sel }
+        elseif ($sel -ge $viewOff + $maxVis) { $viewOff = $sel - $maxVis + 1 }
+
+        $promptRow = $startRow - 1
+        $f  = "`e[$promptRow;1H`e[K  `e[90m$Prompt`e[0m"
+        for ($i = 0; $i -lt $maxVis; $i++) {
+            $idx = $viewOff + $i
+            $r   = $startRow + $i
+            $f  += "`e[$r;1H`e[K"
+            if ($idx -lt $Items.Count) {
+                if ($idx -eq $sel) { $f += "  `e[1;36m▶ $($Items[$idx])`e[0m" }
+                else               { $f += "  `e[37m  $($Items[$idx])`e[0m" }
+            }
+        }
+        $up   = if ($viewOff -gt 0)                      { "▲ " } else { "  " }
+        $dn   = if ($viewOff + $maxVis -lt $Items.Count) { "▼ " } else { "  " }
+        $hint = "  ↑↓  navigate     Enter  select     Esc  type manually    $up$dn"
+        $f   += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
+        [Console]::Write($f)
+
+        try { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
+        switch ($k.VirtualKeyCode) {
+            38 { if ($sel -gt 0) { $sel-- } }
+            40 { if ($sel -lt $Items.Count - 1) { $sel++ } }
+            13 {
+                $chosen = $Items[$sel]
+                $clr = ""; for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) { $clr += "`e[$ci;1H`e[K" }
+                [Console]::Write($clr)
+                [Console]::Write("`e[$promptRow;1H  `e[90m$Prompt`e[0m  `e[36m$chosen`e[0m`n`e[?25h")
+                return $chosen
+            }
+            27 {
+                $clr = ""; for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) { $clr += "`e[$ci;1H`e[K" }
+                [Console]::Write($clr)
+                [Console]::Write("`e[$promptRow;1H`e[?25h")
+                return $null
+            }
+        }
+    }
+
+    [Console]::Write("`e[?25h")
+    return $null
+}
+
+
 function Show-MainMenu {
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
@@ -72,7 +161,23 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
     )
 
-    $navItems   = @($menuDef | Where-Object { $_.Type -eq "item" })
+    $navItems = @($menuDef | Where-Object { $_.Type -eq "item" })
+
+    # Pre-flatten menuDef into a linear sequence of screen rows (blank / header / item).
+    # This lets us implement viewport scrolling without complicated row math.
+    $flatRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $ni = 0
+    foreach ($e in $menuDef) {
+        if ($e.Type -eq "header") {
+            $flatRows.Add([pscustomobject]@{ Type = "blank";  Label = "";       nIdx = -1 })
+            $flatRows.Add([pscustomobject]@{ Type = "header"; Label = $e.Label; nIdx = -1 })
+        } else {
+            $flatRows.Add([pscustomobject]@{ Type = "item"; Label = $e.Label; nIdx = $ni })
+            $ni++
+        }
+    }
+    $flatCount = $flatRows.Count
+
     $sel        = 0
     $prevSel    = -1
     $itemRows   = @{}
@@ -80,6 +185,7 @@ function Show-MainMenu {
     $running    = $true
     $termWidth  = 0
     $termHeight = 0
+    $viewOff    = 0   # first flatRows index rendered (scrolling viewport)
 
     [Console]::Write("`e[?1049h`e[?25l")
 
@@ -95,37 +201,67 @@ function Show-MainMenu {
                 $menuTitle    = "🌊  HDD SSH Keys"
                 $menuTitlePad = " " * [Math]::Max(0, [int](($termWidth - 4 - ($menuTitle.Length + 1)) / 2))
 
-                # Every line is placed with an explicit ESC[row;1H so that $itemRows
-                # is guaranteed to match screen positions regardless of any line wrapping.
+                # Content rows: 5..(termHeight-1). Status bar: termHeight.
+                $contentStart = 5
+                $contentEnd   = $termHeight - 1
+                $contentRows  = [Math]::Max(1, $contentEnd - $contentStart + 1)
+
+                # Find the flat index of the selected item
+                $selFlatIdx = -1
+                for ($fi = 0; $fi -lt $flatCount; $fi++) {
+                    if ($flatRows[$fi].Type -eq "item" -and $flatRows[$fi].nIdx -eq $sel) {
+                        $selFlatIdx = $fi; break
+                    }
+                }
+
+                # Scroll viewport so selected item is always visible
+                if ($selFlatIdx -ge 0) {
+                    if ($selFlatIdx -lt $viewOff) {
+                        $viewOff = $selFlatIdx
+                    } elseif ($selFlatIdx -ge $viewOff + $contentRows) {
+                        $viewOff = $selFlatIdx - $contentRows + 1
+                    }
+                }
+                $viewOff = [Math]::Max(0, $viewOff)
+
                 $f  = "`e[2J`e[H"
                 $f += "`e[2;1H  `e[96m$menuRule`e[0m`e[K"
                 $f += "`e[3;1H  `e[96m$menuTitlePad$menuTitle`e[0m`e[K"
                 $f += "`e[4;1H  `e[96m$menuRule`e[0m`e[K"
 
-                $row  = 5
-                $nIdx = 0
                 $itemRows = @{}
+                $row      = $contentStart
+                $endFi    = [Math]::Min($viewOff + $contentRows, $flatCount)
 
-                foreach ($entry in $menuDef) {
-                    if ($entry.Type -eq "header") {
-                        # Row $row is the blank spacer — leave it empty, just advance.
-                        $row++
-                        $f += "`e[$row;1H  `e[90m  ▸ `e[1m$($entry.Label)`e[0m`e[K"
-                        $row++
-                    } else {
-                        $itemRows[$nIdx] = $row
-                        $f += "`e[$row;1H"
-                        if ($nIdx -eq $sel) {
-                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K"
-                        } else {
-                            $f += "`e[0m`e[37m    $($entry.Label)`e[0m`e[K"
+                for ($fi = $viewOff; $fi -lt $endFi; $fi++) {
+                    $fr = $flatRows[$fi]
+                    switch ($fr.Type) {
+                        "blank"  { $f += "`e[$row;1H`e[K" }
+                        "header" { $f += "`e[$row;1H  `e[90m  ▸ `e[1m$($fr.Label)`e[0m`e[K" }
+                        "item"   {
+                            $itemRows[$fr.nIdx] = $row
+                            if ($fr.nIdx -eq $sel) {
+                                $f += "`e[$row;1H  `e[1;36m▶ $($fr.Label)`e[0m`e[K"
+                            } else {
+                                $f += "`e[$row;1H`e[0m`e[37m    $($fr.Label)`e[0m`e[K"
+                            }
                         }
-                        $nIdx++
-                        $row++
                     }
+                    $row++
                 }
 
-                # Status bar pinned to last row; padded to fill full width with reverse-video.
+                # Clear any leftover rows between content and status bar
+                while ($row -le $contentEnd) { $f += "`e[$row;1H`e[K"; $row++ }
+
+                # Scroll indicators at right edge
+                if ($viewOff -gt 0) {
+                    $f += "`e[$contentStart;$($termWidth - 1)H`e[90m▲`e[0m"
+                }
+                if ($viewOff + $contentRows -lt $flatCount) {
+                    $f += "`e[$contentEnd;$($termWidth - 1)H`e[90m▼`e[0m"
+                }
+
+                # Status bar — padded to fill full terminal width
                 $statusBar = "  ↑↓ / Home / End  navigate     Enter  select     Q  quit  "
                 $f += "`e[$termHeight;1H`e[7m$statusBar$(" " * [Math]::Max(0, $termWidth - $statusBar.Length))`e[0m"
 
@@ -133,13 +269,17 @@ function Show-MainMenu {
                 $prevSel  = $sel
                 $needFull = $false
 
-            # ── Differential update ────────────────────────────────────────────────
+            # ── Differential update (only when both rows are in the viewport) ──────
             } elseif ($prevSel -ne $sel) {
-                $r = $itemRows[$prevSel]
-                [Console]::Write("`e[${r};1H`e[0m`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
-                $r = $itemRows[$sel]
-                [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
-                $prevSel = $sel
+                if ($itemRows.ContainsKey($sel) -and $itemRows.ContainsKey($prevSel)) {
+                    $r = $itemRows[$prevSel]
+                    [Console]::Write("`e[${r};1H`e[0m`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
+                    $r = $itemRows[$sel]
+                    [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
+                    $prevSel = $sel
+                } else {
+                    $needFull = $true   # selection scrolled out of viewport — full redraw
+                }
             }
 
             # ── Poll for input — detects resize while idle ─────────────────────────
@@ -162,7 +302,7 @@ function Show-MainMenu {
                 }
             }
 
-            if ($null -eq $key) { continue }   # resize detected — redraw, no key to process
+            if ($null -eq $key) { continue }
 
             switch ($key.VirtualKeyCode) {
                 38  { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
@@ -174,9 +314,9 @@ function Show-MainMenu {
                     if ($choice -eq 'q') {
                         $running = $false
                     } else {
-                        $opLabel   = $navItems[$sel].Label
-                        $rule      = "─" * [Math]::Max(0, $termWidth - 4)
-                        $opPad     = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
+                        $opLabel = $navItems[$sel].Label
+                        $rule    = "─" * [Math]::Max(0, $termWidth - 4)
+                        $opPad   = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
                         $f  = "`e[2J`e[H`e[?25h`n"
                         $f += "  `e[96m$rule`e[0m`n"
                         $f += "  `e[96m$opPad$opLabel`e[0m`n"
@@ -905,29 +1045,19 @@ function Read-RemoteHostName {
         [string]$SubnetPrefix = "$DefaultSubnetPrefix"
     )
 
-    $RemoteHost = Read-ColoredInput -Prompt "  Enter the Hostname | Full IP address | Last 2–3 digits for $SubnetPrefix.xx of the remote machine:" -ForegroundColor "Cyan"
+    $hosts = Get-ConfiguredSSHHosts
+    if ($hosts.Count -gt 0) {
+        $labels   = @($hosts | ForEach-Object { $_.Alias })
+        $selected = Select-FromList -Items $labels -Prompt "Select host alias  (Esc → type manually)"
+        if ($selected) { return $selected }
+    }
 
-    if ($RemoteHost -match '^\d{1,3}$') {
-        # Input is a short numeric suffix like "123"
-        $ResolvedHost = "$SubnetPrefix.$RemoteHost"
-        Write-Host "📡 Interpreted as short IP: $ResolvedHost" -ForegroundColor Green
-        return $ResolvedHost
-    
-    } elseif ($RemoteHost -match '^\d{1,3}(\.\d{1,3}){3}$') {
-        # Input is a full IP address
-        Write-Host "🌐 Full IP address given: $RemoteHost" -ForegroundColor Cyan
-        return $RemoteHost
-    
-    } elseif ($RemoteHost) {
-        # Input is likely a label or hostname
-        Write-Host "🏷  Label Provided: $RemoteHost" -ForegroundColor Cyan
-        return $RemoteHost
-    
-    } else {
-        Write-Host "❗ No input provided." -ForegroundColor Red
+    $name = Read-ColoredInput -Prompt "  Enter the host alias / hostname" -ForegroundColor "Cyan"
+    if ([string]::IsNullOrWhiteSpace($name)) {
+        Write-Host "  ❗ Hostname is required." -ForegroundColor Red
         return $null
     }
-    
+    return $name
 }
 
 
@@ -936,22 +1066,36 @@ function Read-RemoteHostAddress {
         [string]$SubnetPrefix = "$DefaultSubnetPrefix"
     )
 
-    $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP (or last 2–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
-
-    if ($RemoteHost -match "^\d{2,3}$") {
-        return "$SubnetPrefix.$RemoteHost"
-    } else {
-        Write-Host "🌐 Full IP address given: $RemoteHost" -ForegroundColor Cyan
-        return $RemoteHost
+    $hosts = Get-ConfiguredSSHHosts
+    if ($hosts.Count -gt 0) {
+        $labels   = @($hosts | ForEach-Object {
+            if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
+        })
+        $selected = Select-FromList -Items $labels -Prompt "Select remote host  (Esc → enter IP / hostname manually)"
+        if ($selected) {
+            $alias = ($selected -split '\s+\(')[0].Trim()
+            $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
+            $addr  = if ($h -and $h.HostName) { $h.HostName } else { $alias }
+            return $addr
+        }
     }
+
+    $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP / hostname (or last 1–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
+    if ($RemoteHost -match "^\d{1,3}$") {
+        return "$SubnetPrefix.$RemoteHost"
+    }
+    return $RemoteHost
 }
 
 
 function Read-SSHKeyName {
-    $KeyName = Read-ColoredInput -Prompt "  Enter the SSH key name" -ForegroundColor "Cyan"
-    $KeyName = Resolve-NullToAction -Action { Read-SSHKeyName } -RequiredValue $KeyName -RequiredValueLabel "Key Name"
-
-    return $KeyName
+    $keys = Get-AvailableSSHKeys
+    if ($keys.Count -gt 0) {
+        $selected = Select-FromList -Items $keys -Prompt "Select SSH key  (Esc → type manually)"
+        if ($selected) { return $selected }
+    }
+    $KeyName = Read-ColoredInput -Prompt "  Enter SSH key name" -ForegroundColor "Cyan"
+    return Resolve-NullToAction -Action { Read-SSHKeyName } -RequiredValue $KeyName -RequiredValueLabel "Key Name"
 }
 
 
@@ -1292,9 +1436,17 @@ function Resolve-SSHTarget {
 
 
 function Remove-HostFromSSHConfig {
-    $hostName = Read-ColoredInput -Prompt "  Enter the Host alias to remove" -ForegroundColor "Cyan"
+    $hosts    = Get-ConfiguredSSHHosts
+    $hostName = $null
+    if ($hosts.Count -gt 0) {
+        $labels   = @($hosts | ForEach-Object { $_.Alias })
+        $hostName = Select-FromList -Items $labels -Prompt "Select host to remove  (Esc → type manually)"
+    }
+    if (-not $hostName) {
+        $hostName = Read-ColoredInput -Prompt "  Enter the Host alias to remove" -ForegroundColor "Cyan"
+    }
     if ([string]::IsNullOrWhiteSpace($hostName)) {
-        Write-Host "❗ Host alias is required." -ForegroundColor Red
+        Write-Host "  ❗ Host alias is required." -ForegroundColor Red
         return
     }
 
