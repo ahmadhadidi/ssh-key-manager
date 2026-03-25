@@ -65,9 +65,6 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
     )
 
-    # Menu content is 53 chars wide (the === border defines it).
-    $menuWidth  = 53
-
     $navItems   = @($menuDef | Where-Object { $_.Type -eq "item" })
     $sel        = 0
     $prevSel    = -1
@@ -76,7 +73,7 @@ function Show-MainMenu {
     $running    = $true
     $termWidth  = 0
     $termHeight = 0
-    $leftPad    = ""   # recomputed on every full render based on terminal width
+    $leftPad    = "  "   # fixed 2-space left margin
 
     [Console]::Write("`e[?1049h`e[?25l")   # enter alternate screen, hide cursor
 
@@ -98,8 +95,6 @@ function Show-MainMenu {
             # operation. Builds the complete frame atomically in one Write call
             # and records each nav-item's exact terminal row for differential updates.
             if ($needFull) {
-                $leftPad = " " * [Math]::Max(0, [int](($termWidth - $menuWidth) / 2))
-
                 $f  = "`e[2J`e[H`n"
                 $f += "$leftPad`e[96m=====================================================`e[0m`n"
                 $f += "$leftPad`e[96m             🌊  HDD SSH Keys                       `e[0m`n"
