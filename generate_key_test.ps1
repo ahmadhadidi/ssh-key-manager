@@ -59,6 +59,10 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Append SSH Key to Hostname in Host Config";      Choice = "7" }
         [pscustomobject]@{ Type = "item";   Label = "Delete an SSH Key Locally";                      Choice = "8" }
         [pscustomobject]@{ Type = "item";   Label = "Remove an SSH Key From Config";                  Choice = "9" }
+        [pscustomobject]@{ Type = "header"; Label = "Config File" }
+        [pscustomobject]@{ Type = "item";   Label = "Remove Host from SSH Config";                    Choice = "12" }
+        [pscustomobject]@{ Type = "item";   Label = "View SSH Config";                                Choice = "13" }
+        [pscustomobject]@{ Type = "item";   Label = "Edit SSH Config";                                Choice = "14" }
         [pscustomobject]@{ Type = "header"; Label = "🌊" }
         [pscustomobject]@{ Type = "item";   Label = "Help: Best Practices";                           Choice = "10" }
         [pscustomobject]@{ Type = "item";   Label = "Conf: Global Defaults";                          Choice = "11" }
@@ -73,79 +77,83 @@ function Show-MainMenu {
     $running    = $true
     $termWidth  = 0
     $termHeight = 0
-    $leftPad    = "  "   # fixed 2-space left margin
 
-    [Console]::Write("`e[?1049h`e[?25l")   # enter alternate screen, hide cursor
+    [Console]::Write("`e[?1049h`e[?25l")
 
     try {
         while ($running) {
 
-            # ── Resize detection ───────────────────────────────────────────────────
-            # Check terminal dimensions each loop; any change schedules a full redraw.
-            $w = $Host.UI.RawUI.WindowSize.Width
-            $h = $Host.UI.RawUI.WindowSize.Height
-            if ($w -ne $termWidth -or $h -ne $termHeight) {
-                $termWidth  = $w
-                $termHeight = $h
-                $needFull   = $true
-            }
-
             # ── Full render ────────────────────────────────────────────────────────
-            # Runs on first paint, after a resize, and after returning from an
-            # operation. Builds the complete frame atomically in one Write call
-            # and records each nav-item's exact terminal row for differential updates.
             if ($needFull) {
-                $f  = "`e[2J`e[H`n"
-                $f += "$leftPad`e[96m=====================================================`e[0m`n"
-                $f += "$leftPad`e[96m             🌊  HDD SSH Keys                       `e[0m`n"
-                $f += "$leftPad`e[96m=====================================================`e[0m`n"
+                $termWidth  = $Host.UI.RawUI.WindowSize.Width
+                $termHeight = $Host.UI.RawUI.WindowSize.Height
 
-                $row  = 5   # rows 1-4: blank line, ===, title, ===
+                $f  = "`e[2J`e[H`n"
+                $f += "  `e[96m=====================================================`e[0m`n"
+                $f += "  `e[96m             🌊  HDD SSH Keys                       `e[0m`n"
+                $f += "  `e[96m=====================================================`e[0m`n"
+
+                $row  = 5
                 $nIdx = 0
                 $itemRows = @{}
 
                 foreach ($entry in $menuDef) {
                     if ($entry.Type -eq "header") {
-                        # Clean single-line section header — no underline noise.
-                        $f   += "`n$leftPad`e[90m  ▸ `e[1m$($entry.Label)`e[0m`n"
+                        $f   += "`n  `e[90m  ▸ `e[1m$($entry.Label)`e[0m`n"
                         $row += 2
                     } else {
                         $itemRows[$nIdx] = $row
                         if ($nIdx -eq $sel) {
-                            # Full-row highlight: background fills to the right edge via ESC[K.
-                            $f += "`e[48;5;24m`e[97m$leftPad  ▶ $($entry.Label)`e[K`e[0m`n"
+                            $f += "  `e[1;36m▶ $($entry.Label)`e[0m`e[K`n"
                         } else {
-                            $f += "`e[0m`e[37m$leftPad    $($entry.Label)`e[0m`e[K`n"
+                            $f += "`e[0m`e[37m    $($entry.Label)`e[0m`e[K`n"
                         }
                         $nIdx++
                         $row++
                     }
                 }
 
-                # Status bar pinned to the very last terminal row.
-                $f += "`e[$termHeight;1H`e[7m  ↑↓ / Home / End  navigate     Enter  select     Q  quit  `e[0m`e[K"
+                # Status bar pinned to last row; ESC[K before ESC[0m fills full width.
+                $f += "`e[$termHeight;1H`e[7m  ↑↓ / Home / End  navigate     Enter  select     Q  quit  `e[K`e[0m"
 
                 [Console]::Write($f)
                 $prevSel  = $sel
                 $needFull = $false
 
             # ── Differential update ────────────────────────────────────────────────
-            # On navigation, rewrite only the two rows that changed.
-            # Everything else on screen stays untouched — zero flicker.
             } elseif ($prevSel -ne $sel) {
                 $r = $itemRows[$prevSel]
-                [Console]::Write("`e[${r};1H`e[0m`e[37m$leftPad    $($navItems[$prevSel].Label)`e[0m`e[K")
+                [Console]::Write("`e[${r};1H`e[0m`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
                 $r = $itemRows[$sel]
-                [Console]::Write("`e[${r};1H`e[48;5;24m`e[97m$leftPad  ▶ $($navItems[$sel].Label)`e[K`e[0m")
+                [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
                 $prevSel = $sel
             }
 
-            # ── Wait for key ───────────────────────────────────────────────────────
-            $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            # ── Poll for input — detects resize while idle ─────────────────────────
+            $key = $null
+            while ($null -eq $key) {
+                $available = $false
+                try { $available = $Host.UI.RawUI.KeyAvailable } catch {}
+                if ($available) {
+                    $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                } else {
+                    $newW = $Host.UI.RawUI.WindowSize.Width
+                    $newH = $Host.UI.RawUI.WindowSize.Height
+                    if ($newW -ne $termWidth -or $newH -ne $termHeight) {
+                        $termWidth  = $newW
+                        $termHeight = $newH
+                        $needFull   = $true
+                        break
+                    }
+                    Start-Sleep -Milliseconds 50
+                }
+            }
+
+            if ($null -eq $key) { continue }   # resize detected — redraw, no key to process
 
             switch ($key.VirtualKeyCode) {
-                38  { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up arrow
-                40  { $sel = ($sel + 1) % $navItems.Count }                     # Down arrow
+                38  { $sel = ($sel - 1 + $navItems.Count) % $navItems.Count }  # Up
+                40  { $sel = ($sel + 1) % $navItems.Count }                     # Down
                 36  { $sel = 0 }                                                 # Home
                 35  { $sel = $navItems.Count - 1 }                              # End
                 13  {                                                            # Enter
@@ -153,12 +161,11 @@ function Show-MainMenu {
                     if ($choice -eq 'q') {
                         $running = $false
                     } else {
-                        # Clear the screen and show an operation header before running.
                         $opLabel = $navItems[$sel].Label
+                        $rule    = "─" * [Math]::Max(0, $termWidth - 4)
                         $f  = "`e[2J`e[H`e[?25h`n"
-                        $f += "$leftPad`e[96m=====================================================`e[0m`n"
-                        $f += "$leftPad`e[1;97m  $opLabel`e[0m`n"
-                        $f += "$leftPad`e[96m=====================================================`e[0m`n`n"
+                        $f += "  `e[1;97m$opLabel`e[0m`n"
+                        $f += "  `e[90m$rule`e[0m`n`n"
                         [Console]::Write($f)
                         Invoke-MenuChoice -Choice $choice
                         Wait-UserAcknowledge
@@ -173,7 +180,6 @@ function Show-MainMenu {
             }
         }
     } finally {
-        # Always restore cursor and original terminal, even on crash or Ctrl+C.
         [Console]::Write("`e[?25h`e[?1049l")
     }
 }
@@ -211,16 +217,10 @@ function Invoke-MenuChoice {
             Show-SSHKeyInventory
         }
         "7" {
-            $KeyName = Read-SSHKeyName
-
-            # 🚧 TODO:
-            # After taking the key we need to do the following:
-            # ask about the Host of the target machine (sonarr / radarr)
-            # If it exists, we just append the Identity file
-            # If it does not exist, we need to ask about the IP Address of the CT and the user and then we can add the identity file.
-            # Below is not correct
-
-            $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+            $KeyName           = Read-SSHKeyName
+            $RemoteHostName    = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
             Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
         }
         "8" {
@@ -248,12 +248,25 @@ function Invoke-MenuChoice {
             Write-Host ""
             Write-Host "  `e[1mGlobal Defaults`e[0m" -ForegroundColor Cyan
             Write-Host "  ───────────────" -ForegroundColor DarkGray
-            Write-Host "  `$DefaultUserName     = $DefaultUserName" -ForegroundColor Cyan
-            Write-Host "  `$DefaultSubnetPrefix = $DefaultSubnetPrefix" -ForegroundColor Cyan
-            Write-Host "  `$DefaultCommentSuffix = $DefaultCommentSuffix" -ForegroundColor Cyan
+            Write-Host "  Leave blank to keep the current value." -ForegroundColor DarkGray
             Write-Host ""
-            Write-Host "  ℹ️  Pass these as parameters when invoking the script to override." -ForegroundColor Yellow
+
+            $newUser = Read-ColoredInput -Prompt "  DefaultUserName     [$DefaultUserName]:" -ForegroundColor "Cyan"
+            if (![string]::IsNullOrWhiteSpace($newUser)) { $script:DefaultUserName = $newUser }
+
+            $newPrefix = Read-ColoredInput -Prompt "  DefaultSubnetPrefix [$DefaultSubnetPrefix]:" -ForegroundColor "Cyan"
+            if (![string]::IsNullOrWhiteSpace($newPrefix)) { $script:DefaultSubnetPrefix = $newPrefix }
+
+            $newSuffix = Read-ColoredInput -Prompt "  DefaultCommentSuffix [$DefaultCommentSuffix]:" -ForegroundColor "Cyan"
+            if (![string]::IsNullOrWhiteSpace($newSuffix)) { $script:DefaultCommentSuffix = $newSuffix }
+
+            Write-Host ""
+            Write-Host "  ✅ Defaults updated for this session." -ForegroundColor Green
+            Write-Host "  ℹ  To persist: -DefaultUserName / -DefaultSubnetPrefix / -DefaultCommentSuffix" -ForegroundColor Yellow
         }
+        "12" { Remove-HostFromSSHConfig }
+        "13" { Show-SSHConfigFile }
+        "14" { Edit-SSHConfigFile }
     }
 }
 
@@ -284,11 +297,11 @@ function Deploy-SSHKeyToRemote {
     $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
     $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
-    Write-Host "🔃 Connecting to $RemoteUser@$RemoteHostAddress..."
+    $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+    Write-Host "🔃 Connecting to $target..."
 
     try {
-        #$PublicKey | ssh "$RemoteUser@$RemoteHostAddress" "mkdir -p .ssh && cat >> .ssh/authorized_keys"
-        $RemoteHostName = $PublicKey | ssh "$RemoteUser@$RemoteHostAddress" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
+        $RemoteHostName = $PublicKey | ssh $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
         # type "$PublicKeyPath" | ssh "$RemoteUser@$RemoteHost" "mkdir -p .ssh && cat >> .ssh/authorized_keys"
         Write-Host "✅ SSH Public Key installed successfully." -ForegroundColor Green
 
@@ -309,12 +322,10 @@ function Test-SSHConnection {
         [switch]$ReturnResult
     )
 
-    $testCommand = {
-        ssh "$RemoteUser@$RemoteHost" "echo SSH Connection Successful" 2>&1
-    }
+    $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
 
     try {
-        $result = & $testCommand
+        $result = ssh $target "echo SSH Connection Successful" 2>&1
 
         if ($result -match "ssh: connect to host .* port 22: Connection refused") {
             Write-Host "❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
@@ -361,10 +372,11 @@ function Remove-SSHKeyFromRemote {
     $RemoteCommand = "TMP_FILE=`$(mktemp) && printf '%s`\n' '$PublicKey' > `$TMP_FILE && awk 'NR==FNR { keys[`$0]; next } !(`$0 in keys)' `$TMP_FILE ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && rm -f `$TMP_FILE"
 
     # Write-Host "`n🐞 HDD-DEBUG:: $RemoteCommand" -ForegroundColor Red
-    Write-Host "`n🔒 Will connect to remove the public key from $RemoteUser@$RemoteHost`:`n$PublicKey`n" -ForegroundColor Yellow
+    $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
+    Write-Host "`n🔒 Will connect to remove the public key from $target`:`n$PublicKey`n" -ForegroundColor Yellow
 
     try {
-        ssh "$RemoteUser@$RemoteHost" $RemoteCommand
+        ssh $target $RemoteCommand
         # ssh "$RemoteUser@$RemoteHost" "sed -i '/$PublicKeyPath/d' ~/.ssh/authorized_keys"
         Write-Host "✅ SSH key removed from remote authorized_keys." -ForegroundColor Green
 
@@ -1178,6 +1190,101 @@ function Get-PublicKeyInHost {
     return $PublicKey
 }
 #endregion
+
+
+function Resolve-SSHTarget {
+    # Given an IP/address and user, returns "user@alias" if a matching HostName
+    # entry exists in ~/.ssh/config so that SSH applies the full config block
+    # (IdentityFile, etc.). Falls back to "user@address" if nothing matches.
+    param(
+        [string]$RemoteHostAddress,
+        [string]$RemoteUser
+    )
+
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (Test-Path $configPath) {
+        $config  = Get-Content $configPath -Raw -Encoding UTF8
+        $pattern = "(?ms)^Host\s+(\S+).*?(?=^Host\s|\z)"
+        foreach ($hb in [regex]::Matches($config, $pattern)) {
+            $alias = $hb.Groups[1].Value.Trim()
+            if ($hb.Value -match "(?m)^\s*HostName\s+$([regex]::Escape($RemoteHostAddress))\s*$") {
+                Write-Host "  ℹ  SSH config entry '$alias' found for $RemoteHostAddress — key from config will be used." -ForegroundColor DarkGray
+                return "$RemoteUser@$alias"
+            }
+        }
+    }
+    return "$RemoteUser@$RemoteHostAddress"
+}
+
+
+function Remove-HostFromSSHConfig {
+    $hostName = Read-ColoredInput -Prompt "Enter the Host alias to remove" -ForegroundColor "Cyan"
+    if ([string]::IsNullOrWhiteSpace($hostName)) {
+        Write-Host "❗ Host alias is required." -ForegroundColor Red
+        return
+    }
+
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    $config  = Get-Content $configPath -Raw -Encoding UTF8
+    $pattern = "(?ms)^Host\s+$([regex]::Escape($hostName))\b.*?(?=^Host\s|\z)"
+    $match   = [regex]::Match($config, $pattern)
+
+    if (-not $match.Success) {
+        Write-Host "⚠️ No Host block found for '$hostName'" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "`n  Block that will be removed:" -ForegroundColor DarkGray
+    Write-Host $match.Value -ForegroundColor Gray
+
+    $confirm = Read-ColoredInput -Prompt "Remove this block? [y/N]" -ForegroundColor "Yellow"
+    if ($confirm -notmatch '^(y|yes)$') {
+        Write-Host "❌ Cancelled." -ForegroundColor Yellow
+        return
+    }
+
+    $newConfig = ($config -replace [regex]::Escape($match.Value), "").TrimEnd() + "`n"
+    [System.IO.File]::WriteAllText($configPath, $newConfig, [System.Text.Encoding]::UTF8)
+    Write-Host "✅ Host '$hostName' removed from SSH config." -ForegroundColor Green
+}
+
+
+function Show-SSHConfigFile {
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    Write-Host ""
+    Write-Host "  $configPath" -ForegroundColor DarkGray
+    Write-Host "  $('─' * $configPath.Length)" -ForegroundColor DarkGray
+    Write-Host ""
+    Show-Paged -Lines (Get-Content $configPath)
+}
+
+
+function Edit-SSHConfigFile {
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    $editor = if ($env:EDITOR) { $env:EDITOR } else { "notepad.exe" }
+    Write-Host "  Opening in $editor — return here when done." -ForegroundColor DarkGray
+    try {
+        & $editor $configPath
+        Write-Host "✅ Done." -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Could not open editor '$editor': $_" -ForegroundColor Red
+    }
+}
 
 
 Show-MainMenu
