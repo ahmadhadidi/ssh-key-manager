@@ -4,8 +4,43 @@ param(
   [string]$DefaultCommentSuffix = "-[my-machine]"
 )
 
+function Wait-UserAcknowledge {
+    Write-Host "`nPress Enter to continue..." -ForegroundColor DarkGray
+    $null = Read-Host
+}
+
+
+function Show-Paged {
+    param([string[]]$Lines)
+
+    try { $pageSize = [Math]::Max(5, $Host.UI.RawUI.WindowSize.Height - 4) }
+    catch { $pageSize = 20 }
+
+    $total = $Lines.Count
+    $i = 0
+
+    while ($i -lt $total) {
+        $end = [Math]::Min($i + $pageSize - 1, $total - 1)
+        $Lines[$i..$end] | ForEach-Object { Write-Host $_ }
+        $i += $pageSize
+
+        if ($i -lt $total) {
+            Write-Host "-- $i/$total lines shown | Enter=more, Q=quit --" -ForegroundColor DarkGray -NoNewline
+            try {
+                $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+                Write-Host ""
+                if ($key.Character -eq 'q' -or $key.Character -eq 'Q') { break }
+            } catch {
+                $null = Read-Host
+            }
+        }
+    }
+}
+
+
 function Show-MainMenu {
     do {
+        Clear-Host
         $RunAgain = $true
         $choice = Read-Host @"
 `n
@@ -135,6 +170,10 @@ Enter your choice (1–10)
                 Write-Host "Invalid option. Please choose a number between 1 and 9." -ForegroundColor Red
 
             }
+        }
+
+        if ($RunAgain) {
+            Wait-UserAcknowledge
         }
 
     } while ($RunAgain)
@@ -512,7 +551,8 @@ function Show-SSHKeyInventory {
         return
     }
 
-    $rows | Format-Table -AutoSize
+    $tableLines = ($rows | Format-Table -AutoSize | Out-String) -split "`r?`n"
+    Show-Paged -Lines $tableLines
 }
 #endregion
 
