@@ -189,25 +189,35 @@ function Select-FromList {
 }
 
 
+function Format-MenuLabel {
+    param([string]$Label, [string]$Hotkey)
+    if (-not $Hotkey) { return $Label }
+    [regex]::Replace($Label, "(?i)($([regex]::Escape($Hotkey)))", "`e[1;96m`$1`e[0;37m", 1)
+}
+
+
 function Show-MainMenu {
+    # Hotkey: single letter that activates this item from the main menu (case-insensitive).
+    # The letter is highlighted in the label during render.
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
-        [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1" }
-        [pscustomobject]@{ Type = "item";   Label = "Install SSH Key on A Remote Machine";            Choice = "15" }
-        [pscustomobject]@{ Type = "item";   Label = "Test SSH Connection";                            Choice = "2" }
-        [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3" }
-        [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4" }
+        [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1";  Hotkey = "G" }
+        [pscustomobject]@{ Type = "item";   Label = "Install SSH Key on A Remote Machine";            Choice = "15"; Hotkey = "I" }
+        [pscustomobject]@{ Type = "item";   Label = "Test SSH Connection";                            Choice = "2";  Hotkey = "T" }
+        [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3";  Hotkey = "D" }
+        [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4";  Hotkey = "P" }
+        [pscustomobject]@{ Type = "item";   Label = "List Authorized Keys on Remote Host";            Choice = "16"; Hotkey = "Z" }
         [pscustomobject]@{ Type = "header"; Label = "Local" }
-        [pscustomobject]@{ Type = "item";   Label = "Generate SSH Key (Without installation)";        Choice = "5" }
-        [pscustomobject]@{ Type = "item";   Label = "List SSH Keys";                                  Choice = "6" }
-        [pscustomobject]@{ Type = "item";   Label = "Append SSH Key to Hostname in Host Config";      Choice = "7" }
-        [pscustomobject]@{ Type = "item";   Label = "Delete an SSH Key Locally";                      Choice = "8" }
-        [pscustomobject]@{ Type = "item";   Label = "Remove an SSH Key From Config";                  Choice = "9" }
+        [pscustomobject]@{ Type = "item";   Label = "Generate SSH Key (Without installation)";        Choice = "5";  Hotkey = "W" }
+        [pscustomobject]@{ Type = "item";   Label = "List SSH Keys";                                  Choice = "6";  Hotkey = "L" }
+        [pscustomobject]@{ Type = "item";   Label = "Append SSH Key to Hostname in Host Config";      Choice = "7";  Hotkey = "A" }
+        [pscustomobject]@{ Type = "item";   Label = "Delete an SSH Key Locally";                      Choice = "8";  Hotkey = "X" }
+        [pscustomobject]@{ Type = "item";   Label = "Remove an SSH Key From Config";                  Choice = "9";  Hotkey = "R" }
         [pscustomobject]@{ Type = "header"; Label = "Config File" }
-        [pscustomobject]@{ Type = "item";   Label = "Remove Host from SSH Config";                    Choice = "12" }
-        [pscustomobject]@{ Type = "item";   Label = "View SSH Config";                                Choice = "13" }
-        [pscustomobject]@{ Type = "item";   Label = "Edit SSH Config";                                Choice = "14" }
-        [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
+        [pscustomobject]@{ Type = "item";   Label = "Remove Host from SSH Config";                    Choice = "12"; Hotkey = "H" }
+        [pscustomobject]@{ Type = "item";   Label = "View SSH Config";                                Choice = "13"; Hotkey = "V" }
+        [pscustomobject]@{ Type = "item";   Label = "Edit SSH Config";                                Choice = "14"; Hotkey = "E" }
+        [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q";  Hotkey = "Q" }
     )
 
     $navItems = @($menuDef | Where-Object { $_.Type -eq "item" })
@@ -294,7 +304,7 @@ function Show-MainMenu {
                             if ($fr.nIdx -eq $sel) {
                                 $f += "`e[$row;1H  `e[1;36m▶ $($fr.Label)`e[0m`e[K"
                             } else {
-                                $f += "`e[$row;1H`e[0m`e[37m    $($fr.Label)`e[0m`e[K"
+                                $f += "`e[$row;1H`e[0m`e[37m    $(Format-MenuLabel $fr.Label $fr.Hotkey)`e[0m`e[K"
                             }
                         }
                     }
@@ -324,7 +334,7 @@ function Show-MainMenu {
             } elseif ($prevSel -ne $sel) {
                 if ($itemRows.ContainsKey($sel) -and $itemRows.ContainsKey($prevSel)) {
                     $r = $itemRows[$prevSel]
-                    [Console]::Write("`e[${r};1H`e[0m`e[37m    $($navItems[$prevSel].Label)`e[0m`e[K")
+                    [Console]::Write("`e[${r};1H`e[0m`e[37m    $(Format-MenuLabel $navItems[$prevSel].Label $navItems[$prevSel].Hotkey)`e[0m`e[K")
                     $r = $itemRows[$sel]
                     [Console]::Write("`e[${r};1H  `e[1;36m▶ $($navItems[$sel].Label)`e[0m`e[K")
                     $prevSel = $sel
@@ -406,6 +416,34 @@ function Show-MainMenu {
                 if ($fChoice -ne "11") { Wait-UserAcknowledge }   # Conf has its own Q-to-exit; Help needs ack
                 [Console]::Write("`e[?25l")
                 $needFull = $true
+            }
+
+            # Hotkey shortcut — single letter activates matching menu item (main menu only)
+            if ($key.Character) {
+                $hkMatch = $navItems | Where-Object { $_.Hotkey -and ($_.Hotkey -ieq [string]$key.Character) } | Select-Object -First 1
+                if ($hkMatch) {
+                    $hkChoice = $hkMatch.Choice
+                    if ($hkChoice -eq 'q') {
+                        $running = $false
+                    } else {
+                        $opLabel = $hkMatch.Label
+                        $rule    = "─" * [Math]::Max(0, $termWidth - 4)
+                        $opPad   = " " * [Math]::Max(0, [int](($termWidth - 4 - $opLabel.Length) / 2))
+                        $opTitle = "  " + $opPad + $opLabel
+                        $opFill  = " " * [Math]::Max(0, $termWidth - $opTitle.Length)
+                        $f  = "`e[2J`e[H`e[?25h`n"
+                        $f += "  `e[96m$rule`e[0m`n"
+                        $f += "`e[48;5;23m`e[1;97m$opTitle$opFill`e[0m`n"
+                        $f += "  `e[96m$rule`e[0m`n`n"
+                        [Console]::Write($f)
+                        try {
+                            $skipWait = Invoke-MenuChoice -Choice $hkChoice
+                            if (-not $skipWait) { Wait-UserAcknowledge }
+                        } catch [System.OperationCanceledException] { }
+                        [Console]::Write("`e[?25l")
+                        $needFull = $true
+                    }
+                }
             }
         }
     } finally {
