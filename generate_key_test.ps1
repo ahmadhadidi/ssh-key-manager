@@ -937,6 +937,21 @@ function Test-SSHConnection {
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
 
+    # TCP pre-check: test port 22 before calling SSH so that "Connection refused"
+    # never appears at column 0 from SSH's own console output.
+    $tcpOk = $false
+    try {
+        $tcp   = New-Object System.Net.Sockets.TcpClient
+        $ar    = $tcp.BeginConnect($RemoteHost, 22, $null, $null)
+        $tcpOk = $ar.AsyncWaitHandle.WaitOne(3000)
+        $tcp.Close()
+    } catch { $tcpOk = $false }
+
+    if (-not $tcpOk) {
+        Write-Host "  ❌ Connection refused: $RemoteHost is not accepting SSH connections on port 22." -ForegroundColor Red
+        if ($ReturnResult) { return $false } else { return }
+    }
+
     try {
         $sshArgs = @($target, "echo SSH Connection Successful")
         if ($IdentityFile) {
@@ -947,11 +962,7 @@ function Test-SSHConnection {
         }
         $result = ssh @sshArgs 2>&1
 
-        if ($result -match "ssh: connect to host .* port 22: Connection refused") {
-            Write-Host "  ❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
-            if ($ReturnResult) { return $false } else { return }
-        }
-        elseif ($result -match "Name or service not known" -or $result -match "Could not resolve hostname") {
+        if ($result -match "Name or service not known" -or $result -match "Could not resolve hostname") {
             Write-Host "  ❌ DNS error: Could not resolve $RemoteHost." -ForegroundColor Red
             if ($ReturnResult) { return $false } else { return }
         }
