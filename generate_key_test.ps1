@@ -1429,7 +1429,7 @@ function Add-SSHKeyToHostConfig {
 
 
 function Disable-SSHRootLogin {
-    pass
+    return
     # 🚧 TODO: calls sed on /etc/ssh/sshd_config
 }
 
@@ -1915,6 +1915,16 @@ function Get-PublicKeyInHost {
 }
 #endregion
 
+#region Decorators
+function Show-Comment {
+    param (
+        [string]$Prompt,
+        [ConsoleColor]$Color = "Cyan"
+    )
+
+    Write-Host -NoNewline "$Prompt " -ForegroundColor $Color
+}
+#endRegion
 
 function Resolve-SSHTarget {
     # Given an IP/address and user, returns "user@alias" if a matching HostName
