@@ -6,6 +6,7 @@ param(
 )
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$P = "  "   # 2-space left-pad applied to all user-facing output
 
 function Wait-UserAcknowledge {
     $h = $Host.UI.RawUI.WindowSize.Height
@@ -597,7 +598,7 @@ function Invoke-MenuChoice {
         "15" {
             $KeyName = Read-SSHKeyName
             if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
-                Write-Host "❌ Key '$KeyName' not found locally. Use 'Generate & Install' to create it first." -ForegroundColor Red
+                Write-Host "  ❌ Key '$KeyName' not found locally. Use 'Generate & Install' to create it first." -ForegroundColor Red
                 return
             }
             Install-SSHKeyOnRemote -KeyName $KeyName
@@ -657,11 +658,11 @@ function Deploy-SSHKeyToRemote {
     )
 
     if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
-        Write-Host "`n🔑 Key does not exist. Generating..." -ForegroundColor Yellow
+        Write-Host "`n${P}🔑 Key does not exist. Generating..." -ForegroundColor Yellow
         $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
         Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
     } else {
-        Write-Host "`nℹ  Key already exists. Proceeding with installation...`n" -ForegroundColor Cyan
+        Write-Host "`n${P}ℹ  Key already exists. Proceeding with installation...`n" -ForegroundColor Cyan
     }
 
     Install-SSHKeyOnRemote -KeyName $KeyName
@@ -680,29 +681,25 @@ function Test-SSHConnection {
         $result = ssh $target "echo SSH Connection Successful" 2>&1
 
         if ($result -match "ssh: connect to host .* port 22: Connection refused") {
-            Write-Host "❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
-            Write-Host "`n"
+            Write-Host "  ❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
             if ($ReturnResult) { return $false } else { return }
         }
         elseif ($result -match "Name or service not known" -or $result -match "Could not resolve hostname") {
-            Write-Host "❌ DNS error: Could not resolve $RemoteHost." -ForegroundColor Red
-            Write-Host "`n"
+            Write-Host "  ❌ DNS error: Could not resolve $RemoteHost." -ForegroundColor Red
             if ($ReturnResult) { return $false } else { return }
         }
         elseif ($result -match "Permission denied") {
-            Write-Host "⚠️ SSH reachable, but permission denied for user '$RemoteUser'." -ForegroundColor Yellow
-            Write-Host "`n"
+            Write-Host "  ⚠️ SSH reachable, but permission denied for user '$RemoteUser'." -ForegroundColor Yellow
             if ($ReturnResult) { return $true } else { return }  # SSH is reachable, credentials just need fixing
         }
         else {
-            Write-Host "✅ SSH connection to $RemoteHost is successful." -ForegroundColor Green
-            Write-Host "`n"
+            Write-Host "  ✅ SSH connection to $RemoteHost is successful." -ForegroundColor Green
             if ($ReturnResult) { return $true } else { return }
         }
 
     } catch {
-        Write-Host "❌ Unexpected error during SSH test:" -ForegroundColor Red
-        Write-Host $_.Exception.Message
+        Write-Host "  ❌ Unexpected error during SSH test:" -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)"
         if ($ReturnResult) { return $false } else { return }
     }
 }
