@@ -1215,8 +1215,9 @@ function Show-SSHKeyInventory {
     $tableLines += "`e[97m$mid`e[0m"
     foreach ($r in $rows) {
         $num   = [string]$r."#"
-        $pubC  = if ($r.Public  -eq "✅") { "`e[32m ✓ `e[0m" } else { "`e[31m ✗ `e[0m" }
-        $privC = if ($r.Private -eq "✅") { "`e[32m ✓  `e[0m" } else { "`e[31m ✗  `e[0m" }
+        # ✓/✗ render as 2 terminal columns; add extra space so cell = wPub+2 (5) / wPriv+2 (6) display cols
+        $pubC  = if ($r.Public  -eq "✅") { "`e[32m ✓  `e[0m" } else { "`e[31m ✗  `e[0m" }
+        $privC = if ($r.Private -eq "✅") { "`e[32m ✓   `e[0m" } else { "`e[31m ✗   `e[0m" }
         $tableLines += "  `e[97m│`e[0m $($num.PadLeft($wNum)) `e[97m│`e[0m `e[36m$($r.Key.PadRight($wKey))`e[0m `e[97m│`e[0m$pubC`e[97m│`e[0m$privC`e[97m│`e[0m `e[37m$($r.Usage.PadRight($wUse))`e[0m `e[97m│`e[0m"
     }
     $tableLines += "`e[97m$bot`e[0m"
