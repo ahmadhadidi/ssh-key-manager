@@ -622,8 +622,8 @@ function Install-SSHKeyOnRemote {
     $PublicKey = Get-PublicKeyInHost -KeyName $KeyName
     if (-not $PublicKey) { return }
 
-    $selectedAlias     = $null
-    $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix" -AliasOut ([ref]$selectedAlias)
+    $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+    $selectedAlias     = $script:_LastSelectedAlias   # set by Read-RemoteHostAddress when config entry chosen
     $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
@@ -1221,9 +1221,10 @@ function Read-RemoteHostName {
 
 function Read-RemoteHostAddress {
     param (
-        [string]$SubnetPrefix = "$DefaultSubnetPrefix",
-        [ref]$AliasOut = $null
+        [string]$SubnetPrefix = "$DefaultSubnetPrefix"
     )
+
+    $script:_LastSelectedAlias = $null   # reset; set below if a config entry is chosen
 
     $hosts = Get-ConfiguredSSHHosts
     if ($hosts.Count -gt 0) {
@@ -1235,11 +1236,10 @@ function Read-RemoteHostAddress {
             $alias = ($selected -split '\s+\(')[0].Trim()
             $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
             $addr  = if ($h -and $h.HostName) { $h.HostName } else { $alias }
-            if ($AliasOut) { $AliasOut.Value = $alias }
+            $script:_LastSelectedAlias = $alias
             return $addr
         }
     }
-    if ($AliasOut) { $AliasOut.Value = $null }
 
     $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP / hostname (or last 1–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
     if ($RemoteHost -match "^\d{1,3}$") {
