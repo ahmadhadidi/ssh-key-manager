@@ -722,7 +722,7 @@ function Remove-SSHKeyFromRemote {
 
     # Write-Host "`n🐞 HDD-DEBUG:: $RemoteCommand" -ForegroundColor Red
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
-    Write-Host "`n🔒 Will connect to remove the public key from $target`:`n$PublicKey`n" -ForegroundColor Yellow
+    Write-Host "`n  🔒 Will connect to remove the public key from $target`:`n  $($PublicKey.Trim())`n" -ForegroundColor Yellow
 
     try {
         ssh $target $RemoteCommand
@@ -735,7 +735,7 @@ function Remove-SSHKeyFromRemote {
             if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Host "  🗑  Deleted: $pubPath"  -ForegroundColor Green }
         } -DefaultAnswer "n"
     } catch {
-        Write-Host "❌ Failed to remove the SSH key from remote." -ForegroundColor Red
+        Write-Host "  ❌ Failed to remove the SSH key from remote." -ForegroundColor Red
     }
 }
 
@@ -1100,9 +1100,9 @@ function Add-SSHKeyToHostConfig {
                 # Write back the file safely
                 Set-Content -Path $sshConfig -Value $newConfig -Encoding UTF8
 
-                Write-Host "✅ IdentityFile added to existing Host $RemoteHostName." -ForegroundColor Green
+                Write-Host "  ✅ IdentityFile added to existing Host $RemoteHostName." -ForegroundColor Green
             } else {
-                Write-Host "⚠  IdentityFile already exists under Host $RemoteHostName." -ForegroundColor Yellow
+                Write-Host "  ⚠  IdentityFile already exists under Host $RemoteHostName." -ForegroundColor Yellow
             }
 
         } else {
@@ -1115,8 +1115,8 @@ Host $RemoteHostName
 "@
 
             Add-Content -Path $sshConfig -Value $hostEntry
-            Write-Host "✅ SSH config block created for $RemoteHostName." -ForegroundColor Green
-            Write-Host "Now you can connect by typing: ssh $RemoteHostName" -ForegroundColor Cyan
+            Write-Host "  ✅ SSH config block created for $RemoteHostName." -ForegroundColor Green
+            Write-Host "  ℹ  Connect with: ssh $RemoteHostName" -ForegroundColor Cyan
         }
 
     } else {
@@ -1587,12 +1587,12 @@ function Get-PublicKeyInHost {
     $PublicKeyPath = "$env:USERPROFILE\.ssh\$KeyName.pub"
 
     if (-not (Test-Path $PublicKeyPath)) {
-        Write-Host "❌ Public key '$KeyName.pub' not found at $PublicKeyPath." -ForegroundColor Red
+        Write-Host "  ❌ Public key '$KeyName.pub' not found at $PublicKeyPath." -ForegroundColor Red
         return $null
     }
 
     $PublicKey = Get-Content $PublicKeyPath -Raw
-    Write-Host "✅ Public key loaded successfully:`n$PublicKey" -ForegroundColor Green
+    Write-Host "  ✅ Public key loaded successfully:`n  $($PublicKey.Trim())" -ForegroundColor Green
     return $PublicKey
 }
 #endregion
