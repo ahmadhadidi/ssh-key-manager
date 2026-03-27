@@ -476,7 +476,10 @@ function Invoke-MenuChoice {
                 $hostLabels = @($allLabel) + @($keyHosts | ForEach-Object {
                     if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
                 })
-                $selectedHost = Select-FromList -Items $hostLabels -Prompt "Remove key from remote host(s)  (Esc = skip)"
+                # Esc here means "skip remote removal" — catch locally so local delete still runs
+                $selectedHost = $null
+                try { $selectedHost = Select-FromList -Items $hostLabels -Prompt "Remove key from remote host(s)  (Esc = skip remote)" }
+                catch [System.OperationCanceledException] { $selectedHost = $null }
 
                 $targetsToRemove = if ($selectedHost -and $selectedHost.StartsWith("──")) {
                     $keyHosts
