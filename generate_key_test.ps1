@@ -580,7 +580,8 @@ function Install-SSHKeyOnRemote {
     $PublicKey = Get-PublicKeyInHost -KeyName $KeyName
     if (-not $PublicKey) { return }
 
-    $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+    $selectedAlias     = $null
+    $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix" -AliasOut ([ref]$selectedAlias)
     $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
@@ -595,9 +596,11 @@ function Install-SSHKeyOnRemote {
         }
         Write-Host "  ✅ SSH Public Key installed successfully." -ForegroundColor Green
 
+        # When connected via a config alias, default to that alias — not the remote hostname
+        $defaultAlias = if ($selectedAlias) { $selectedAlias } else { $RemoteHostName }
         Write-Host "  🏷  Remote hostname: $RemoteHostName" -ForegroundColor DarkGray
-        $hostAlias = Read-HostWithDefault -Prompt "Name this Host in ~/.ssh/config:" -Default $RemoteHostName
-        if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostName }
+        $hostAlias = Read-HostWithDefault -Prompt "Name this Host in ~/.ssh/config:" -Default $defaultAlias
+        if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $defaultAlias }
 
         Write-Host "  Registering key to SSH config as '$hostAlias'..."
         Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
@@ -1180,7 +1183,8 @@ function Read-RemoteHostName {
 
 function Read-RemoteHostAddress {
     param (
-        [string]$SubnetPrefix = "$DefaultSubnetPrefix"
+        [string]$SubnetPrefix = "$DefaultSubnetPrefix",
+        [ref]$AliasOut = $null
     )
 
     $hosts = Get-ConfiguredSSHHosts
@@ -1193,9 +1197,11 @@ function Read-RemoteHostAddress {
             $alias = ($selected -split '\s+\(')[0].Trim()
             $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
             $addr  = if ($h -and $h.HostName) { $h.HostName } else { $alias }
+            if ($AliasOut) { $AliasOut.Value = $alias }
             return $addr
         }
     }
+    if ($AliasOut) { $AliasOut.Value = $null }
 
     $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP / hostname (or last 1–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
     if ($RemoteHost -match "^\d{1,3}$") {
