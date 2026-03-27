@@ -685,11 +685,13 @@ function Remove-SSHKeyFromRemote {
 
     try {
         ssh $target $RemoteCommand
-        # ssh "$RemoteUser@$RemoteHost" "sed -i '/$PublicKeyPath/d' ~/.ssh/authorized_keys"
-        Write-Host "✅ SSH key removed from remote authorized_keys." -ForegroundColor Green
+        Write-Host "  ✅ SSH key removed from remote authorized_keys." -ForegroundColor Green
 
-        Confirm-UserChoice -Message "Do you want to remove the SSH key from THIS machine? ⚠" -Action {
-            Remove-SSHKeyFromRemote -RemoteUser "$DefaultUserName" -RemoteHost "192.168.0.10" -KeyName "demo-lan"
+        $privPath = "$env:USERPROFILE\.ssh\$KeyName"
+        $pubPath  = "$privPath.pub"
+        Confirm-UserChoice -Message "  Remove local key '$KeyName' from THIS machine? ⚠" -Action {
+            if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Host "  🗑  Deleted: $privPath" -ForegroundColor Green }
+            if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Host "  🗑  Deleted: $pubPath"  -ForegroundColor Green }
         } -DefaultAnswer "n"
     } catch {
         Write-Host "❌ Failed to remove the SSH key from remote." -ForegroundColor Red
