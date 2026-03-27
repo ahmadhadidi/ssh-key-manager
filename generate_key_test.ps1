@@ -1217,12 +1217,8 @@ function Read-SSHKeyName {
 
 
 function Read-SSHKeyComment {
-    param (
-        [string]$DefaultComment
-    )
-
-    $Comment = Read-ColoredInput -Prompt "  Enter the key comment (default: $DefaultComment)" -ForegroundColor "Cyan"
-    return (Resolve-NullToDefault -DefaultValue $DefaultComment -Value $Comment)
+    param ([string]$DefaultComment)
+    return Read-HostWithDefault -Prompt "Key comment:" -Default $DefaultComment
 }
 
 
