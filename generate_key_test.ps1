@@ -473,16 +473,30 @@ function Invoke-MenuChoice {
             }
         }
         "9" {
-            $KeyName = Read-SSHKeyName
-            if (-not $KeyName) { return }
-            $keyHosts = Get-HostsUsingKey -KeyName $KeyName
-            $hostName = $null
-            if ($keyHosts.Count -gt 0) {
-                $labels   = @($keyHosts | ForEach-Object { $_.Alias })
-                $hostName = Select-FromList -Items $labels -Prompt "Select host to remove key from"
+            # Step 1: pick a host
+            $allHosts = Get-ConfiguredSSHHosts
+            if ($allHosts.Count -eq 0) {
+                Write-Host "  ℹ  No configured hosts found in ~/.ssh/config." -ForegroundColor DarkGray
+                return
             }
-            if (-not $hostName) { $hostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix" }
-            if ($hostName) { Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $hostName }
+            $hostName = Select-FromList -Items @($allHosts | ForEach-Object { $_.Alias }) -Prompt "Select host:"
+            if (-not $hostName) { return }
+
+            # Step 2: find IdentityFile keys under that host and pick one
+            $configRaw = Get-Content "$env:USERPROFILE\.ssh\config" -Raw -Encoding UTF8
+            $hostEsc   = [regex]::Escape($hostName)
+            $block     = [regex]::Match($configRaw, "(?ms)^Host\s+$hostEsc\b.*?(?=^Host\s|\z)").Value
+            $keyNames  = @([regex]::Matches($block, '(?m)^\s*IdentityFile\s+(.+?)\s*$') |
+                           ForEach-Object { [System.IO.Path]::GetFileName($_.Groups[1].Value.Trim().Trim('"')) })
+
+            if ($keyNames.Count -eq 0) {
+                Write-Host "  ℹ  No IdentityFile entries found under host '$hostName'." -ForegroundColor DarkGray
+                return
+            }
+            $KeyName = Select-FromList -Items $keyNames -Prompt "Select key to remove from '$hostName':"
+            if (-not $KeyName) { return }
+
+            Remove-IdentityFileFromConfigEntry -KeyName $KeyName -RemoteHostName $hostName
         }
         "10" {
             Write-Host ""
