@@ -749,26 +749,22 @@ function Remove-SSHKeyFromRemote {
 
 
 function Deploy-PromotedKey {
-    Write-Host "Which key do you want to remove?" -ForegroundColor Cyan
+    Write-Host "  Which key do you want to demote (remove from remote)?" -ForegroundColor Cyan
     $KeyNameToRemove = Read-SSHKeyName
-    $CommentToRemove = Read-SSHKeyComment -DefaultComment "$KeyNameToRemove$DefaultCommentSuffix"
 
-    Write-Host "From which remote machine?" -ForegroundColor Cyan
+    Write-Host "  From which remote machine?" -ForegroundColor Cyan
     $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
 
-    # Check if the key is registered as an IdentityFile for this remote host first
-    if (Find-SSHKeyInHostConfig -KeyName $KeyNameToRemove -RemoteHostName $RemoteHostName -ReturnResult $true) {
-        Write-Host "Replace with which key?" -ForegroundColor Cyan
-        $KeyNameNew = Read-SSHKeyName
-        Deploy-SSHKeyToRemote -KeyName $KeyNameNew
-        $RemoteHostAddress = Get-IPAddressFromHostConfigEntry -RemoteHostName $RemoteHostName
-        $RemoteUser = Get-RemoteUserFromConfigEntry -RemoteHostName $RemoteHostName
+    Write-Host "  Replace with which key?" -ForegroundColor Cyan
+    $KeyNameNew = Read-SSHKeyName
+    Deploy-SSHKeyToRemote -KeyName $KeyNameNew
 
-        Confirm-UserChoice -Message "Do you want to remove the demoted SSH key ($KeyNameToRemove) from the remote machine? ⚠" -Action {
-            Remove-SSHKeyFromRemote -RemoteUser $RemoteUser -RemoteHost $RemoteHostAddress -KeyName $KeyNameToRemove
-        } -DefaultAnswer "n"
+    $RemoteHostAddress = Get-IPAddressFromHostConfigEntry -RemoteHostName $RemoteHostName
+    $RemoteUser        = Get-RemoteUserFromConfigEntry    -RemoteHostName $RemoteHostName
 
-    }
+    Confirm-UserChoice -Message "  Remove demoted key '$KeyNameToRemove' from remote '$RemoteHostName'? ⚠" -Action {
+        Remove-SSHKeyFromRemote -RemoteUser $RemoteUser -RemoteHost $RemoteHostAddress -KeyName $KeyNameToRemove
+    } -DefaultAnswer "n"
 }
 
 
