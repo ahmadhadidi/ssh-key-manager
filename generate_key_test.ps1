@@ -464,7 +464,39 @@ function Invoke-MenuChoice {
         "2" {
             $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
             $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-            Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
+
+            # Look up IdentityFile entries for the selected alias in ~/.ssh/config
+            $cfgKeys = @()
+            $selAlias = $script:_LastSelectedAlias
+            if ($selAlias) {
+                $cfgPath = "$env:USERPROFILE\.ssh\config"
+                if (-not (Test-Path $cfgPath)) { $cfgPath = "$env:HOME/.ssh/config" }
+                if (Test-Path $cfgPath) {
+                    $cfgRaw   = Get-Content $cfgPath -Raw -Encoding UTF8
+                    $aliasE   = [regex]::Escape($selAlias)
+                    $block    = [regex]::Match($cfgRaw, "(?ms)^Host\s+$aliasE\b.*?(?=^Host\s|\z)").Value
+                    $cfgKeys  = @([regex]::Matches($block, '(?m)^\s*IdentityFile\s+(.+?)\s*$') |
+                                  ForEach-Object { $_.Groups[1].Value.Trim().Trim('"') })
+                }
+            }
+
+            if ($cfgKeys.Count -gt 1) {
+                $allLabel  = "── Test ALL ($($cfgKeys.Count) keys)"
+                $keyLabels = @($allLabel) + $cfgKeys
+                $selected  = Select-FromList -Items $keyLabels -Prompt "Select key to test:"
+                if ($selected -and $selected.StartsWith("──")) {
+                    $cfgKeys | ForEach-Object {
+                        Write-Host "  🔑 Testing with key: $_" -ForegroundColor DarkGray
+                        Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost -IdentityFile $_
+                    }
+                } elseif ($selected) {
+                    Write-Host "  🔑 Using key: $selected" -ForegroundColor DarkGray
+                    Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost -IdentityFile $selected
+                }
+            } else {
+                if ($cfgKeys.Count -eq 1) { Write-Host "  🔑 Using key: $($cfgKeys[0])" -ForegroundColor DarkGray }
+                Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
+            }
         }
         "3" {
             $KeyName = Read-SSHKeyName
@@ -742,13 +774,16 @@ function Test-SSHConnection {
     param (
         [string]$RemoteUser,
         [string]$RemoteHost,
+        [string]$IdentityFile = "",
         [switch]$ReturnResult
     )
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
 
     try {
-        $result = ssh $target "echo SSH Connection Successful" 2>&1
+        $sshArgs = @($target, "echo SSH Connection Successful")
+        if ($IdentityFile) { $sshArgs = @("-i", $IdentityFile) + $sshArgs }
+        $result = ssh @sshArgs 2>&1
 
         if ($result -match "ssh: connect to host .* port 22: Connection refused") {
             Write-Host "  ❌ Connection refused: $RemoteHost is not accepting SSH connections." -ForegroundColor Red
