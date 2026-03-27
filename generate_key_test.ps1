@@ -652,6 +652,27 @@ function Invoke-MenuChoice {
             }
             Install-SSHKeyOnRemote -KeyName $KeyName
         }
+        "16" {
+            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+            Write-Host "  🔑 Fetching authorized_keys from $target…" -ForegroundColor DarkGray
+            try {
+                $keys = ssh $target "cat ~/.ssh/authorized_keys 2>/dev/null"
+                if (-not $keys) {
+                    Write-Host "  ℹ  No authorized_keys found on $target." -ForegroundColor DarkGray
+                } else {
+                    Write-Host "  `e[1;37mAuthorized keys on ${target}:`e[0m"
+                    $i = 1
+                    $keys -split "`n" | Where-Object { $_.Trim() } | ForEach-Object {
+                        Write-Host "  `e[90m$($i.ToString().PadLeft(3))`e[0m  `e[36m$_`e[0m"
+                        $i++
+                    }
+                }
+            } catch {
+                Write-Host "  ❌ Failed to fetch authorized_keys: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        }
         "12" { Remove-HostFromSSHConfig }
         "13" { Show-SSHConfigFile }
         "14" { Edit-SSHConfigFile; return $true }  # returns directly to menu (no "press any key")
