@@ -530,7 +530,8 @@ function Invoke-MenuChoice {
             $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
             $selectedAlias     = $script:_LastSelectedAlias
             $target            = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-            foreach ($k in (Get-IdentityFilesForHost (if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }))) {
+            $_idLookup = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
+            foreach ($k in (Get-IdentityFilesForHost $_idLookup)) {
                 Write-Host "  🔑 Using key: $k" -ForegroundColor DarkGray
             }
 
@@ -821,7 +822,8 @@ function Install-SSHKeyOnRemote {
     $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-    foreach ($k in (Get-IdentityFilesForHost (if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }))) {
+    $_idLookup = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
+    foreach ($k in (Get-IdentityFilesForHost $_idLookup)) {
         Write-Host "  🔑 Using key: $k" -ForegroundColor DarkGray
     }
     Write-Host "  🔃 Connecting to $target..."
