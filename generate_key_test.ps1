@@ -198,9 +198,6 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Remove Host from SSH Config";                    Choice = "12" }
         [pscustomobject]@{ Type = "item";   Label = "View SSH Config";                                Choice = "13" }
         [pscustomobject]@{ Type = "item";   Label = "Edit SSH Config";                                Choice = "14" }
-        [pscustomobject]@{ Type = "header"; Label = "🌊" }
-        [pscustomobject]@{ Type = "item";   Label = "Help: Best Practices";                           Choice = "10" }
-        [pscustomobject]@{ Type = "item";   Label = "Conf: Global Defaults";                          Choice = "11" }
         [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q" }
     )
 
@@ -307,7 +304,7 @@ function Show-MainMenu {
                 }
 
                 # Status bar — padded to fill full terminal width
-                $statusBar = "  ↑↓ / Home / End  navigate     Enter  select     Q  quit  "
+                $statusBar = "  ↑↓ / Home / End  navigate     Enter  select     Q  quit     F1  help     F10  conf  "
                 $f += "`e[$termHeight;1H`e[7m$statusBar$(" " * [Math]::Max(0, $termWidth - $statusBar.Length))`e[0m"
 
                 [Console]::Write($f)
@@ -381,6 +378,25 @@ function Show-MainMenu {
 
             if ($key.Character -eq 'q' -or $key.Character -eq 'Q') {
                 $running = $false
+            }
+
+            # F1 / F10 — inline overlay for Help and Conf
+            if ($key.VirtualKeyCode -eq 112 -or $key.VirtualKeyCode -eq 121) {
+                $fChoice = if ($key.VirtualKeyCode -eq 112) { "10" } else { "11" }
+                $fLabel  = if ($key.VirtualKeyCode -eq 112) { "Help: Best Practices" } else { "Conf: Global Defaults" }
+                $rule    = "─" * [Math]::Max(0, $termWidth - 4)
+                $fPad    = " " * [Math]::Max(0, [int](($termWidth - 4 - $fLabel.Length) / 2))
+                $fTitle  = "  " + $fPad + $fLabel
+                $fFill   = " " * [Math]::Max(0, $termWidth - $fTitle.Length)
+                $f  = "`e[2J`e[H`e[?25h`n"
+                $f += "  `e[96m$rule`e[0m`n"
+                $f += "`e[48;5;23m`e[1;97m$fTitle$fFill`e[0m`n"
+                $f += "  `e[96m$rule`e[0m`n`n"
+                [Console]::Write($f)
+                try { $null = Invoke-MenuChoice -Choice $fChoice } catch [System.OperationCanceledException] { }
+                if ($fChoice -ne "11") { Wait-UserAcknowledge }   # Conf has its own Q-to-exit; Help needs ack
+                [Console]::Write("`e[?25l")
+                $needFull = $true
             }
         }
     } finally {
