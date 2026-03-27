@@ -1006,7 +1006,7 @@ function Show-SSHKeyInventory {
 
     $tableLines = @()
     $tableLines += "`e[36m$top`e[0m"
-    $tableLines += "  `e[1;37m$hdr`e[0m"
+    $tableLines += "`e[1;37m$hdr`e[0m"
     $tableLines += "`e[36m$mid`e[0m"
     foreach ($r in $rows) {
         $num   = [string]$r."#"
