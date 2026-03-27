@@ -214,7 +214,7 @@ function Get-IdentityFilesForHost {
 function Format-MenuLabel {
     param([string]$Label, [string]$Hotkey)
     if (-not $Hotkey) { return $Label }
-    [regex]::Replace($Label, "(?i)($([regex]::Escape($Hotkey)))", "`e[1;4;96m`$1`e[0;37m", 1)
+    [regex]::Replace($Label, "(?i)($([regex]::Escape($Hotkey)))", "`e[1;4m`$1`e[0;37m", 1)
 }
 
 
