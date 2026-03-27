@@ -508,7 +508,10 @@ function Invoke-MenuChoice {
                 $keyLabels = @($allLabel) + $cfgKeys
                 $selected  = Select-FromList -Items $keyLabels -Prompt "Select key to test:"
                 if ($selected -and $selected.StartsWith("──")) {
+                    $isFirst = $true
                     $cfgKeys | ForEach-Object {
+                        if (-not $isFirst) { Write-Host "" }
+                        $isFirst = $false
                         Write-Host "  🔑 Testing with key: $_" -ForegroundColor DarkGray
                         Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost -IdentityFile $_
                     }
