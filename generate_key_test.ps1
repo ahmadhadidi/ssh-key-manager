@@ -96,9 +96,11 @@ function Get-ConfiguredSSHHosts {
 
 function Select-FromList {
     # Combo-box: ↑↓ navigates list, typing filters/creates new entry, Enter selects, Esc cancels.
+    # -StrictList: Enter only accepts a highlighted list item (or sole match); disallows free text.
     param(
         [string[]]$Items,
-        [string]$Prompt = "Select"
+        [string]$Prompt = "Select",
+        [switch]$StrictList
     )
     if (-not $Items -or $Items.Count -eq 0) { return $null }
 
@@ -158,9 +160,15 @@ function Select-FromList {
                 if ($filter.Length -gt 0) { $filter = $filter.Substring(0, $filter.Length - 1); $sel = -1 }
             }
             13 {  # Enter
-                $chosen = if ($sel -ge 0 -and $sel -lt $filtered.Count) { $filtered[$sel] }
-                          elseif ($filter) { $filter }
-                          else { $null }
+                $chosen = if ($sel -ge 0 -and $sel -lt $filtered.Count) {
+                              $filtered[$sel]
+                          } elseif ($StrictList) {
+                              # In strict mode: auto-accept if filter matches exactly one item; otherwise ignore
+                              if ($filtered.Count -eq 1) { $filtered[0] } else { $null }
+                          } elseif ($filter) {
+                              $filter
+                          } else { $null }
+                if ($chosen -eq $null -and $StrictList) { break }  # ignore keystroke — no free text
                 [Console]::Write($clr + "`e[$th;1H`e[K")
                 if ($chosen) { [Console]::Write("`e[$promptRow;1H  `e[90m$Prompt`e[0m  `e[36m$chosen`e[0m`n`e[?25h") }
                 else         { [Console]::Write("`e[$promptRow;1H`e[?25h") }
@@ -507,7 +515,7 @@ function Invoke-MenuChoice {
                 Write-Host "  ℹ  No configured hosts found in ~/.ssh/config." -ForegroundColor DarkGray
                 return
             }
-            $hostName = Select-FromList -Items @($allHosts | ForEach-Object { $_.Alias }) -Prompt "Select host:"
+            $hostName = Select-FromList -Items @($allHosts | ForEach-Object { $_.Alias }) -Prompt "Select host:" -StrictList
             if (-not $hostName) { return }
 
             # Step 2: find IdentityFile keys under that host and pick one
@@ -1201,7 +1209,7 @@ function Read-RemoteHostName {
     $hosts = Get-ConfiguredSSHHosts
     if ($hosts.Count -gt 0) {
         $labels   = @($hosts | ForEach-Object { $_.Alias })
-        $selected = Select-FromList -Items $labels -Prompt "Select host alias"
+        $selected = Select-FromList -Items $labels -Prompt "Select host alias" -StrictList
         if ($selected) { return $selected }
     }
 
