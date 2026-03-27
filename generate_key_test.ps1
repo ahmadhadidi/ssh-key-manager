@@ -1495,9 +1495,11 @@ function Read-RemoteHostName {
 
     $hosts = Get-ConfiguredSSHHosts
     if ($hosts.Count -gt 0) {
-        $labels   = @($hosts | ForEach-Object { $_.Alias })
-        $selected = Select-FromList -Items $labels -Prompt "Select host alias" -StrictList
-        if ($selected) { return $selected }
+        $labels = @($hosts | ForEach-Object { $_.Alias })
+        try {
+            $selected = Select-FromList -Items $labels -Prompt "Select host alias  (Esc = enter manually)"
+            if ($selected) { return $selected }
+        } catch [System.OperationCanceledException] { }   # fall through to manual entry
     }
 
     $name = Read-ColoredInput -Prompt "  Enter the host alias / hostname" -ForegroundColor "Cyan"
@@ -1518,23 +1520,36 @@ function Read-RemoteHostAddress {
 
     $hosts = Get-ConfiguredSSHHosts
     if ($hosts.Count -gt 0) {
-        $labels   = @($hosts | ForEach-Object {
+        $labels = @($hosts | ForEach-Object {
             if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
         })
-        $selected = Select-FromList -Items $labels -Prompt "Select remote host"
-        if ($selected) {
-            $alias = ($selected -split '\s+\(')[0].Trim()
-            $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
-            $addr  = if ($h -and $h.HostName) { $h.HostName } else { $alias }
-            $script:_LastSelectedAlias = $alias
-            return $addr
-        }
+        try {
+            $selected = Select-FromList -Items $labels -Prompt "Select remote host  (Esc = enter manually)"
+            if ($selected) {
+                $alias = ($selected -split '\s+\(')[0].Trim()
+                $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
+                $addr  = if ($h -and $h.HostName) { $h.HostName } else { $alias }
+                $script:_LastSelectedAlias = $alias
+                return $addr
+            }
+        } catch [System.OperationCanceledException] { }   # fall through to manual entry
     }
 
     $RemoteHost = Read-ColoredInput -Prompt "  Enter remote IP / hostname (or last 1–3 digits for $SubnetPrefix.xx)" -ForegroundColor "Cyan"
-    if ($RemoteHost -match "^\d{1,3}$") {
-        return "$SubnetPrefix.$RemoteHost"
+    if ([string]::IsNullOrWhiteSpace($RemoteHost)) {
+        Write-Host "  ❗ No input provided." -ForegroundColor Red
+        return $null
     }
+    if ($RemoteHost -match '^\d{1,3}$') {
+        $resolved = "$SubnetPrefix.$RemoteHost"
+        Write-Host "  📡 Interpreted as: $resolved" -ForegroundColor Green
+        return $resolved
+    }
+    if ($RemoteHost -match '^\d{1,3}(\.\d{1,3}){3}$') {
+        Write-Host "  🌐 Full IP address: $RemoteHost" -ForegroundColor Cyan
+        return $RemoteHost
+    }
+    Write-Host "  🏷  Hostname: $RemoteHost" -ForegroundColor Cyan
     return $RemoteHost
 }
 
