@@ -425,6 +425,17 @@ function Invoke-MenuChoice {
             $RemoteHostName    = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
             $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
             $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+
+            # Verify the key is actually installed on the remote before writing to config
+            $keyPath    = "$env:USERPROFILE\.ssh\$KeyName"
+            $testOut    = & ssh -i $keyPath -o BatchMode=yes -o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new "$RemoteUser@$RemoteHostAddress" "echo ok" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  ✅ Key verified on $RemoteHostAddress." -ForegroundColor Green
+            } else {
+                Write-Host "  ⚠  Could not verify '$KeyName' on $RemoteHostAddress — it may not be installed yet." -ForegroundColor Yellow
+                $proceed = Read-HostWithDefault -Prompt "Add to config anyway? (y/N):" -Default "N"
+                if ($proceed -notmatch '^[Yy]') { return }
+            }
             Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
         }
         "8" {
