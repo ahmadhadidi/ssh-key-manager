@@ -254,7 +254,7 @@ function Show-MainMenu {
             $flatRows.Add([pscustomobject]@{ Type = "blank";  Label = "";       nIdx = -1 })
             $flatRows.Add([pscustomobject]@{ Type = "header"; Label = $e.Label; nIdx = -1 })
         } else {
-            $flatRows.Add([pscustomobject]@{ Type = "item"; Label = $e.Label; nIdx = $ni })
+            $flatRows.Add([pscustomobject]@{ Type = "item"; Label = $e.Label; nIdx = $ni; Hotkey = $e.Hotkey })
             $ni++
         }
     }
