@@ -525,10 +525,75 @@ function Invoke-MenuChoice {
             }
         }
         "3" {
-            $KeyName = Read-SSHKeyName
-            $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-            Remove-SSHKeyFromRemote -RemoteUser $RemoteUser -RemoteHost $RemoteHost -KeyName $KeyName
+            # Step 1 — select host and user
+            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
+            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            $selectedAlias     = $script:_LastSelectedAlias
+            $target            = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+            foreach ($k in (Get-IdentityFilesForHost (if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }))) {
+                Write-Host "  🔑 Using key: $k" -ForegroundColor DarkGray
+            }
+
+            # Step 2 — fetch authorized_keys from remote
+            Write-Host "  🔃 Fetching authorized keys from $target…" -ForegroundColor DarkGray
+            try {
+                $rawKeys = ssh $target "cat ~/.ssh/authorized_keys 2>/dev/null"
+            } catch {
+                Write-Host "  ❌ Could not connect to $target`: $($_.Exception.Message)" -ForegroundColor Red
+                return
+            }
+            $remoteLines = @($rawKeys -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+            if ($remoteLines.Count -eq 0) {
+                Write-Host "  ℹ  No authorized_keys found on $target." -ForegroundColor DarkGray
+                return
+            }
+
+            # Step 3 — find local .pub files that match remote authorized_keys
+            $sshDir      = "$env:USERPROFILE\.ssh"
+            $matchedKeys = @()
+            foreach ($pub in (Get-ChildItem -Path $sshDir -Filter "*.pub" -File -ErrorAction SilentlyContinue)) {
+                $content = (Get-Content $pub.FullName -Raw -Encoding UTF8).Trim()
+                if ($remoteLines -contains $content) {
+                    $matchedKeys += [pscustomobject]@{ KeyName = $pub.BaseName; PubPath = $pub.FullName; PubContent = $content }
+                }
+            }
+            if ($matchedKeys.Count -eq 0) {
+                Write-Host "  ℹ  No local public keys found in $target authorized_keys." -ForegroundColor Yellow
+                return
+            }
+
+            # Step 4 — let user pick which key to remove
+            $labels   = @($matchedKeys | ForEach-Object { "$($_.KeyName)  ($($_.PubPath))" })
+            $selected = Select-FromList -Items $labels -Prompt "Select key to remove from remote:" -StrictList
+            if (-not $selected) { return }
+            $pick     = $matchedKeys[$labels.IndexOf($selected)]
+
+            # Step 5 — remove from remote authorized_keys via awk
+            $pubContent    = $pick.PubContent
+            $RemoteCommand = "TMP_FILE=`$(mktemp) && printf '%s`\n' '$pubContent' > `$TMP_FILE && awk 'NR==FNR { keys[`$0]; next } !(`$0 in keys)' `$TMP_FILE ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && rm -f `$TMP_FILE"
+            Write-Host "  🔒 Removing key '$($pick.KeyName)' from $target…" -ForegroundColor Yellow
+            try {
+                ssh $target $RemoteCommand
+                Write-Host "  ✅ Key removed from remote authorized_keys." -ForegroundColor Green
+            } catch {
+                Write-Host "  ❌ Failed to remove key from remote." -ForegroundColor Red
+                return
+            }
+
+            # Step 6 — optionally remove IdentityFile line from SSH config block
+            if ($selectedAlias) {
+                Confirm-UserChoice -Message "  Remove IdentityFile '$($pick.KeyName)' from config block '$selectedAlias'? ⚠" -Action {
+                    Remove-IdentityFileFromConfigBlock -KeyName $pick.KeyName -HostAlias $selectedAlias
+                } -DefaultAnswer "y"
+            }
+
+            # Step 7 — optionally delete local key files
+            $privPath = "$sshDir\$($pick.KeyName)"
+            $pubPath  = "$privPath.pub"
+            Confirm-UserChoice -Message "  Delete local key '$($pick.KeyName)' from this machine? ⚠" -Action {
+                if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Host "  🗑  Deleted: $privPath" -ForegroundColor Green }
+                if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Host "  🗑  Deleted: $pubPath"  -ForegroundColor Green }
+            } -DefaultAnswer "n"
         }
         "4" {
             Deploy-PromotedKey
@@ -908,6 +973,30 @@ function Test-SSHConnection {
         Write-Host "  $($_.Exception.Message)"
         if ($ReturnResult) { return $false } else { return }
     }
+}
+
+
+function Remove-IdentityFileFromConfigBlock {
+    # Removes all IdentityFile lines referencing $KeyName from the Host block for $HostAlias.
+    param([string]$KeyName, [string]$HostAlias)
+    $sshConfig = Find-ConfigFileOnHost
+    if (-not $sshConfig) { return }
+    $config     = Get-Content $sshConfig -Raw -Encoding UTF8
+    $aliasE     = [regex]::Escape($HostAlias)
+    $blockMatch = [regex]::Match($config, "(?ms)^Host\s+$aliasE\b.*?(?=^Host\s|\z)")
+    if (-not $blockMatch.Success) {
+        Write-Host "  ⚠  No config block found for '$HostAlias'." -ForegroundColor Yellow
+        return
+    }
+    $block    = $blockMatch.Value
+    $keyE     = [regex]::Escape($KeyName)
+    $newBlock = [regex]::Replace($block, "(?m)^\s*IdentityFile\s+[^\r\n]*[\\/]$keyE[^\r\n]*(\r?\n|$)", "")
+    if ($newBlock -eq $block) {
+        Write-Host "  ℹ  Key '$KeyName' not found in config block '$HostAlias'." -ForegroundColor DarkGray
+        return
+    }
+    Set-Content $sshConfig -Value ($config.Replace($block, $newBlock)) -Encoding UTF8
+    Write-Host "  ✅ IdentityFile '$KeyName' removed from config block '$HostAlias'." -ForegroundColor Green
 }
 
 
