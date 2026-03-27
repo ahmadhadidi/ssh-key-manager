@@ -798,7 +798,7 @@ function Invoke-MenuChoice {
         }
         "17" { Register-RemoteHostConfig }
         "12" { Remove-HostFromSSHConfig }
-        "13" { Show-SSHConfigFile }
+        "13" { Show-SSHConfigFile; return $true }  # pager handles its own exit — skip Wait-UserAcknowledge
         "14" { Edit-SSHConfigFile; return $true }  # returns directly to menu (no "press any key")
     }
 }
@@ -2013,10 +2013,54 @@ function Show-SSHConfigFile {
         }
     }
 
-    Write-Host ""
-    Write-Host "  `e[90m$configPath`e[0m"
-    Write-Host "  `e[90m$('─' * $configPath.Length)`e[0m"
-    $out | ForEach-Object { [Console]::WriteLine($_) }
+    # Interactive pager — ↑↓/PgUp/PgDn/Home/End scroll, Q closes
+    $termH       = $Host.UI.RawUI.WindowSize.Height
+    $termW       = $Host.UI.RawUI.WindowSize.Width
+    $contentRows = [Math]::Max(1, $termH - 5)
+    $total       = $out.Count
+    $off         = 0
+    [Console]::Write("`e[?25l")
+
+    while ($true) {
+        $off  = [Math]::Max(0, [Math]::Min($off, [Math]::Max(0, $total - $contentRows)))
+        $rule = "─" * [Math]::Max(0, $termW - 4)
+        $hdr  = "  $configPath"
+        $hFill = " " * [Math]::Max(0, $termW - $hdr.Length)
+        $f    = "`e[2J`e[H"
+        $f   += "`e[2;1H  `e[96m$rule`e[0m`e[K"
+        $f   += "`e[3;1H`e[48;5;23m`e[1;97m$hdr$hFill`e[0m"
+        $f   += "`e[4;1H  `e[96m$rule`e[0m`e[K"
+        $row  = 5
+        for ($i = $off; $i -lt [Math]::Min($off + $contentRows, $total); $i++) {
+            $f += "`e[$row;1H$($out[$i])`e[K"
+            $row++
+        }
+        while ($row -le ($termH - 1)) { $f += "`e[$row;1H`e[K"; $row++ }
+        $pct    = if ($total -le $contentRows) { "all" } else { "$([int](([Math]::Min($off + $contentRows, $total)) * 100 / $total))%" }
+        $status = "  ↑↓ / PgUp / PgDn  scroll     Home  top     End  bottom     Q  close     $pct  "
+        $f     += "`e[$termH;1H`e[7m$status$(" " * [Math]::Max(0, $termW - $status.Length))`e[0m"
+        [Console]::Write($f)
+
+        try { $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
+
+        switch ($key.VirtualKeyCode) {
+            38 { $off-- }
+            40 { $off++ }
+            33 { $off -= $contentRows }
+            34 { $off += $contentRows }
+            36 { $off = 0 }
+            35 { $off = $total - $contentRows }
+        }
+        if ($key.Character -eq 'q' -or $key.Character -eq 'Q') { break }
+
+        # Detect terminal resize
+        $nW = $Host.UI.RawUI.WindowSize.Width; $nH = $Host.UI.RawUI.WindowSize.Height
+        if ($nW -ne $termW -or $nH -ne $termH) {
+            $termW = $nW; $termH = $nH
+            $contentRows = [Math]::Max(1, $termH - 5)
+        }
+    }
+    [Console]::Write("`e[?25h")
 }
 
 
