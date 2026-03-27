@@ -1293,10 +1293,10 @@ function Show-SSHKeyInventory {
 
     $wPub  = 3
     $wPriv = 4
-    $top = "  ┌$("─" * ($wNum + 2))┬$("─" * ($wKey + 2))┬$("─" * ($wPub + 2))┬$("─" * ($wPriv + 2))┬$("─" * ($wUse + 2))┐"
-    $hdr = "  │ $(" " * [Math]::Max(0, $wNum - 1))# │ $("Key".PadRight($wKey)) │ Pub │ Priv │ $("Usage".PadRight($wUse)) │"
-    $mid = "  ├$("─" * ($wNum + 2))┼$("─" * ($wKey + 2))┼$("─" * ($wPub + 2))┼$("─" * ($wPriv + 2))┼$("─" * ($wUse + 2))┤"
-    $bot = "  └$("─" * ($wNum + 2))┴$("─" * ($wKey + 2))┴$("─" * ($wPub + 2))┴$("─" * ($wPriv + 2))┴$("─" * ($wUse + 2))┘"
+    $top = "  ┌$("─" * ($wNum + 2))┬$("─" * ($wKey + 2))┬$("─" * ($wPub + 2))┬$("─" * ($wPriv + 1))┬$("─" * ($wUse + 2))┐"
+    $hdr = "  │ $(" " * [Math]::Max(0, $wNum - 1))# │ $("Key".PadRight($wKey)) │ Pub │ Prv │ $("Usage".PadRight($wUse)) │"
+    $mid = "  ├$("─" * ($wNum + 2))┼$("─" * ($wKey + 2))┼$("─" * ($wPub + 2))┼$("─" * ($wPriv + 1))┼$("─" * ($wUse + 2))┤"
+    $bot = "  └$("─" * ($wNum + 2))┴$("─" * ($wKey + 2))┴$("─" * ($wPub + 2))┴$("─" * ($wPriv + 1))┴$("─" * ($wUse + 2))┘"
 
     $tableLines = @()
     $tableLines += "`e[97m$top`e[0m"
@@ -1305,8 +1305,8 @@ function Show-SSHKeyInventory {
     foreach ($r in $rows) {
         $num   = [string]$r."#"
         # ✓/✗ render as 2 terminal columns; add extra space so cell = wPub+2 (5) / wPriv+2 (6) display cols
-        $pubC  = if ($r.Public  -eq "✅") { "`e[32m ✓  `e[0m" } else { "`e[31m ✗  `e[0m" }
-        $privC = if ($r.Private -eq "✅") { "`e[32m ✓   `e[0m" } else { "`e[31m ✗   `e[0m" }
+        $pubC  = if ($r.Public  -eq "✅") { "`e[32m  ✓  `e[0m" } else { "`e[31m  ✗  `e[0m" }
+        $privC = if ($r.Private -eq "✅") { "`e[32m  ✓  `e[0m" } else { "`e[31m  ✗  `e[0m" }
         $tableLines += "  `e[97m│`e[0m $($num.PadLeft($wNum)) `e[97m│`e[0m `e[36m$($r.Key.PadRight($wKey))`e[0m `e[97m│`e[0m$pubC`e[97m│`e[0m$privC`e[97m│`e[0m `e[37m$($r.Usage.PadRight($wUse))`e[0m `e[97m│`e[0m"
     }
     $tableLines += "`e[97m$bot`e[0m"
