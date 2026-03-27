@@ -229,6 +229,7 @@ function Show-MainMenu {
         [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3";  Hotkey = "D" }
         [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4";  Hotkey = "P" }
         [pscustomobject]@{ Type = "item";   Label = "List Authorized Keys on Remote Host";            Choice = "16"; Hotkey = "Z" }
+        [pscustomobject]@{ Type = "item";   Label = "Add Config Block for Existing Remote Key";        Choice = "17"; Hotkey = "N" }
         [pscustomobject]@{ Type = "header"; Label = "Local" }
         [pscustomobject]@{ Type = "item";   Label = "Generate SSH Key (Without installation)";        Choice = "5";  Hotkey = "W" }
         [pscustomobject]@{ Type = "item";   Label = "List SSH Keys";                                  Choice = "6";  Hotkey = "L" }
@@ -727,6 +728,7 @@ function Invoke-MenuChoice {
                 Write-Host "  ❌ Failed to fetch authorized_keys: $($_.Exception.Message)" -ForegroundColor Red
             }
         }
+        "17" { Register-RemoteHostConfig }
         "12" { Remove-HostFromSSHConfig }
         "13" { Show-SSHConfigFile }
         "14" { Edit-SSHConfigFile; return $true }  # returns directly to menu (no "press any key")
@@ -776,6 +778,68 @@ function Install-SSHKeyOnRemote {
     } catch {
         Write-Host "  ❌ Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
     }
+}
+
+
+function Register-RemoteHostConfig {
+    # Connects to a remote machine (free-text IP/hostname), reads its authorized_keys,
+    # matches against local *.pub files, then creates a ~/.ssh/config block for the match.
+    Write-Host "  Enter the IP or hostname of the remote machine (not yet in config)." -ForegroundColor Cyan
+    $RemoteHostAddress = Read-ColoredInput -Prompt "  Remote IP / hostname" -ForegroundColor "Cyan"
+    if ($RemoteHostAddress -match "^\d{1,3}$") { $RemoteHostAddress = "$DefaultSubnetPrefix.$RemoteHostAddress" }
+    if ([string]::IsNullOrWhiteSpace($RemoteHostAddress)) { return }
+
+    $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+    $target     = "$RemoteUser@$RemoteHostAddress"
+
+    Write-Host "  🔃 Connecting to $target to read authorized_keys…" -ForegroundColor DarkGray
+    try {
+        $rawKeys = ssh -o StrictHostKeyChecking=accept-new $target "cat ~/.ssh/authorized_keys 2>/dev/null"
+    } catch {
+        Write-Host "  ❌ Connection failed: $($_.Exception.Message)" -ForegroundColor Red
+        return
+    }
+
+    $remoteLines = @($rawKeys -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($remoteLines.Count -eq 0) {
+        Write-Host "  ℹ  No authorized_keys found on $target." -ForegroundColor Yellow
+        return
+    }
+
+    # Compare each local .pub file against remote lines
+    $sshDir  = "$env:USERPROFILE\.ssh"
+    $matches = @()
+    foreach ($pub in (Get-ChildItem -Path $sshDir -Filter "*.pub" -File -ErrorAction SilentlyContinue)) {
+        $content = (Get-Content $pub.FullName -Raw -Encoding UTF8).Trim()
+        if ($remoteLines -contains $content) {
+            $matches += [pscustomobject]@{ KeyName = $pub.BaseName; PubPath = $pub.FullName }
+        }
+    }
+
+    if ($matches.Count -eq 0) {
+        Write-Host "  ℹ  No local public keys match the authorized_keys on $target." -ForegroundColor Yellow
+        Write-Host "  ℹ  Install a key first via 'Generate & Install' or 'Install SSH Key'." -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Host "  ✅ Found $($matches.Count) matching local key(s):" -ForegroundColor Green
+    $matches | ForEach-Object { Write-Host "     🔑 $($_.KeyName)" -ForegroundColor Cyan }
+
+    # Pick which key to register when multiple match
+    if ($matches.Count -gt 1) {
+        $labels  = @($matches | ForEach-Object { $_.KeyName })
+        $picked  = Select-FromList -Items $labels -Prompt "Select key for the config block:" -StrictList
+        if (-not $picked) { return }
+        $chosen  = $matches | Where-Object { $_.KeyName -eq $picked } | Select-Object -First 1
+    } else {
+        $chosen  = $matches[0]
+    }
+
+    # Prompt for alias
+    $hostAlias = Read-HostWithDefault -Prompt "  Alias for this host in ~/.ssh/config:" -Default $RemoteHostAddress
+    if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostAddress }
+
+    Add-SSHKeyToHostConfig -KeyName $chosen.KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
 }
 
 
