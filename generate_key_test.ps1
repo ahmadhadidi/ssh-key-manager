@@ -1005,16 +1005,16 @@ function Show-SSHKeyInventory {
     $bot = "  └$("─" * ($wNum + 2))┴$("─" * ($wKey + 2))┴$("─" * ($wPub + 2))┴$("─" * ($wPriv + 2))┴$("─" * ($wUse + 2))┘"
 
     $tableLines = @()
-    $tableLines += "`e[36m$top`e[0m"
+    $tableLines += "`e[97m$top`e[0m"
     $tableLines += "`e[1;37m$hdr`e[0m"
-    $tableLines += "`e[36m$mid`e[0m"
+    $tableLines += "`e[97m$mid`e[0m"
     foreach ($r in $rows) {
         $num   = [string]$r."#"
         $pubC  = if ($r.Public  -eq "✅") { "`e[32m ✓ `e[0m" } else { "`e[31m ✗ `e[0m" }
         $privC = if ($r.Private -eq "✅") { "`e[32m ✓  `e[0m" } else { "`e[31m ✗  `e[0m" }
-        $tableLines += "  `e[36m│`e[0m $($num.PadLeft($wNum)) `e[36m│`e[0m `e[36m$($r.Key.PadRight($wKey))`e[0m `e[36m│`e[0m$pubC`e[36m│`e[0m$privC`e[36m│`e[0m `e[37m$($r.Usage.PadRight($wUse))`e[0m `e[36m│`e[0m"
+        $tableLines += "  `e[97m│`e[0m $($num.PadLeft($wNum)) `e[97m│`e[0m `e[36m$($r.Key.PadRight($wKey))`e[0m `e[97m│`e[0m$pubC`e[97m│`e[0m$privC`e[97m│`e[0m `e[37m$($r.Usage.PadRight($wUse))`e[0m `e[97m│`e[0m"
     }
-    $tableLines += "`e[36m$bot`e[0m"
+    $tableLines += "`e[97m$bot`e[0m"
 
     Show-Paged -Lines $tableLines
 }
