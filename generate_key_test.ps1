@@ -189,6 +189,28 @@ function Select-FromList {
 }
 
 
+function Get-IdentityFilesForHost {
+    # Returns IdentityFile paths for a given alias or IP address from ~/.ssh/config.
+    # Tries alias match first, then falls back to matching by HostName value.
+    param([string]$AliasOrAddress)
+    $cfgPath = "$env:USERPROFILE\.ssh\config"
+    if (-not $AliasOrAddress -or -not (Test-Path $cfgPath)) { return @() }
+    $cfgRaw = Get-Content $cfgPath -Raw -Encoding UTF8
+    $aliasE = [regex]::Escape($AliasOrAddress)
+    $block  = [regex]::Match($cfgRaw, "(?ms)^Host\s+$aliasE\b.*?(?=^Host\s|\z)").Value
+    if (-not $block) {
+        foreach ($hb in [regex]::Matches($cfgRaw, "(?ms)^Host\s+(\S+).*?(?=^Host\s|\z)")) {
+            if ($hb.Value -match "(?m)^\s*HostName\s+$([regex]::Escape($AliasOrAddress))\s*$") {
+                $block = $hb.Value; break
+            }
+        }
+    }
+    if (-not $block) { return @() }
+    return @([regex]::Matches($block, '(?m)^\s*IdentityFile\s+(.+?)\s*$') |
+             ForEach-Object { $_.Groups[1].Value.Trim().Trim('"') })
+}
+
+
 function Format-MenuLabel {
     param([string]$Label, [string]$Hotkey)
     if (-not $Hotkey) { return $Label }
@@ -729,6 +751,9 @@ function Install-SSHKeyOnRemote {
     $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
 
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+    foreach ($k in (Get-IdentityFilesForHost (if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }))) {
+        Write-Host "  🔑 Using key: $k" -ForegroundColor DarkGray
+    }
     Write-Host "  🔃 Connecting to $target..."
 
     try {
@@ -827,6 +852,9 @@ function Remove-SSHKeyFromRemote {
 
     # Write-Host "`n🐞 HDD-DEBUG:: $RemoteCommand" -ForegroundColor Red
     $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
+    foreach ($k in (Get-IdentityFilesForHost $RemoteHost)) {
+        Write-Host "  🔑 Using key: $k" -ForegroundColor DarkGray
+    }
     Write-Host "`n  🔒 Will connect to remove the public key from $target`:`n  $($PublicKey.Trim())`n" -ForegroundColor Yellow
 
     try {
