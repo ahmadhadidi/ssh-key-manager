@@ -1931,6 +1931,10 @@ function Resolve-SSHTarget {
         $pattern = "(?ms)^Host\s+(\S+).*?(?=^Host\s|\z)"
         foreach ($hb in [regex]::Matches($config, $pattern)) {
             $alias = $hb.Groups[1].Value.Trim()
+            if ($alias -eq $RemoteHostAddress) {
+                Write-Host "  ℹ  SSH config entry '$alias' will be used." -ForegroundColor DarkGray
+                return "$RemoteUser@$alias"
+            }
             if ($hb.Value -match "(?m)^\s*HostName\s+$([regex]::Escape($RemoteHostAddress))\s*$") {
                 Write-Host "  ℹ  SSH config entry '$alias' found for $RemoteHostAddress — key from config will be used." -ForegroundColor DarkGray
                 return "$RemoteUser@$alias"
