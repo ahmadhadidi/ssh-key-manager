@@ -874,7 +874,12 @@ function Test-SSHConnection {
 
     try {
         $sshArgs = @($target, "echo SSH Connection Successful")
-        if ($IdentityFile) { $sshArgs = @("-i", $IdentityFile) + $sshArgs }
+        if ($IdentityFile) {
+            # BatchMode=yes prevents SSH from prompting for a passphrase interactively
+            # (which would appear unindented at column 0, bypassing PowerShell output).
+            # Keys that need a passphrase fail with "Permission denied" instead.
+            $sshArgs = @("-i", $IdentityFile, "-o", "BatchMode=yes") + $sshArgs
+        }
         $result = ssh @sshArgs 2>&1
 
         if ($result -match "ssh: connect to host .* port 22: Connection refused") {
@@ -886,7 +891,11 @@ function Test-SSHConnection {
             if ($ReturnResult) { return $false } else { return }
         }
         elseif ($result -match "Permission denied") {
-            Write-Host "  ⚠️ SSH reachable, but permission denied for user '$RemoteUser'." -ForegroundColor Yellow
+            if ($IdentityFile) {
+                Write-Host "  ⚠️ Key rejected or passphrase required — add key to ssh-agent first." -ForegroundColor Yellow
+            } else {
+                Write-Host "  ⚠️ SSH reachable, but permission denied for user '$RemoteUser'." -ForegroundColor Yellow
+            }
             if ($ReturnResult) { return $true } else { return }  # SSH is reachable, credentials just need fixing
         }
         else {
