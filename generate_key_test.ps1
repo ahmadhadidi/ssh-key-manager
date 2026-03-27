@@ -1106,15 +1106,10 @@ function Add-SSHKeyToHostConfig {
             }
 
         } else {
-            # Create new host entry
-            $hostEntry = @"
-Host $RemoteHostName
-    HostName $RemoteHostAddress
-    User $RemoteUser
-    IdentityFile $keyPath
-"@
-
-            Add-Content -Path $sshConfig -Value $hostEntry
+            # Create new host entry — use explicit string to avoid here-string leading newline
+            $hostEntry = "Host $RemoteHostName`n    HostName $RemoteHostAddress`n    User $RemoteUser`n    IdentityFile $keyPath"
+            $existing  = (Get-Content $sshConfig -Raw -Encoding UTF8).TrimEnd()
+            Set-Content $sshConfig -Value ($existing + "`n`n" + $hostEntry + "`n") -Encoding UTF8 -NoNewline
             Write-Host "  ✅ SSH config block created for $RemoteHostName." -ForegroundColor Green
             Write-Host "  ℹ  Connect with: ssh $RemoteHostName" -ForegroundColor Cyan
         }
