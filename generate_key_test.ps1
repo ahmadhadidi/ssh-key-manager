@@ -12,8 +12,11 @@ function Wait-UserAcknowledge {
     $w = $Host.UI.RawUI.WindowSize.Width
     $msg = "  Press any key to return to menu  "
     [Console]::Write("`e[$h;1H`e[7m$msg$(" " * [Math]::Max(0, $w - $msg.Length))`e[0m")
+    $modifierVKs = @(16, 17, 18, 20, 91, 92, 93, 144, 145)
     try {
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        do {
+            $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        } while ($modifierVKs -contains $k.VirtualKeyCode)
     } catch {
         $null = Read-Host
     }
@@ -162,9 +165,9 @@ function Select-FromList {
                 else         { [Console]::Write("`e[$promptRow;1H`e[?25h") }
                 return $chosen
             }
-            27 {  # Esc
+            27 {  # Esc — cancel entire operation, unwind to menu
                 [Console]::Write($clr + "`e[$th;1H`e[K`e[$promptRow;1H`e[?25h")
-                return $null
+                throw [System.OperationCanceledException]::new("ESC")
             }
         }
 
@@ -366,8 +369,10 @@ function Show-MainMenu {
                         $f += "`e[48;5;23m`e[1;97m$opTitle$opFill`e[0m`n"
                         $f += "  `e[96m$rule`e[0m`n`n"
                         [Console]::Write($f)
-                        $skipWait = Invoke-MenuChoice -Choice $choice
-                        if (-not $skipWait) { Wait-UserAcknowledge }
+                        try {
+                            $skipWait = Invoke-MenuChoice -Choice $choice
+                            if (-not $skipWait) { Wait-UserAcknowledge }
+                        } catch [System.OperationCanceledException] { }
                         [Console]::Write("`e[?25l")
                         $needFull = $true
                     }
@@ -949,16 +954,24 @@ function Show-SSHKeyInventory {
     $wKey = [Math]::Max(3, ($rows | ForEach-Object { $_.Key.Length } | Measure-Object -Maximum).Maximum)
     $wUse = [Math]::Max(5, ($rows | ForEach-Object { $_.Usage.Length } | Measure-Object -Maximum).Maximum)
 
-    $tableLines = @()
-    $tableLines += "  `e[1;37m$("  ".PadLeft($wNum + 2))$("Key".PadRight($wKey))  Pub   Priv  Usage`e[0m"
-    $tableLines += "  `e[90m$("  ".PadLeft($wNum + 2))$("─" * $wKey)  ─────  ─────  $("─" * $wUse)`e[0m"
+    $wPub  = 3
+    $wPriv = 4
+    $top = "  ┌$("─" * ($wNum + 2))┬$("─" * ($wKey + 2))┬$("─" * ($wPub + 2))┬$("─" * ($wPriv + 2))┬$("─" * ($wUse + 2))┐"
+    $hdr = "  │ $(" " * [Math]::Max(0, $wNum - 1))# │ $("Key".PadRight($wKey)) │ Pub │ Priv │ $("Usage".PadRight($wUse)) │"
+    $mid = "  ├$("─" * ($wNum + 2))┼$("─" * ($wKey + 2))┼$("─" * ($wPub + 2))┼$("─" * ($wPriv + 2))┼$("─" * ($wUse + 2))┤"
+    $bot = "  └$("─" * ($wNum + 2))┴$("─" * ($wKey + 2))┴$("─" * ($wPub + 2))┴$("─" * ($wPriv + 2))┴$("─" * ($wUse + 2))┘"
 
+    $tableLines = @()
+    $tableLines += "  `e[90m$top`e[0m"
+    $tableLines += "  `e[1;37m$hdr`e[0m"
+    $tableLines += "  `e[90m$mid`e[0m"
     foreach ($r in $rows) {
-        $num  = [string]$r."#"
-        $pub  = if ($r.Public  -eq "✅") { "`e[32m  ✓`e[0m  " } else { "`e[31m  ✗`e[0m  " }
-        $priv = if ($r.Private -eq "✅") { "`e[32m  ✓`e[0m  " } else { "`e[31m  ✗`e[0m  " }
-        $tableLines += "  `e[90m$($num.PadLeft($wNum))`e[0m  `e[36m$($r.Key.PadRight($wKey))`e[0m  $pub  $priv  `e[37m$($r.Usage)`e[0m"
+        $num   = [string]$r."#"
+        $pubC  = if ($r.Public  -eq "✅") { "`e[32m ✓ `e[0m" } else { "`e[31m ✗ `e[0m" }
+        $privC = if ($r.Private -eq "✅") { "`e[32m ✓  `e[0m" } else { "`e[31m ✗  `e[0m" }
+        $tableLines += "  `e[90m│`e[0m $($num.PadLeft($wNum)) `e[90m│`e[0m `e[36m$($r.Key.PadRight($wKey))`e[0m `e[90m│`e[0m$pubC`e[90m│`e[0m$privC`e[90m│`e[0m `e[37m$($r.Usage.PadRight($wUse))`e[0m `e[90m│`e[0m"
     }
+    $tableLines += "  `e[90m$bot`e[0m"
 
     Show-Paged -Lines $tableLines
 }
@@ -988,7 +1001,7 @@ function Add-SSHKeyInHost {
 
     # Clear any selector status bar remnant before ssh-keygen output scrolls
     $th = $Host.UI.RawUI.WindowSize.Height
-    [Console]::Write("`e[$th;1H`e[K")
+    [Console]::Write("`e[s`e[$th;1H`e[K`e[u")
 
     Write-Host "  `e[90mGenerating SSH key…`e[0m"
 
@@ -1138,9 +1151,7 @@ function Read-RemoteUser {
     param (
         [string]$DefaultUser = "$DefaultUserName"
     )
-
-    $RemoteUser = Read-ColoredInput -Prompt "  Enter remote username (default: $DefaultUser)" -ForegroundColor "Cyan"
-    return (Resolve-NullToDefault -DefaultValue $DefaultUser -Value $RemoteUser)
+    return Read-HostWithDefault -Prompt "Remote username:" -Default $DefaultUser
 }
 
 
@@ -1239,6 +1250,9 @@ function Read-HostWithDefault {
         if ($k.VirtualKeyCode -eq 13) {        # Enter
             [Console]::WriteLine()
             return $buf
+        } elseif ($k.VirtualKeyCode -eq 27) {  # Esc — cancel operation
+            [Console]::Write("`e[?25h")
+            throw [System.OperationCanceledException]::new("ESC")
         } elseif ($k.VirtualKeyCode -eq 8) {   # Backspace
             if ($buf.Length -gt 0) {
                 $buf = $buf.Substring(0, $buf.Length - 1)
