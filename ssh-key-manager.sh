@@ -88,21 +88,18 @@ _read_key() {
 
 # Non-blocking read: waits up to ~100 ms.  Returns 0 if key read, 1 on timeout.
 # Sets global KEY on success.
+# Uses -N1 so Enter arrives as $'\n' instead of being consumed as a delimiter.
 _read_key_nb() {
     local k s1 s2 s3
-    IFS= read -r -s -n1 -t 0.1 k 2>/dev/null || {
+    IFS= read -r -s -N1 -t 0.1 k 2>/dev/null || {
         KEY=''
         return 1
     }
-    if [[ -z $k ]]; then
-        KEY=''
-        return 1
-    fi
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -s -n1 -t 0.1 s1 2>/dev/null || s1=''
-        IFS= read -r -s -n1 -t 0.1 s2 2>/dev/null || s2=''
+        IFS= read -r -s -N1 -t 0.1 s1 2>/dev/null || s1=''
+        IFS= read -r -s -N1 -t 0.1 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -s -n1 -t 0.1 s3 2>/dev/null || s3=''
+            IFS= read -r -s -N1 -t 0.1 s3 2>/dev/null || s3=''
         else
             s3=''
         fi
