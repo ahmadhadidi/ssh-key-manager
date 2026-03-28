@@ -678,3 +678,63 @@ confirm_user_choice() {
             ;;
     esac
 }
+
+# ─── Finders / getters ────────────────────────────────────────────────────────
+
+# Return config path or "" (with warning).
+find_config_file() {
+    if [[ ! -f "$SSH_CONFIG" ]]; then
+        printf '  \e[33m⚠️  SSH config file not found at %s.\e[0m\n' "$SSH_CONFIG" >&2
+        printf ''
+        return 1
+    fi
+    printf '%s' "$SSH_CONFIG"
+}
+
+find_private_key() {
+    local keyname="$1"
+    [[ -f "$SSH_DIR/$keyname" ]]
+}
+
+find_public_key() {
+    local keyname="$1"
+    [[ -f "$SSH_DIR/${keyname}.pub" ]]
+}
+
+# Print public key content, or return 1 on failure.
+get_public_key() {
+    local keyname="$1"
+    local path="$SSH_DIR/${keyname}.pub"
+    if [[ ! -f "$path" ]]; then
+        printf '  \e[31m❌ Public key '\''%s.pub'\'' not found at %s.\e[0m\n' "$keyname" "$path"
+        return 1
+    fi
+    local content
+    content=$(cat "$path")
+    printf '  \e[32m✅ Public key loaded successfully:\n  %s\e[0m\n' "$content"
+    printf '%s' "$content"
+}
+
+# Given an IP/address and user, return "user@alias" if a matching Host block exists
+# in ~/.ssh/config (direct alias match or HostName match).  Falls back to "user@address".
+resolve_ssh_target() {
+    local addr="$1" user="$2"
+    if [[ -f "$SSH_CONFIG" ]]; then
+        while IFS='|' read -r alias hn _; do
+            # Direct alias match
+            if [[ $alias == "$addr" ]]; then
+                printf '  \e[90mℹ  SSH config entry '\''%s'\'' will be used.\e[0m\n' "$alias" >&2
+                printf '%s@%s' "$user" "$alias"
+                return 0
+            fi
+            # HostName match
+            if [[ -n $hn && $hn == "$addr" ]]; then
+                printf '  \e[90mℹ  SSH config entry '\''%s'\'' found for %s — key from config will be used.\e[0m\n' \
+                    "$alias" "$addr" >&2
+                printf '%s@%s' "$user" "$alias"
+                return 0
+            fi
+        done < <(get_configured_ssh_hosts)
+    fi
+    printf '%s@%s' "$user" "$addr"
+}
