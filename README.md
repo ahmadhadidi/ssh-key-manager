@@ -59,6 +59,4 @@ cd ssh-key-manager
 
 & ./generate_key_test.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]" -DefaultPassword "abc123"
 ```
-- [ ] Reduce the amount of prompts needed by querying the Config file more
-- [ ] Use the SSH key if it's already installed rather than logging in with the user.
-- [ ] Reduce the amount of prompts by SSHing via the available Config file if it already exists.
+
