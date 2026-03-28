@@ -1755,3 +1755,281 @@ _run_conf_editor() {
     printf '  \e[32m✅ Defaults updated for this session.\e[0m\n'
     printf '  \e[33mℹ  To persist: pass as script arguments (--user, --subnet, etc.)\e[0m\n'
 }
+
+# ─── Main menu ────────────────────────────────────────────────────────────────
+
+show_main_menu() {
+    # Menu definition: parallel arrays (type, label, choice, hotkey)
+    local -a m_type=(
+        header  item    item    item    item    item    item    item
+        header  item    item    item    item    item
+        header  item    item    item    item
+    )
+    local -a m_label=(
+        "Remote"
+        "Generate & Install SSH Key on A Remote Machine"
+        "Install SSH Key on A Remote Machine"
+        "Test SSH Connection"
+        "Delete SSH Key From A Remote Machine"
+        "Promote Key on A Remote Machine"
+        "List Authorized Keys on Remote Host"
+        "Add Config Block for Existing Remote Key"
+        "Local"
+        "Generate SSH Key (Without installation)"
+        "List SSH Keys"
+        "Append SSH Key to Hostname in Host Config"
+        "Delete an SSH Key Locally"
+        "Remove an SSH Key From Config"
+        "Config File"
+        "Remove Host from SSH Config"
+        "View SSH Config"
+        "Edit SSH Config"
+        "Exit"
+    )
+    local -a m_choice=(
+        ""   "1"  "15" "2"  "3"  "4"  "16" "17"
+        ""   "5"  "6"  "7"  "8"  "9"
+        ""   "12" "13" "14" "q"
+    )
+    local -a m_hotkey=(
+        ""   "G"  "I"  "T"  "D"  "P"  "Z"  "N"
+        ""   "W"  "L"  "A"  "X"  "R"
+        ""   "H"  "V"  "E"  "Q"
+    )
+
+    # Build flat rows (blank + header before each section; items directly)
+    local -a fr_type=() fr_label=() fr_nidx=() fr_choice=() fr_hotkey=()
+    local ni=0 i
+    for (( i=0; i<${#m_type[@]}; i++ )); do
+        if [[ ${m_type[$i]} == "header" ]]; then
+            fr_type+=("blank");  fr_label+=("");           fr_nidx+=(-1); fr_choice+=(""); fr_hotkey+=("")
+            fr_type+=("header"); fr_label+=("${m_label[$i]}"); fr_nidx+=(-1); fr_choice+=(""); fr_hotkey+=("")
+        else
+            fr_type+=("item");   fr_label+=("${m_label[$i]}"); fr_nidx+=($ni); fr_choice+=("${m_choice[$i]}"); fr_hotkey+=("${m_hotkey[$i]}")
+            (( ni++ ))
+        fi
+    done
+    local flat_count=${#fr_type[@]}
+
+    # navItems = items only
+    local -a nav_label=() nav_choice=() nav_hotkey=()
+    for (( i=0; i<flat_count; i++ )); do
+        if [[ ${fr_type[$i]} == "item" ]]; then
+            nav_label+=("${fr_label[$i]}")
+            nav_choice+=("${fr_choice[$i]}")
+            nav_hotkey+=("${fr_hotkey[$i]}")
+        fi
+    done
+    local nav_count=${#nav_label[@]}
+
+    local sel=0 prev_sel=-1 need_full=1 running=1
+    local term_w=0 term_h=0 view_off=0
+    local -A item_rows=()   # nidx → screen row
+
+    # Save terminal state and enter alternate screen
+    local _stty_saved
+    _stty_saved=$(stty -g 2>/dev/null) || true
+    printf '\e[?1049h\e[?25l'
+
+    _menu_cleanup() {
+        printf '\e[?25h\e[?1049l'
+        stty "$_stty_saved" 2>/dev/null || true
+    }
+    trap '_menu_cleanup' EXIT INT TERM
+
+    while (( running )); do
+
+        # ── Full render ──────────────────────────────────────────────────────
+        if (( need_full )); then
+            _term_size
+            term_w=$TERM_W; term_h=$TERM_H
+
+            local rule; rule=$(_repeat '─' "$(( term_w - 4 > 0 ? term_w - 4 : 0 ))")
+            local menu_title="🌊  HDD SSH Keys"
+            local title_pad; title_pad=$(_repeat ' ' "$(( (term_w - 4 - ${#menu_title} - 1) / 2 > 0 ? (term_w - 4 - ${#menu_title} - 1) / 2 : 0 ))")
+            local title_content="  ${title_pad}${menu_title}"
+            local title_fill; title_fill=$(_repeat ' ' "$(( term_w - ${#title_content} > 0 ? term_w - ${#title_content} : 0 ))")
+
+            local content_start=5
+            local content_end=$(( term_h - 1 ))
+            local content_rows=$(( content_end - content_start + 1 ))
+            (( content_rows < 1 )) && content_rows=1
+
+            # Find flat index of selected item, adjust viewport
+            local sel_flat=-1
+            for (( i=0; i<flat_count; i++ )); do
+                if [[ ${fr_type[$i]} == "item" ]] && (( fr_nidx[$i] == sel )); then
+                    sel_flat=$i; break
+                fi
+            done
+            if (( sel_flat >= 0 )); then
+                if (( sel_flat < view_off )); then
+                    view_off=$sel_flat
+                elif (( sel_flat >= view_off + content_rows )); then
+                    view_off=$(( sel_flat - content_rows + 1 ))
+                fi
+            fi
+            (( view_off < 0 )) && view_off=0
+
+            local f
+            f="$(printf '\e[2J\e[H')"
+            f+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
+            f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s%s\e[0m' "$title_content" "$title_fill")"
+            f+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
+
+            item_rows=()
+            local row=$content_start
+            local end_fi=$(( view_off + content_rows < flat_count ? view_off + content_rows : flat_count ))
+            for (( i=view_off; i<end_fi; i++ )); do
+                case "${fr_type[$i]}" in
+                    blank)
+                        f+="$(printf '\e[%d;1H\e[K' "$row")" ;;
+                    header)
+                        f+="$(printf '\e[%d;1H  \e[90m  ▸ \e[1m%s\e[0m\e[K' "$row" "${fr_label[$i]}")" ;;
+                    item)
+                        item_rows[${fr_nidx[$i]}]=$row
+                        if (( fr_nidx[$i] == sel )); then
+                            f+="$(printf '\e[%d;1H  \e[1;36m▶ %s\e[0m\e[K' "$row" "${fr_label[$i]}")"
+                        else
+                            local lbl; lbl=$(format_menu_label "${fr_label[$i]}" "${fr_hotkey[$i]}")
+                            f+="$(printf '\e[%d;1H\e[0m\e[37m    %s\e[0m\e[K' "$row" "$lbl")"
+                        fi
+                        ;;
+                esac
+                (( row++ ))
+            done
+            # Clear leftover rows
+            while (( row <= content_end )); do
+                f+="$(printf '\e[%d;1H\e[K' "$row")"
+                (( row++ ))
+            done
+            # Scroll indicators
+            (( view_off > 0 )) && \
+                f+="$(printf '\e[%d;%dH\e[90m▲\e[0m' "$content_start" "$(( term_w - 1 ))")"
+            (( view_off + content_rows < flat_count )) && \
+                f+="$(printf '\e[%d;%dH\e[90m▼\e[0m' "$content_end" "$(( term_w - 1 ))")"
+            # Status bar
+            local status_bar="  ↑↓ / Home / End  navigate     Enter  select     Q  quit     F1  help     F10  conf  "
+            local spad; spad=$(_repeat ' ' "$(( term_w - ${#status_bar} > 0 ? term_w - ${#status_bar} : 0 ))")
+            f+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$term_h" "$status_bar" "$spad")"
+
+            printf '%s' "$f"
+            prev_sel=$sel
+            need_full=0
+
+        # ── Differential update ──────────────────────────────────────────────
+        elif (( prev_sel != sel )); then
+            if [[ -n ${item_rows[$sel]+x} && -n ${item_rows[$prev_sel]+x} ]]; then
+                local r=${item_rows[$prev_sel]}
+                local lbl; lbl=$(format_menu_label "${nav_label[$prev_sel]}" "${nav_hotkey[$prev_sel]}")
+                printf '\e[%d;1H\e[0m\e[37m    %s\e[0m\e[K' "$r" "$lbl"
+                r=${item_rows[$sel]}
+                printf '\e[%d;1H  \e[1;36m▶ %s\e[0m\e[K' "$r" "${nav_label[$sel]}"
+                prev_sel=$sel
+            else
+                need_full=1
+            fi
+        fi
+
+        # ── Poll for input (with resize detection) ───────────────────────────
+        local got_key=0
+        while (( ! got_key )); do
+            if _read_key_nb; then
+                got_key=1
+            else
+                # Timeout — check for resize
+                local nw nh
+                nw=$(tput cols 2>/dev/null || echo 80)
+                nh=$(tput lines 2>/dev/null || echo 24)
+                if (( nw != term_w || nh != term_h )); then
+                    term_w=$nw; term_h=$nh
+                    need_full=1
+                    break
+                fi
+            fi
+        done
+        (( ! got_key )) && continue
+
+        local k="$KEY"
+
+        # ── Navigation keys ──────────────────────────────────────────────────
+        case "$k" in
+            "$KEY_UP")
+                (( sel = (sel - 1 + nav_count) % nav_count )) ;;
+            "$KEY_DOWN")
+                (( sel = (sel + 1) % nav_count )) ;;
+            "$KEY_HOME"|"$KEY_HOME2")
+                sel=0 ;;
+            "$KEY_END"|"$KEY_END2")
+                sel=$(( nav_count - 1 )) ;;
+            "$KEY_ENTER"|"$KEY_ENTER2")
+                local choice="${nav_choice[$sel]}"
+                if [[ $choice == "q" ]]; then
+                    running=0
+                else
+                    _invoke_choice "$choice" "${nav_label[$sel]}"
+                fi
+                ;;
+            "$KEY_F1_A"|"$KEY_F1_B")
+                _invoke_choice "10" "Help: Best Practices"
+                ;;
+            "$KEY_F10")
+                _invoke_choice "11" "Conf: Global Defaults"
+                ;;
+            q|Q)
+                running=0 ;;
+            *)
+                # Hotkey shortcut — single letter
+                if [[ ${#k} -eq 1 ]]; then
+                    local hki
+                    for (( hki=0; hki<nav_count; hki++ )); do
+                        if [[ -n ${nav_hotkey[$hki]} && \
+                              "${nav_hotkey[$hki],,}" == "${k,,}" ]]; then
+                            local hk_choice="${nav_choice[$hki]}"
+                            if [[ $hk_choice == "q" ]]; then
+                                running=0
+                            else
+                                _invoke_choice "$hk_choice" "${nav_label[$hki]}"
+                            fi
+                            break
+                        fi
+                    done
+                fi
+                ;;
+        esac
+    done
+
+    _menu_cleanup
+    trap - EXIT INT TERM
+}
+
+# Helper: clear screen, show op header, run the choice, wait for ack.
+_invoke_choice() {
+    local choice="$1" label="$2"
+    _term_size
+    local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+    local pad; pad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#label}) / 2 > 0 ? (TERM_W - 4 - ${#label}) / 2 : 0 ))")
+    local op_title="  ${pad}${label}"
+    local op_fill; op_fill=$(_repeat ' ' "$(( TERM_W - ${#op_title} > 0 ? TERM_W - ${#op_title} : 0 ))")
+    printf '\e[2J\e[H\e[?25h\n'
+    printf '  \e[96m%s\e[0m\n' "$rule"
+    printf '\e[48;5;23m\e[1;97m%s%s\e[0m\n' "$op_title" "$op_fill"
+    printf '  \e[96m%s\e[0m\n\n' "$rule"
+
+    # Restore cooked mode for the operation (uses normal read)
+    local _stty_saved_inner
+    _stty_saved_inner=$(stty -g 2>/dev/null) || true
+    stty sane 2>/dev/null || true
+
+    local skip_wait=0
+    invoke_menu_choice "$choice" || skip_wait=$?
+
+    stty "$_stty_saved_inner" 2>/dev/null || true
+
+    (( skip_wait )) || wait_user_acknowledge
+    printf '\e[?25l'
+    need_full=1
+}
+
+# ─── Entry point ─────────────────────────────────────────────────────────────
+show_main_menu
