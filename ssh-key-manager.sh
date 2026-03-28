@@ -67,16 +67,17 @@ _min() { (( $1 <= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 
 # Read one keypress (blocking).  Sets global KEY.
 # Handles arrow keys and other multi-byte escape sequences.
-# Uses `read -s -n1` which lets bash manage terminal mode internally.
+# Uses -N1 (capital N) so Enter/newline is NOT treated as a line delimiter
+# and arrives in $k as $'\n' instead of being silently consumed.
 _read_key() {
     local k s1 s2 s3
-    IFS= read -r -s -n1 k 2>/dev/null || k=''
+    IFS= read -r -s -N1 k 2>/dev/null || k=''
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -s -n1 -t 0.1 s1 2>/dev/null || s1=''
-        IFS= read -r -s -n1 -t 0.1 s2 2>/dev/null || s2=''
+        IFS= read -r -s -N1 -t 0.1 s1 2>/dev/null || s1=''
+        IFS= read -r -s -N1 -t 0.1 s2 2>/dev/null || s2=''
         # PgUp ESC[5~ / PgDn ESC[6~ have a trailing '~' as 4th byte
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -s -n1 -t 0.1 s3 2>/dev/null || s3=''
+            IFS= read -r -s -N1 -t 0.1 s3 2>/dev/null || s3=''
         else
             s3=''
         fi
