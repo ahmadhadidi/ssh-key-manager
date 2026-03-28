@@ -85,7 +85,7 @@ bash ssh-key-manager.sh \
 $u  = "https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/generate_key_test.ps1"
 $sb = [scriptblock]::Create((irm $u))
 
-& $sb -DefaultUserName "username_of_target_machine" -DefaultSubnetPrefix "192.168.0" -DefaultCommentSuffix "-[my-machine]"
+& $sb -DefaultUserName "username_of_target_machine" -DefaultSubnetPrefix "192.168.0" -DefaultCommentSuffix "-[my-machine]" -DefaultPassword "abc123"
 ```
 
 ### Run after git clone
@@ -94,7 +94,7 @@ $sb = [scriptblock]::Create((irm $u))
 git clone https://github.com/ahmadhadidi/ssh-key-manager.git
 cd ssh-key-manager
 
-& ./generate_key_test.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]"
+& ./generate_key_test.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]" -DefaultPassword "abc123"
 ```
 
 ---
