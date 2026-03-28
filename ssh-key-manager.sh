@@ -130,3 +130,54 @@ readonly KEY_ENTER2=$'\n'
 readonly KEY_ESC=$'\x1b'
 readonly KEY_BACKSPACE=$'\x7f'
 readonly KEY_BACKSPACE2=$'\x08' # Ctrl-H (some terminals)
+
+# ─── TUI utilities ────────────────────────────────────────────────────────────
+
+# Show a "Press any key to return to menu" bar at the bottom of the screen.
+wait_user_acknowledge() {
+    _term_size
+    local msg="  Press any key to return to menu  "
+    local pad
+    pad=$(_repeat ' ' "$(( TERM_W - ${#msg} > 0 ? TERM_W - ${#msg} : 0 ))")
+    printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$msg" "$pad"
+    _read_key
+}
+
+# Page through an array of lines.  Lines may contain ANSI codes.
+# Call as:  show_paged line1 line2 line3 ...
+show_paged() {
+    local -a lines=("$@")
+    local total=${#lines[@]}
+    _term_size
+    local page_size=$(( TERM_H - 4 ))
+    (( page_size < 5 )) && page_size=5
+    local i=0
+    while (( i < total )); do
+        local end=$(( i + page_size - 1 ))
+        (( end >= total )) && end=$(( total - 1 ))
+        local j
+        for (( j=i; j<=end; j++ )); do
+            printf '%s\n' "${lines[$j]}"
+        done
+        i=$(( i + page_size ))
+        if (( i < total )); then
+            printf '\e[90m-- %d/%d lines shown | Enter=more, Q=quit --\e[0m' "$i" "$total"
+            _read_key
+            printf '\n'
+            [[ $KEY == 'q' || $KEY == 'Q' ]] && break
+        fi
+    done
+}
+
+# Return a label with the hotkey letter wrapped in bold+underline ANSI codes.
+# format_menu_label "Generate & Install" "G"  →  "\e[1;4mG\e[0;37menerate & Install"
+format_menu_label() {
+    local label="$1" hotkey="${2:-}"
+    if [[ -z $hotkey ]]; then
+        printf '%s' "$label"
+        return
+    fi
+    local lo="${hotkey,,}" up="${hotkey^^}"
+    # Replace first occurrence (case-insensitive) of the hotkey letter
+    printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;37m/1"
+}
