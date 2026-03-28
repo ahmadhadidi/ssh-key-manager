@@ -2107,4 +2107,185 @@ function Edit-SSHConfigFile {
 }
 
 
+function Resolve-SSHTarget {
+    # Given an IP/address and user, returns "user@alias" if a matching HostName
+    # entry exists in ~/.ssh/config so that SSH applies the full config block
+    # (IdentityFile, etc.). Falls back to "user@address" if nothing matches.
+    param(
+        [string]$RemoteHostAddress,
+        [string]$RemoteUser
+    )
+
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (Test-Path $configPath) {
+        $config  = Get-Content $configPath -Raw -Encoding UTF8
+        $pattern = "(?ms)^Host\s+(\S+).*?(?=^Host\s|\z)"
+        foreach ($hb in [regex]::Matches($config, $pattern)) {
+            $alias = $hb.Groups[1].Value.Trim()
+            if ($alias -eq $RemoteHostAddress) {
+                Write-Host "  ℹ  SSH config entry '$alias' will be used." -ForegroundColor DarkGray
+                return "$RemoteUser@$alias"
+            }
+            if ($hb.Value -match "(?m)^\s*HostName\s+$([regex]::Escape($RemoteHostAddress))\s*$") {
+                Write-Host "  ℹ  SSH config entry '$alias' found for $RemoteHostAddress — key from config will be used." -ForegroundColor DarkGray
+                return "$RemoteUser@$alias"
+            }
+        }
+    }
+    return "$RemoteUser@$RemoteHostAddress"
+}
+
+
+function Remove-HostFromSSHConfig {
+    $hosts    = Get-ConfiguredSSHHosts
+    $hostName = $null
+    if ($hosts.Count -gt 0) {
+        $labels   = @($hosts | ForEach-Object { $_.Alias })
+        $hostName = Select-FromList -Items $labels -Prompt "Select host to remove"
+    }
+    if (-not $hostName) {
+        $hostName = Read-ColoredInput -Prompt "  Enter the Host alias to remove" -ForegroundColor "Cyan"
+    }
+    if ([string]::IsNullOrWhiteSpace($hostName)) {
+        Write-Host "  ❗ Host alias is required." -ForegroundColor Red
+        return
+    }
+
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    $config  = Get-Content $configPath -Raw -Encoding UTF8
+    $pattern = "(?ms)^Host\s+$([regex]::Escape($hostName))\b.*?(?=^Host\s|\z)"
+    $match   = [regex]::Match($config, $pattern)
+
+    if (-not $match.Success) {
+        Write-Host "⚠️ No Host block found for '$hostName'" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "`n  Block that will be removed:" -ForegroundColor DarkGray
+    Write-Host $match.Value -ForegroundColor Gray
+
+    $confirm = Read-ColoredInput -Prompt "Remove this block? [y/N]" -ForegroundColor "Yellow"
+    if ($confirm -notmatch '^(y|yes)$') {
+        Write-Host "❌ Cancelled." -ForegroundColor Yellow
+        return
+    }
+
+    $newConfig = ($config -replace [regex]::Escape($match.Value), "").TrimEnd() + "`n"
+    [System.IO.File]::WriteAllText($configPath, $newConfig, [System.Text.Encoding]::UTF8)
+    Write-Host "✅ Host '$hostName' removed from SSH config." -ForegroundColor Green
+}
+
+
+function Show-SSHConfigFile {
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "  ❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    $lines = Get-Content $configPath
+    $out   = @()
+
+    foreach ($line in $lines) {
+        if ($line -match '^\s*$') {
+            $out += ""
+        } elseif ($line -match '^\s*#') {
+            $out += "`e[90m  $line`e[0m"
+        } elseif ($line -match '^(Host)\s+(.+)$') {
+            $out += ""
+            $out += "  `e[1;96mHost`e[0m `e[97m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(IdentityFile)\s+(.+)$') {
+            $out += "    `e[93m$($Matches[1])`e[0m `e[32m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(HostName|User|Port|ForwardAgent|ServerAliveInterval|ServerAliveCountMax|IdentitiesOnly|AddKeysToAgent)\s+(.+)$') {
+            $out += "    `e[93m$($Matches[1])`e[0m `e[37m$($Matches[2])`e[0m"
+        } elseif ($line -match '^\s*(\w+)\s+(.+)$') {
+            $out += "    `e[33m$($Matches[1])`e[0m `e[37m$($Matches[2])`e[0m"
+        } else {
+            $out += "  `e[37m$line`e[0m"
+        }
+    }
+
+    # Interactive pager — ↑↓/PgUp/PgDn/Home/End scroll, Q closes
+    $termH       = $Host.UI.RawUI.WindowSize.Height
+    $termW       = $Host.UI.RawUI.WindowSize.Width
+    $contentRows = [Math]::Max(1, $termH - 5)
+    $total       = $out.Count
+    $off         = 0
+    [Console]::Write("`e[?25l")
+
+    while ($true) {
+        $off  = [Math]::Max(0, [Math]::Min($off, [Math]::Max(0, $total - $contentRows)))
+        $rule = "─" * [Math]::Max(0, $termW - 4)
+        $hdr  = "  $configPath"
+        $hFill = " " * [Math]::Max(0, $termW - $hdr.Length)
+        $f    = "`e[2J`e[H"
+        $f   += "`e[2;1H  `e[96m$rule`e[0m`e[K"
+        $f   += "`e[3;1H`e[48;5;23m`e[1;97m$hdr$hFill`e[0m"
+        $f   += "`e[4;1H  `e[96m$rule`e[0m`e[K"
+        $row  = 5
+        for ($i = $off; $i -lt [Math]::Min($off + $contentRows, $total); $i++) {
+            $f += "`e[$row;1H$($out[$i])`e[K"
+            $row++
+        }
+        while ($row -le ($termH - 1)) { $f += "`e[$row;1H`e[K"; $row++ }
+        $pct    = if ($total -le $contentRows) { "all" } else { "$([int](([Math]::Min($off + $contentRows, $total)) * 100 / $total))%" }
+        $status = "  ↑↓ / PgUp / PgDn  scroll     Home  top     End  bottom     Q  close     $pct  "
+        $f     += "`e[$termH;1H`e[7m$status$(" " * [Math]::Max(0, $termW - $status.Length))`e[0m"
+        [Console]::Write($f)
+
+        try { $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
+
+        switch ($key.VirtualKeyCode) {
+            38 { $off-- }
+            40 { $off++ }
+            33 { $off -= $contentRows }
+            34 { $off += $contentRows }
+            36 { $off = 0 }
+            35 { $off = $total - $contentRows }
+        }
+        if ($key.Character -eq 'q' -or $key.Character -eq 'Q') { break }
+
+        # Detect terminal resize
+        $nW = $Host.UI.RawUI.WindowSize.Width; $nH = $Host.UI.RawUI.WindowSize.Height
+        if ($nW -ne $termW -or $nH -ne $termH) {
+            $termW = $nW; $termH = $nH
+            $contentRows = [Math]::Max(1, $termH - 5)
+        }
+    }
+    [Console]::Write("`e[?25h")
+}
+
+
+function Edit-SSHConfigFile {
+    $configPath = "$env:USERPROFILE\.ssh\config"
+    if (-not (Test-Path $configPath)) {
+        Write-Host "  ❌ SSH config not found at $configPath" -ForegroundColor Red
+        return
+    }
+
+    $editor = $null
+    if ($env:EDITOR -and (Get-Command $env:EDITOR -ErrorAction SilentlyContinue)) {
+        $editor = $env:EDITOR
+    } else {
+        foreach ($e in @("code", "nvim", "vim", "nano", "notepad.exe")) {
+            if (Get-Command $e -ErrorAction SilentlyContinue) { $editor = $e; break }
+        }
+    }
+    if (-not $editor) { $editor = "notepad.exe" }
+
+    Write-Host "  Opening in $editor..." -ForegroundColor DarkGray
+    try {
+        & $editor $configPath
+        Write-Host "  ✅ Done." -ForegroundColor Green
+    } catch {
+        Write-Host "  ❌ Could not open editor '$editor': $_" -ForegroundColor Red
+    }
+}
+
+
 Show-MainMenu
