@@ -181,3 +181,167 @@ format_menu_label() {
     # Replace first occurrence (case-insensitive) of the hotkey letter
     printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;37m/1"
 }
+
+# Interactive combo-box.
+# Args: [-s|--strict] [-p PROMPT] item1 item2 ...
+#   -s / --strict  Enter only accepts a highlighted item or sole filter match; no free text.
+# Sets _SELECT_RESULT (selected string) and _SELECT_CANCELLED (1=ESC).
+# Returns 0 on selection, 1 on ESC/cancel.
+select_from_list() {
+    local strict=0 prompt="Select"
+    while [[ ${1:-} == -* ]]; do
+        case "$1" in
+            -s|--strict) strict=1; shift ;;
+            -p|--prompt) prompt="$2"; shift 2 ;;
+            *) break ;;
+        esac
+    done
+
+    local -a items=("$@")
+    local item_count=${#items[@]}
+    if (( item_count == 0 )); then
+        _SELECT_RESULT=''
+        _SELECT_CANCELLED=0
+        return 1
+    fi
+
+    _term_size
+    # Determine start row for the dropdown (below current cursor position + 3)
+    local cur_row
+    cur_row=$(tput lines 2>/dev/null || echo 24)
+    # We'll place the combo at a fixed offset from top for simplicity
+    local start_row=8
+    local max_vis=$(( TERM_H - start_row - 2 ))
+    (( max_vis < 1 )) && max_vis=1
+
+    local sel=-1        # -1 = text input mode, >=0 = list item highlighted
+    local view_off=0
+    local filter=""
+    local -a filtered=("${items[@]}")
+
+    printf '\e[?25l'   # hide cursor
+
+    while true; do
+        # Re-filter
+        filtered=()
+        local it
+        for it in "${items[@]}"; do
+            [[ -z $filter || "${it,,}" == *"${filter,,}"* ]] && filtered+=("$it")
+        done
+        local fcount=${#filtered[@]}
+
+        # Clamp sel
+        (( sel >= fcount )) && sel=$(( fcount - 1 ))
+        # Adjust viewport
+        if (( sel >= 0 && sel < view_off )); then
+            view_off=$sel
+        elif (( sel >= 0 && sel >= view_off + max_vis )); then
+            view_off=$(( sel - max_vis + 1 ))
+        fi
+        (( view_off < 0 )) && view_off=0
+
+        local prompt_row=$(( start_row - 2 ))
+        local input_row=$(( start_row - 1 ))
+        local input_disp
+        if [[ -n $filter ]]; then
+            input_disp="$(printf '\e[37m%s\e[90m▌\e[0m' "$filter")"
+        else
+            input_disp="$(printf '\e[90m(type to filter or create new)\e[0m')"
+        fi
+
+        # Build frame
+        local f
+        f="$(printf '\e[%d;1H\e[K  \e[90m%s\e[0m' "$prompt_row" "$prompt")"
+        f+="$(printf '\e[%d;1H\e[K  \e[36m›\e[0m %s' "$input_row" "$input_disp")"
+
+        local i
+        for (( i=0; i<max_vis; i++ )); do
+            local idx=$(( view_off + i ))
+            local r=$(( start_row + i ))
+            f+="$(printf '\e[%d;1H\e[K' "$r")"
+            if (( idx < fcount )); then
+                if (( idx == sel )); then
+                    f+="$(printf '  \e[1;36m▶ %s\e[0m' "${filtered[$idx]}")"
+                else
+                    f+="$(printf '  \e[37m  %s\e[0m' "${filtered[$idx]}")"
+                fi
+            fi
+        done
+
+        local up_ind="  " dn_ind="  "
+        (( view_off > 0 )) && up_ind="▲ "
+        (( view_off + max_vis < fcount )) && dn_ind="▼ "
+        local hint="  ↑↓  navigate     Enter  select     type  filter / new name     Esc  cancel    ${up_ind}${dn_ind}"
+        local hint_pad
+        hint_pad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
+        f+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hint_pad")"
+
+        printf '%s' "$f"
+
+        _read_key
+        local k="$KEY"
+
+        # Clear combo rows helper (used on exit)
+        local clr="" ci
+        for (( ci=prompt_row; ci<start_row+max_vis+1 && ci<TERM_H; ci++ )); do
+            clr+="$(printf '\e[%d;1H\e[K' "$ci")"
+        done
+
+        case "$k" in
+            "$KEY_UP")
+                (( sel > 0 )) && (( sel-- )) || (( sel == 0 )) && sel=-1
+                ;;
+            "$KEY_DOWN")
+                if (( sel == -1 && fcount > 0 )); then sel=0
+                elif (( sel < fcount - 1 )); then (( sel++ ))
+                fi
+                ;;
+            "$KEY_BACKSPACE"|"$KEY_BACKSPACE2")
+                if (( ${#filter} > 0 )); then
+                    filter="${filter%?}"
+                    sel=-1
+                fi
+                ;;
+            "$KEY_ENTER"|"$KEY_ENTER2")
+                local chosen=""
+                if (( sel >= 0 && sel < fcount )); then
+                    chosen="${filtered[$sel]}"
+                elif (( strict == 1 )); then
+                    if (( fcount == 1 )); then chosen="${filtered[0]}"
+                    else continue   # ignore — strict mode, no match
+                    fi
+                elif [[ -n $filter ]]; then
+                    chosen="$filter"
+                fi
+                printf '%s\e[%d;1H\e[K\e[?25h' "$clr" "$TERM_H"
+                if [[ -n $chosen ]]; then
+                    printf '\e[%d;1H  \e[90m%s\e[0m  \e[36m%s\e[0m\n' \
+                        "$prompt_row" "$prompt" "$chosen"
+                else
+                    printf '\e[%d;1H' "$prompt_row"
+                fi
+                _SELECT_RESULT="$chosen"
+                _SELECT_CANCELLED=0
+                return 0
+                ;;
+            "$KEY_ESC")
+                printf '%s\e[%d;1H\e[K\e[%d;1H\e[?25h' "$clr" "$TERM_H" "$prompt_row"
+                _SELECT_RESULT=""
+                _SELECT_CANCELLED=1
+                return 1
+                ;;
+            *)
+                # Printable ASCII → append to filter
+                if [[ ${#k} -eq 1 && $(printf '%d' "'$k") -ge 32 ]] 2>/dev/null; then
+                    filter+="$k"
+                    sel=-1
+                fi
+                ;;
+        esac
+    done
+
+    printf '\e[?25h'
+    _SELECT_RESULT=""
+    _SELECT_CANCELLED=0
+    return 1
+}
