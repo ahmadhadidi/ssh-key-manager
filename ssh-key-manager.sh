@@ -53,10 +53,12 @@ _regex_escape() {
     printf '%s' "$1" | sed 's/[.^$*+?{}|\\()\[\]]/\\&/g'
 }
 
-# Repeat a character N times.  _repeat "─" 40
+# Repeat a string N times.  _repeat "─" 40
+# Uses a loop so multibyte UTF-8 chars (box-drawing, etc.) work correctly.
 _repeat() {
-    local char="$1" n="$2"
-    printf '%*s' "$n" '' | tr ' ' "$char"
+    local char="$1" n="$2" i result=""
+    for (( i=0; i<n; i++ )); do result+="$char"; done
+    printf '%s' "$result"
 }
 
 # Integer max/min helpers.
@@ -65,50 +67,46 @@ _min() { (( $1 <= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 
 # Read one keypress (blocking).  Sets global KEY.
 # Handles arrow keys and other multi-byte escape sequences.
+# Uses `read -s -n1` which lets bash manage terminal mode internally.
 _read_key() {
     local k s1 s2 s3
-    local _st
-    _st=$(stty -g 2>/dev/null) || true
-    stty -echo -icanon min 1 time 0 2>/dev/null || true
-    IFS= read -r -n1 k 2>/dev/null || k=''
+    IFS= read -r -s -n1 k 2>/dev/null || k=''
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        IFS= read -r -s -n1 -t 0.1 s1 2>/dev/null || s1=''
+        IFS= read -r -s -n1 -t 0.1 s2 2>/dev/null || s2=''
         # PgUp ESC[5~ / PgDn ESC[6~ have a trailing '~' as 4th byte
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            IFS= read -r -s -n1 -t 0.1 s3 2>/dev/null || s3=''
         else
             s3=''
         fi
         k="${k}${s1}${s2}${s3}"
     fi
-    stty "$_st" 2>/dev/null || true
     KEY="$k"
 }
 
-# Non-blocking read: waits up to ~50 ms.  Returns 0 if key read, 1 on timeout.
+# Non-blocking read: waits up to ~100 ms.  Returns 0 if key read, 1 on timeout.
 # Sets global KEY on success.
 _read_key_nb() {
     local k s1 s2 s3
-    local _st
-    _st=$(stty -g 2>/dev/null) || true
-    stty -echo -icanon min 0 time 0 2>/dev/null || true
-    IFS= read -r -n1 -t 0.05 k 2>/dev/null || {
-        stty "$_st" 2>/dev/null || true
+    IFS= read -r -s -n1 -t 0.1 k 2>/dev/null || {
         KEY=''
         return 1
     }
+    if [[ -z $k ]]; then
+        KEY=''
+        return 1
+    fi
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        IFS= read -r -s -n1 -t 0.1 s1 2>/dev/null || s1=''
+        IFS= read -r -s -n1 -t 0.1 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            IFS= read -r -s -n1 -t 0.1 s3 2>/dev/null || s3=''
         else
             s3=''
         fi
         k="${k}${s1}${s2}${s3}"
     fi
-    stty "$_st" 2>/dev/null || true
     KEY="$k"
     return 0
 }
@@ -1826,9 +1824,10 @@ show_main_menu() {
     local term_w=0 term_h=0 view_off=0
     local -A item_rows=()   # nidx → screen row
 
-    # Save terminal state and enter alternate screen
+    # Save terminal state, enter raw mode + alternate screen
     local _stty_saved
     _stty_saved=$(stty -g 2>/dev/null) || true
+    stty -echo -icanon 2>/dev/null || true
     printf '\e[?1049h\e[?25l'
 
     _menu_cleanup() {
@@ -2016,17 +2015,16 @@ _invoke_choice() {
     printf '\e[48;5;23m\e[1;97m%s%s\e[0m\n' "$op_title" "$op_fill"
     printf '  \e[96m%s\e[0m\n\n' "$rule"
 
-    # Restore cooked mode for the operation (uses normal read)
-    local _stty_saved_inner
-    _stty_saved_inner=$(stty -g 2>/dev/null) || true
+    # Restore cooked mode for the operation (uses normal read/prompts)
     stty sane 2>/dev/null || true
 
     local skip_wait=0
     invoke_menu_choice "$choice" || skip_wait=$?
 
-    stty "$_stty_saved_inner" 2>/dev/null || true
-
     (( skip_wait )) || wait_user_acknowledge
+
+    # Re-enter raw mode for the main menu loop
+    stty -echo -icanon 2>/dev/null || true
     printf '\e[?25l'
     need_full=1
 }
