@@ -467,3 +467,214 @@ get_identity_file_from_host_config() {
     raw="${raw/#\$HOME/$HOME}"
     printf '%s' "$raw"
 }
+
+# ─── Input / prompt functions ─────────────────────────────────────────────────
+
+# Prompt with color.  Result printed to stdout.
+read_colored_input() {
+    local prompt="${1:-Input}" color="${2:-cyan}"
+    local code
+    case "${color,,}" in
+        cyan)    code=36 ;;
+        yellow)  code=33 ;;
+        green)   code=32 ;;
+        red)     code=31 ;;
+        gray)    code=90 ;;
+        *)       code=37 ;;
+    esac
+    printf '\e[%dm%s \e[0m' "$code" "$prompt" >&2
+    local val
+    read -r val || val=''
+    printf '%s' "$val"
+}
+
+# Show a prompt with a default value pre-filled and editable (char-by-char).
+# Returns the edited value (or default on Enter).  ESC sets _SELECT_CANCELLED=1 and returns "".
+read_host_with_default() {
+    local prompt="${1:-Value:}" default="${2:-}"
+    printf '  \e[36m%s\e[0m  ' "$prompt" >&2
+    printf '%s' "$default" >&2
+    printf '\e[?25h' >&2   # show cursor
+
+    local buf="$default"
+    while true; do
+        _read_key
+        local k="$KEY"
+        case "$k" in
+            "$KEY_ENTER"|"$KEY_ENTER2")
+                printf '\n' >&2
+                printf '%s' "$buf"
+                return 0
+                ;;
+            "$KEY_ESC")
+                printf '\e[?25l' >&2
+                _SELECT_CANCELLED=1
+                printf ''
+                return 1
+                ;;
+            "$KEY_BACKSPACE"|"$KEY_BACKSPACE2")
+                if (( ${#buf} > 0 )); then
+                    buf="${buf%?}"
+                    printf '\b \b' >&2
+                fi
+                ;;
+            *)
+                if [[ ${#k} -eq 1 ]] && (( $(printf '%d' "'$k" 2>/dev/null || echo 0) >= 32 )); then
+                    buf+="$k"
+                    printf '%s' "$k" >&2
+                fi
+                ;;
+        esac
+    done
+}
+
+read_remote_user() {
+    local default_user="${1:-$DEFAULT_USER}"
+    read_host_with_default "Remote username:" "$default_user"
+}
+
+read_remote_host_address() {
+    local subnet="${1:-$DEFAULT_SUBNET_PREFIX}"
+    _LAST_SELECTED_ALIAS=""
+
+    local -a host_entries=()
+    local -a host_aliases=()
+    while IFS='|' read -r alias hn user; do
+        host_aliases+=("$alias")
+        if [[ -n $hn ]]; then
+            host_entries+=("$alias  ($hn)")
+        else
+            host_entries+=("$alias")
+        fi
+    done < <(get_configured_ssh_hosts)
+
+    if (( ${#host_entries[@]} > 0 )); then
+        select_from_list -p "Select remote host  (Esc = enter manually)" "${host_entries[@]}"
+        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+            local sel="$_SELECT_RESULT"
+            # Extract alias (part before "  (")
+            local alias="${sel%%  (*}"
+            alias="${alias%"${alias##*[! ]}"}"  # trim trailing spaces
+            # Find the hostname for this alias
+            local i
+            for (( i=0; i<${#host_aliases[@]}; i++ )); do
+                if [[ "${host_aliases[$i]}" == "$alias" ]]; then
+                    _LAST_SELECTED_ALIAS="$alias"
+                    local hn
+                    hn=$(get_ip_from_host_config "$alias")
+                    if [[ -n $hn ]]; then
+                        printf '%s' "$hn"
+                    else
+                        printf '%s' "$alias"
+                    fi
+                    return 0
+                fi
+            done
+        fi
+        # ESC or no match → fall through to manual entry
+    fi
+
+    local addr
+    addr=$(read_colored_input \
+        "  Enter remote IP / hostname (or last 1–3 digits for ${subnet}.xx)" cyan)
+    if [[ -z $addr ]]; then
+        printf '  \e[31m❗ No input provided.\e[0m\n' >&2
+        printf ''
+        return 1
+    fi
+    if [[ $addr =~ ^[0-9]{1,3}$ ]]; then
+        local resolved="${subnet}.${addr}"
+        printf '  \e[32m📡 Interpreted as: %s\e[0m\n' "$resolved" >&2
+        printf '%s' "$resolved"
+        return 0
+    fi
+    if [[ $addr =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+        printf '  \e[36m🌐 Full IP address: %s\e[0m\n' "$addr" >&2
+        printf '%s' "$addr"
+        return 0
+    fi
+    printf '  \e[36m🏷  Hostname: %s\e[0m\n' "$addr" >&2
+    printf '%s' "$addr"
+}
+
+read_remote_host_name() {
+    local subnet="${1:-$DEFAULT_SUBNET_PREFIX}"
+    local -a aliases=()
+    while IFS='|' read -r alias _ _; do
+        aliases+=("$alias")
+    done < <(get_configured_ssh_hosts)
+
+    if (( ${#aliases[@]} > 0 )); then
+        select_from_list -p "Select host alias  (Esc = enter manually)" "${aliases[@]}"
+        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+            printf '%s' "$_SELECT_RESULT"
+            return 0
+        fi
+    fi
+
+    local name
+    name=$(read_colored_input "  Enter the host alias / hostname" cyan)
+    if [[ -z $name ]]; then
+        printf '  \e[31m❗ Hostname is required.\e[0m\n' >&2
+        printf ''
+        return 1
+    fi
+    printf '%s' "$name"
+}
+
+read_ssh_key_name() {
+    local -a keys=()
+    while IFS= read -r k; do keys+=("$k"); done < <(get_available_ssh_keys)
+
+    if (( ${#keys[@]} > 0 )); then
+        select_from_list -p "Select SSH key" "${keys[@]}"
+        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+            printf '%s' "$_SELECT_RESULT"
+            return 0
+        fi
+    fi
+
+    local name
+    name=$(read_colored_input "  Enter SSH key name" cyan)
+    if [[ -z $name ]]; then
+        printf '  \e[31m❗ Key name is required.\e[0m\n' >&2
+        read_ssh_key_name   # recurse
+        return $?
+    fi
+    printf '%s' "$name"
+}
+
+read_ssh_key_comment() {
+    local default="${1:-}"
+    read_host_with_default "Key comment:" "$default"
+}
+
+# Y/N confirmation.  default = "y" or "n".  Executes action_fn (no args) if confirmed.
+confirm_user_choice() {
+    local message="$1" default="${2:-n}"
+    local action_fn="$3"
+    local suffix
+    if [[ ${default,,} == 'y' ]]; then suffix="[Y/n]"
+    elif [[ ${default,,} == 'n' ]]; then suffix="[y/N]"
+    else suffix="[y/n]"
+    fi
+
+    local response
+    response=$(read_colored_input "$message $suffix" cyan)
+    [[ -z $response ]] && response="$default"
+
+    case "${response,,}" in
+        y|yes)
+            "$action_fn"
+            return 0
+            ;;
+        n|no)
+            printf '  \e[33m❌ Action cancelled.\e[0m\n'
+            return 1
+            ;;
+        *)
+            printf '  \e[31m⚠️  Invalid input. Please enter y or n.\e[0m\n'
+            confirm_user_choice "$message" "$default" "$action_fn"
+            ;;
+    esac
+}
