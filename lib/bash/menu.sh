@@ -158,6 +158,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             local remote_user; remote_user=$(read_remote_user "$DEFAULT_USER") || return 0
 
             local keypath="$SSH_DIR/$keyname"
+            _ssh_fence
             local test_out
             test_out=$(ssh -i "$keypath" -o BatchMode=yes -o ConnectTimeout=6 \
                 -o StrictHostKeyChecking=accept-new \
