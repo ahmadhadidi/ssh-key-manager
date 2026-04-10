@@ -70,6 +70,7 @@ invoke_menu_choice() {
             done < <(get_identity_files_for_host "$id_lookup")
 
             printf '  \e[90mFetching authorized keys from %s...\e[0m\n' "$target"
+            _ssh_fence
             local raw_keys
             raw_keys=$(ssh "$target" "cat ~/.ssh/authorized_keys 2>/dev/null" 2>&1) || {
                 printf '  \e[31mCould not connect to %s.\e[0m\n' "$target"
@@ -115,6 +116,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys \
 && rm -f \$TMP_FILE"
             printf '  \e[33mRemoving key '\''%s'\'' from %s...\e[0m\n' "$picked_key" "$target"
+            _ssh_fence
             if ssh "$target" "$remote_cmd"; then
                 printf '  \e[32mKey removed from remote authorized_keys.\e[0m\n'
             else
@@ -283,6 +285,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
             local target; target=$(resolve_ssh_target "$host" "$user")
             printf '  \e[90mFetching authorized_keys from %s...\e[0m\n' "$target"
+            _ssh_fence
             local keys
             keys=$(ssh "$target" "cat ~/.ssh/authorized_keys 2>/dev/null" 2>&1) || {
                 printf '  \e[31mFailed to fetch authorized_keys.\e[0m\n'

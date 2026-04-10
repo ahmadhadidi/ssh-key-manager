@@ -121,6 +121,16 @@ readonly KEY_BACKSPACE2=$'\x08'
 
 # ─── TUI utilities ────────────────────────────────────────────────────────────
 
+# Print a dim separator rule to mark the handoff point where the SSH client
+# takes over the terminal (password prompt, host-key warning, etc.).
+# SSH writes its prompts directly to /dev/tty — we can't pad them — but the
+# fence makes the unpadded output look intentional rather than broken.
+_ssh_fence() {
+    _term_size
+    local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+    printf '  \e[2m%s\e[0m\n' "$rule"
+}
+
 # Show a "Press any key to return to menu" bar at the bottom of the screen.
 wait_user_acknowledge() {
     _term_size
