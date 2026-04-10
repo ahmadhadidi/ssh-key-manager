@@ -14,17 +14,21 @@ _tcp_check() {
 test_ssh_connection() {
     local user="$1" host="$2" identity="${3:-}"
     _dbg "test_ssh_connection: user='$user' host='$host' identity='$identity'"
-    local target
-    target=$(resolve_ssh_target "$host" "$user")
 
     if ! _tcp_check "$host"; then
         printf '  \e[31mConnection refused: %s is not accepting SSH on port 22.\e[0m\n' "$host"
         return 1
     fi
 
+    local target
     local -a ssh_args=()
     if [[ -n $identity ]]; then
-        ssh_args+=(-i "$identity" -o IdentitiesOnly=yes -o BatchMode=yes)
+        # Bypass ~/.ssh/config entirely so no other IdentityFile entries from the
+        # host's config block can succeed as fallbacks — this tests ONLY this key.
+        target="${user}@${host}"
+        ssh_args+=(-F /dev/null -i "$identity" -o IdentitiesOnly=yes -o BatchMode=yes)
+    else
+        target=$(resolve_ssh_target "$host" "$user")
     fi
     ssh_args+=(-o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new \
                "$target" "echo SSH Connection Successful")
