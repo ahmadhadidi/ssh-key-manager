@@ -345,6 +345,17 @@ _run_conf_editor() {
                 cf+="$(printf '  \e[0;97m    %s  \e[90m%s\e[0m\e[K' "${field_labels[$i]}" "$disp")"
             fi
         done
+        # ── Persist command ──────────────────────────────────────────────────
+        local _cmd="bash ssh-key-manager.sh"
+        [[ -n $DEFAULT_USER           ]] && _cmd+=" --user $(printf '%q' "$DEFAULT_USER")"
+        [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _cmd+=" --subnet $(printf '%q' "$DEFAULT_SUBNET_PREFIX")"
+        [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _cmd+=" --comment-suffix $(printf '%q' "$DEFAULT_COMMENT_SUFFIX")"
+        [[ -n $DEFAULT_PASSWORD       ]] && _cmd+=" --password $(printf '%q' "$DEFAULT_PASSWORD")"
+        local _cmd_disp="$_cmd"
+        (( ${#_cmd_disp} > TERM_W - 4 )) && _cmd_disp="${_cmd_disp:0:$(( TERM_W - 7 ))}..."
+        cf+="$(printf '\e[11;1H  \e[90mTo persist across sessions:\e[0m\e[K')"
+        cf+="$(printf '\e[12;1H  \e[33m%s\e[0m\e[K' "$_cmd_disp")"
+
         local hint="  Up/Dn navigate   Enter edit   Q back  "
         local hpad; hpad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
         cf+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hpad")"
@@ -369,9 +380,6 @@ _run_conf_editor() {
         esac
     done
     printf '\e[?25h'
-    printf '\n'
-    printf '  \e[32mDefaults updated for this session.\e[0m\n'
-    printf '  \e[33mTo persist: pass as script arguments (--user, --subnet, etc.)\e[0m\n'
 }
 
 # ─── Config file helpers ──────────────────────────────────────────────────────
