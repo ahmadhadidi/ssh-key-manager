@@ -98,6 +98,27 @@ _read_key_nb() {
     return 0
 }
 
+# Like _read_key but WITHOUT stty save/restore.
+# Caller must already hold raw mode (-echo -icanon min 1 time 0).
+# Eliminates 2 subprocess forks per keypress in tight interactive loops.
+_read_key_raw() {
+    local k s1 s2 s3 s4
+    IFS= read -r -n1 k 2>/dev/null || k=''
+    [[ -z $k ]] && k=$'\n'
+    if [[ $k == $'\x1b' ]]; then
+        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
+        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        if [[ ${s2:-} =~ ^[0-9]$ ]]; then
+            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
+                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+            else s4=''; fi
+        else s3=''; s4=''; fi
+        k="${k}${s1}${s2}${s3}${s4}"
+    fi
+    KEY="$k"
+}
+
 # Key constants
 readonly KEY_UP=$'\x1b[A'
 readonly KEY_DOWN=$'\x1b[B'
@@ -326,7 +347,7 @@ select_from_list() {
 
         printf '%s' "$f" >"$_tty"
 
-        _read_key
+        _read_key_raw
         local k="$KEY"
 
         local clr="" ci
