@@ -46,6 +46,7 @@ _SELECT_CANCELLED=0
 _LOG_FILE="/tmp/ssh-key-manager-debug.log"
 _STTY_SAVED=""   # global so _menu_cleanup can always access it
 _HOST_BLOCK=""   # set by _get_host_block
+_CONFIG_MISSING=0  # set to 1 when ~/.ssh/config does not exist
 
 # ─── Library loader ──────────────────────────────────────────────────────────
 _BASE_URL="https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main"

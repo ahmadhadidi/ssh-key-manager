@@ -374,6 +374,47 @@ _run_conf_editor() {
     printf '  \e[33mTo persist: pass as script arguments (--user, --subnet, etc.)\e[0m\n'
 }
 
+# ─── Config file helpers ──────────────────────────────────────────────────────
+
+# Create ~/.ssh/config with correct permissions.  Sets _CONFIG_MISSING=0.
+_do_create_config() {
+    mkdir -p "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
+    touch "$SSH_CONFIG"
+    chmod 600 "$SSH_CONFIG"
+    _CONFIG_MISSING=0
+    printf '  \e[32mCreated %s (permissions: 600).\e[0m\n' "$SSH_CONFIG"
+}
+
+# Full-screen prompt shown once on startup when ~/.ssh/config is absent.
+_check_config_at_start() {
+    _term_size
+    local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+    local warn_msg="  SSH Config File Not Found"
+    local warn_pad; warn_pad=$(_repeat ' ' "$(( TERM_W - ${#warn_msg} > 0 ? TERM_W - ${#warn_msg} : 0 ))")
+
+    printf '\e[2J\e[H'
+    printf '\e[2;1H  \e[96m%s\e[0m\e[K\n' "$rule"
+    printf '\e[48;5;196m\e[1;97m%s%s\e[0m\e[K\n' "$warn_msg" "$warn_pad"
+    printf '  \e[96m%s\e[0m\e[K\n\n' "$rule"
+    printf '  \e[97mNo SSH config was found at \e[33m%s\e[0m\n' "$SSH_CONFIG"
+    printf '  \e[97mMost operations require this file.\e[0m\n\n'
+    printf '\e[?25h'
+
+    printf '  \e[36mCreate ~/.ssh/config now?\e[0m \e[90m[Y/n] \e[0m'
+    local ans
+    IFS= read -r ans 2>/dev/null || ans=''
+    printf '\e[?25l'
+
+    if [[ -z $ans || ${ans,,} == y* ]]; then
+        _do_create_config
+        printf '\n  \e[90mPress any key to continue...\e[0m'
+        _read_key
+    else
+        _CONFIG_MISSING=1
+    fi
+}
+
 # ─── Main menu ────────────────────────────────────────────────────────────────
 
 show_main_menu() {
@@ -460,6 +501,11 @@ show_main_menu() {
     trap '_menu_cleanup; exit 130' INT
     trap '_menu_cleanup; exit 0'   TERM TSTP
 
+    # ── Startup config file check ────────────────────────────────────────────
+    if [[ ! -f "$SSH_CONFIG" ]]; then
+        _check_config_at_start
+    fi
+
     while (( running )); do
 
         # ── Full render ──────────────────────────────────────────────────────
@@ -474,7 +520,8 @@ show_main_menu() {
             local title_fill; title_fill=$(_repeat ' ' "$(( term_w - ${#title_content} > 0 ? term_w - ${#title_content} : 0 ))")
 
             local content_start=5
-            local content_end=$(( term_h - 2 ))   # Reserve 2 rows for hint bar
+            # Reserve 2 rows for hint bar; add 1 more if config warning bar is shown
+            local content_end=$(( _CONFIG_MISSING ? term_h - 3 : term_h - 2 ))
             local content_rows=$(( content_end - content_start + 1 ))
             (( content_rows < 1 )) && content_rows=1
 
@@ -531,10 +578,17 @@ show_main_menu() {
             (( view_off + content_rows < flat_count )) && \
                 f+="$(printf '\e[%d;%dH\e[90mv\e[0m' "$content_end" "$(( term_w - 1 ))")"
 
+            # Optional red warning bar when SSH config file is absent
+            if (( _CONFIG_MISSING )); then
+                local wmsg="  ⚠  SSH config missing — press F2 to create it"
+                local wpad; wpad=$(_repeat ' ' "$(( term_w - ${#wmsg} > 0 ? term_w - ${#wmsg} : 0 ))")
+                f+="$(printf '\e[%d;1H\e[41m\e[1;97m%s%s\e[0m' "$(( term_h - 2 ))" "$wmsg" "$wpad")"
+            fi
+
             # Two-row Nano-style hint bar
-            local hn_plain="  Up/Dn Navigate   Home/End Jump   Enter Select   F1 Help   F10 Conf"
+            local hn_plain="  Up/Dn Navigate   Home/End Jump   Enter Select   F1 Help   F5 Conf"
             local hk_plain="  G Generate   T Test   D Delete   L List   V View   E Edit   Q Quit"
-            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mHome/End\e[0;7m Jump   \e[1mEnter\e[0;7m Select   \e[1mF1\e[0;7m Help   \e[1mF10\e[0;7m Conf')"
+            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mHome/End\e[0;7m Jump   \e[1mEnter\e[0;7m Select   \e[1mF1\e[0;7m Help   \e[1mF5\e[0;7m Conf')"
             local hk; hk="$(printf '\e[7m  \e[1mG\e[0;7m Generate   \e[1mT\e[0;7m Test   \e[1mD\e[0;7m Delete   \e[1mL\e[0;7m List   \e[1mV\e[0;7m View   \e[1mE\e[0;7m Edit   \e[1mQ\e[0;7m Quit')"
             local hn_pad; hn_pad=$(_repeat ' ' "$(( term_w - ${#hn_plain} > 0 ? term_w - ${#hn_plain} : 0 ))")
             local hk_pad; hk_pad=$(_repeat ' ' "$(( term_w - ${#hk_plain} > 0 ? term_w - ${#hk_plain} : 0 ))")
@@ -602,7 +656,19 @@ show_main_menu() {
             "$KEY_F1_A"|"$KEY_F1_B")
                 _invoke_choice "10" "Help: Best Practices"
                 ;;
-            "$KEY_F10")
+            "$KEY_F2_A"|"$KEY_F2_B")
+                if (( _CONFIG_MISSING )); then
+                    _term_size
+                    stty sane 2>/dev/null || true
+                    printf '\e[?25h'
+                    _do_create_config
+                    printf '\n  \e[90mPress any key to continue...\e[0m'
+                    _read_key
+                    printf '\e[?25l'
+                    need_full=1
+                fi
+                ;;
+            "$KEY_F5")
                 _invoke_choice "11" "Conf: Global Defaults"
                 ;;
             q|Q)
