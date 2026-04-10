@@ -435,11 +435,10 @@ _check_config_at_start() {
     _term_size
     local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
     local warn_msg="  SSH Config File Not Found"
-    local warn_pad; warn_pad=$(_repeat ' ' "$(( TERM_W - ${#warn_msg} > 0 ? TERM_W - ${#warn_msg} : 0 ))")
 
     printf '\e[2J\e[H'
     printf '\e[2;1H  \e[96m%s\e[0m\e[K\n' "$rule"
-    printf '\e[48;5;196m\e[1;97m%s%s\e[0m\e[K\n' "$warn_msg" "$warn_pad"
+    printf '\e[48;5;196m\e[1;97m%s\e[K\e[0m\n' "$warn_msg"
     printf '  \e[96m%s\e[0m\e[K\n\n' "$rule"
     printf '  \e[97mNo SSH config was found at \e[33m%s\e[0m\n' "$SSH_CONFIG"
     printf '  \e[97mMost operations require this file.\e[0m\n\n'
@@ -648,7 +647,6 @@ show_main_menu() {
             local menu_title="🌊 HDD SSH Keys Manager"
             local title_pad; title_pad=$(_repeat ' ' "$(( (term_w - 4 - ${#menu_title} - 1) / 2 > 0 ? (term_w - 4 - ${#menu_title} - 1) / 2 : 0 ))")
             local title_content="  ${title_pad}${menu_title}"
-            local title_fill; title_fill=$(_repeat ' ' "$(( term_w - ${#title_content} > 0 ? term_w - ${#title_content} : 0 ))")
 
             local content_start=5
             # Reserve 2 rows for hint bar; add 1 more if config warning bar is shown
@@ -674,7 +672,7 @@ show_main_menu() {
             local f
             f="$(printf '\e[2J\e[H')"
             f+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
-            f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s%s\e[0m' "$title_content" "$title_fill")"
+            f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s\e[K\e[0m' "$title_content")"
             f+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
 
             item_rows=()
@@ -845,10 +843,9 @@ _invoke_choice() {
     local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
     local pad; pad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#label}) / 2 > 0 ? (TERM_W - 4 - ${#label}) / 2 : 0 ))")
     local op_title="  ${pad}${label}"
-    local op_fill; op_fill=$(_repeat ' ' "$(( TERM_W - ${#op_title} > 0 ? TERM_W - ${#op_title} : 0 ))")
     printf '\e[2J\e[H\e[?25h\n'
     printf '  \e[96m%s\e[0m\n' "$rule"
-    printf '\e[48;5;23m\e[1;97m%s%s\e[0m\n' "$op_title" "$op_fill"
+    printf '\e[48;5;23m\e[1;97m%s\e[K\e[0m\n' "$op_title"
     printf '  \e[96m%s\e[0m\n\n' "$rule"
 
     # Restore cooked terminal mode for operations that use normal read
