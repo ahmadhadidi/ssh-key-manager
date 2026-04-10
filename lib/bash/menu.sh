@@ -316,6 +316,11 @@ _run_conf_editor() {
     local -a field_labels=( "Default Username      " "Default Subnet Prefix " "Default Comment Suffix" "Default Password      " )
     local conf_sel=0 conf_run=1
 
+    # Hold raw mode for the full navigation loop — same fix as show_main_menu.
+    local _conf_stty
+    _conf_stty=$(stty -g 2>/dev/null) || true
+    stty -echo -icanon min 1 time 0 2>/dev/null || true
+
     printf '\e[?25l'
     while (( conf_run )); do
         _term_size
@@ -388,17 +393,18 @@ _run_conf_editor() {
             "$KEY_ENTER"|"$KEY_ENTER2")
                 local row=$(( 6 + conf_sel ))
                 printf '\e[%d;1H\e[K  \e[1;33m    %s  \e[0;33m' "$row" "${field_labels[$conf_sel]}"
-                printf '\e[?25h'
                 local new_val
-                read -r new_val || new_val=''
-                printf '\e[?25l'
-                if [[ -n $new_val ]]; then
+                # read_colored_input manages its own raw mode and silently
+                # consumes arrow/F-key sequences instead of echoing them.
+                new_val=$(read_colored_input "" cyan)
+                if [[ -n $new_val ]] && (( ! _SELECT_CANCELLED )); then
                     printf -v "${field_names[$conf_sel]}" '%s' "$new_val"
                 fi
                 ;;
-            q|Q) conf_run=0 ;;
+            q|Q|"$KEY_ESC") conf_run=0 ;;
         esac
     done
+    stty "$_conf_stty" 2>/dev/null || true
     printf '\e[?25h'
 }
 
