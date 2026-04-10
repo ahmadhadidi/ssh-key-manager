@@ -34,7 +34,7 @@ invoke_menu_choice() {
             local _kp
             while IFS= read -r _kp; do
                 key_paths+=("$_kp")
-                key_labels+=("$(basename "$_kp")")
+                key_labels+=("$_kp")   # use full path as label to avoid basename collisions
             done < <(get_identity_files_for_host "$id_lookup")
 
             if (( ${#key_paths[@]} == 0 )); then
@@ -55,7 +55,7 @@ invoke_menu_choice() {
             if (( ${#key_paths[@]} == 0 )); then
                 test_ssh_connection "$user" "$host"
             elif (( ${#key_paths[@]} == 1 )); then
-                _run_test_with_keys "${key_paths[0]}" "${key_labels[0]}"
+                _run_test_with_keys "${key_paths[0]}" "$(basename "${key_paths[0]}")"
             else
                 local all_label="-- Test ALL (${#key_paths[@]} keys)"
                 select_from_list -p "Select key to test:" "$all_label" "${key_labels[@]}"
@@ -65,14 +65,14 @@ invoke_menu_choice() {
                         local _i
                         for (( _i=0; _i<${#key_paths[@]}; _i++ )); do
                             (( _i > 0 )) && printf '\n'
-                            _run_test_with_keys "${key_paths[$_i]}" "${key_labels[$_i]}"
+                            _run_test_with_keys "${key_paths[$_i]}" "$(basename "${key_paths[$_i]}")"
                         done
                     else
-                        # Find matching path by label
+                        # label IS the path (or key name for fallback); find by index
                         local _i
                         for (( _i=0; _i<${#key_labels[@]}; _i++ )); do
                             if [[ "${key_labels[$_i]}" == "$sel" ]]; then
-                                _run_test_with_keys "${key_paths[$_i]}" "${key_labels[$_i]}"
+                                _run_test_with_keys "${key_paths[$_i]}" "$(basename "${key_paths[$_i]}")"
                                 break
                             fi
                         done
