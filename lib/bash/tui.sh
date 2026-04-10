@@ -208,10 +208,10 @@ show_paged() {
         done
         i=$(( i + page_size ))
         if (( i < total )); then
-            printf '\e[90m-- %d/%d lines shown | Enter=more, Q=quit --\e[0m' "$i" "$total"
+            printf '\e[90m-- %d/%d lines shown | Enter=more, Q/Esc=quit --\e[0m' "$i" "$total"
             _read_key
             printf '\n'
-            [[ $KEY == 'q' || $KEY == 'Q' ]] && break
+            [[ $KEY == 'q' || $KEY == 'Q' || $KEY == "$KEY_ESC" ]] && break
         fi
     done
 }
