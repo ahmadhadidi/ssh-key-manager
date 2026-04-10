@@ -70,7 +70,7 @@ show_ssh_config_file() {
         if (( total <= content_rows )); then pct="all"
         else pct="$(( (off + content_rows) * 100 / total ))%"
         fi
-        local status="  Up/Dn/PgUp/PgDn scroll   Home top   End bottom   Q close   ${pct}  "
+        local status="  Up/Dn/PgUp/PgDn scroll   Home top   End bottom   Q/Esc close   ${pct}  "
         local spad; spad=$(_repeat ' ' "$(( TERM_W - ${#status} > 0 ? TERM_W - ${#status} : 0 ))")
         f+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$status" "$spad")"
 
@@ -84,7 +84,7 @@ show_ssh_config_file() {
             "$KEY_PGDN") (( off += content_rows )) ;;
             "$KEY_HOME"|"$KEY_HOME2") off=0 ;;
             "$KEY_END"|"$KEY_END2")   off=$(( total - content_rows )) ;;
-            q|Q) break ;;
+            q|Q|"$KEY_ESC") break ;;
         esac
 
         local nw nh
@@ -413,7 +413,7 @@ _display_key_file() {
         if (( total <= content_rows )); then pct="all"
         else pct="$(( (off + content_rows) * 100 / total ))%"
         fi
-        local status="  Up/Dn/PgUp/PgDn scroll   Home top   End bottom   Q close   ${pct}  "
+        local status="  Up/Dn/PgUp/PgDn scroll   Home top   End bottom   Q/Esc close   ${pct}  "
         local spad; spad=$(_repeat ' ' "$(( TERM_W - ${#status} > 0 ? TERM_W - ${#status} : 0 ))")
         g+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$status" "$spad")"
         printf '%s' "$g"
@@ -426,7 +426,7 @@ _display_key_file() {
             "$KEY_PGDN")             (( off += content_rows )) ;;
             "$KEY_HOME"|"$KEY_HOME2") off=0 ;;
             "$KEY_END"|"$KEY_END2")   off=$max_off ;;
-            q|Q) break ;;
+            q|Q|"$KEY_ESC") break ;;
         esac
     done
     printf '\e[?25h'

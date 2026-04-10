@@ -17,10 +17,63 @@ read_colored_input() {
         gray)    code=90 ;;
         *)       code=37 ;;
     esac
-    printf '\e[%dm%s \e[0m' "$code" "$prompt" >&2
-    local val
-    read -r val || val=''
-    printf '%s' "$val"
+    printf '\e[%dm%s \e[0m\e[?25h' "$code" "$prompt" >&2
+
+    _SELECT_CANCELLED=0
+    local buf=""
+    # Hold raw mode for the entire input session so ESC is never echoed.
+    local _rci_st
+    _rci_st=$(stty -g 2>/dev/null) || true
+    stty -echo -icanon min 1 time 0 2>/dev/null || true
+
+    while true; do
+        # Read one key using the same multi-byte-aware logic as _read_key,
+        # but without the per-call stty save/restore (we own the mode here).
+        local k s1 s2 s3 s4
+        IFS= read -r -n1 k 2>/dev/null || k=''
+        [[ -z $k ]] && k=$'\n'
+        if [[ $k == $'\x1b' ]]; then
+            IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
+            IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+            if [[ ${s2:-} =~ ^[0-9]$ ]]; then
+                IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+                if [[ ${s3:-} =~ ^[0-9]$ ]]; then
+                    IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+                else s4=''; fi
+            else s3=''; s4=''; fi
+            k="${k}${s1}${s2}${s3}${s4}"
+        fi
+
+        case "$k" in
+            $'\r'|$'\n')
+                printf '\n\e[?25l' >&2
+                stty "$_rci_st" 2>/dev/null || true
+                printf '%s' "$buf"
+                return 0
+                ;;
+            $'\x1b')
+                # Bare ESC (no trailing bytes) — cancel
+                printf '\n\e[?25l' >&2
+                stty "$_rci_st" 2>/dev/null || true
+                _SELECT_CANCELLED=1
+                printf ''
+                return 1
+                ;;
+            $'\x7f'|$'\x08')
+                if (( ${#buf} > 0 )); then
+                    buf="${buf%?}"
+                    printf '\b \b' >&2
+                fi
+                ;;
+            *)
+                # Accept printable single-byte characters only
+                if [[ ${#k} -eq 1 ]] && (( $(printf '%d' "'$k" 2>/dev/null || echo 0) >= 32 )); then
+                    buf+="$k"
+                    printf '%s' "$k" >&2
+                fi
+                ;;
+        esac
+    done
 }
 
 # Show a prompt with a default value pre-filled and editable (char-by-char).
@@ -169,6 +222,7 @@ read_ssh_key_name() {
     local name
     name=$(read_colored_input "  Enter SSH key name" cyan)
     if [[ -z $name ]]; then
+        (( _SELECT_CANCELLED )) && return 1
         printf '  \e[31mKey name is required.\e[0m\n' >&2
         read_ssh_key_name
         return $?
