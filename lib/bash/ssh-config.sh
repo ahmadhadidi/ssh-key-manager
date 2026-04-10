@@ -95,6 +95,16 @@ _block_field() {
         sed -E "s/^\s*${field}\s+//i; s/\s+$//"
 }
 
+# Return the Host alias whose HostName matches a given IP/hostname.
+get_alias_for_host_ip() {
+    local ip="$1"
+    [[ -z $ip || ! -f "$SSH_CONFIG" ]] && return 0
+    awk -v tgt="$ip" '
+        /^Host[[:space:]]/ { alias=$2 }
+        /^[[:space:]]*HostName[[:space:]]/ && $2==tgt { print alias; exit }
+    ' "$SSH_CONFIG" 2>/dev/null
+}
+
 get_ip_from_host_config() {
     local alias="$1"
     _get_host_block "$alias"
