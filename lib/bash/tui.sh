@@ -121,14 +121,39 @@ readonly KEY_BACKSPACE2=$'\x08'
 
 # ─── TUI utilities ────────────────────────────────────────────────────────────
 
-# Print a dim separator rule to mark the handoff point where the SSH client
-# takes over the terminal (password prompt, host-key warning, etc.).
-# SSH writes its prompts directly to /dev/tty — we can't pad them — but the
-# fence makes the unpadded output look intentional rather than broken.
+# Print a dim separator rule before an SSH/SCP call.
+# On OpenSSH 8.4+ the _setup_askpass integration renders the password prompt
+# with 2-space padding; on older versions this fence is the visual fallback.
 _ssh_fence() {
     _term_size
     local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
     printf '  \e[2m%s\e[0m\n' "$rule"
+}
+
+# Create a temporary SSH_ASKPASS helper so that SSH password prompts are
+# displayed with our 2-space left-padding instead of SSH writing raw to /dev/tty.
+# Requires OpenSSH 8.4+ (SSH_ASKPASS_REQUIRE=force); silently falls back to
+# the _ssh_fence separator on older versions.
+# Call _destroy_askpass when the SSH operation is done.
+_setup_askpass() {
+    _ASKPASS_TMP=$(mktemp /tmp/.ssh-askpass-XXXXXX 2>/dev/null) || return 0
+    chmod 700 "$_ASKPASS_TMP"
+    cat > "$_ASKPASS_TMP" << 'ASKPASS_SCRIPT'
+#!/bin/bash
+printf '  \e[36m%s\e[0m' "$1" >/dev/tty
+stty -echo </dev/tty 2>/dev/null
+IFS= read -r _pw </dev/tty
+stty echo </dev/tty 2>/dev/null
+printf '\n' >/dev/tty
+printf '%s\n' "$_pw"
+ASKPASS_SCRIPT
+    export SSH_ASKPASS="$_ASKPASS_TMP"
+    export SSH_ASKPASS_REQUIRE=force
+}
+
+_destroy_askpass() {
+    rm -f "${_ASKPASS_TMP:-}"
+    unset SSH_ASKPASS SSH_ASKPASS_REQUIRE _ASKPASS_TMP
 }
 
 # Show a "Press any key to return to menu" bar at the bottom of the screen.
