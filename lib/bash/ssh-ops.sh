@@ -344,17 +344,18 @@ register_remote_host_config() {
 }
 
 # Import a key pair (private + public) generated on another machine into ~/.ssh/.
-# Source can be a local path or a remote machine via SCP.
+# Source can be a local path, a remote machine via SCP, or pasted key content.
 import_external_ssh_key() {
-    printf '  \e[36mImport source:\e[0m\n'
-    printf '    \e[97m1\e[0m  Local file path\n'
-    printf '    \e[97m2\e[0m  Remote machine (SCP)\n'
-    local choice
-    choice=$(read_colored_input "  Choice [1/2]" cyan)
+    select_from_list -s -p "Import source" \
+        "Local file path" \
+        "Remote machine (SCP)" \
+        "Paste key content"
+    (( _SELECT_CANCELLED )) && return 0
+    local choice="$_SELECT_RESULT"
 
     local priv_src pub_src key_name
 
-    if [[ $choice == "1" ]]; then
+    if [[ $choice == "Local file path" ]]; then
         # ── Local path ──────────────────────────────────────────────────────
         local priv_path
         priv_path=$(read_colored_input "  Path to private key file" cyan)
@@ -379,7 +380,7 @@ import_external_ssh_key() {
         pub_src="$pub_path"
         key_name=$(basename "$priv_src")
 
-    elif [[ $choice == "2" ]]; then
+    elif [[ $choice == "Remote machine (SCP)" ]]; then
         # ── Remote SCP ──────────────────────────────────────────────────────
         printf '  \e[90mConnect to the machine that holds the keys.\e[0m\n'
         local host_addr
@@ -419,9 +420,55 @@ import_external_ssh_key() {
         }
         confirm_user_choice "  Add '$key_name' to ~/.ssh/config?" "y" _add_imported_to_config || true
         return 0
+    elif [[ $choice == "Paste key content" ]]; then
+        # ── Paste ───────────────────────────────────────────────────────────
+        key_name=$(read_colored_input "  Key name (e.g. my-server)" cyan)
+        [[ -z $key_name ]] && printf '  \e[31mKey name is required.\e[0m\n' && return 1
+
+        printf '\n  \e[36mPaste the private key.\e[0m\n'
+        printf '  \e[90mInput ends automatically at the -----END...----- line.\e[0m\n\n'
+        local priv_content="" _pl
+        while IFS= read -r _pl; do
+            priv_content+="${_pl}"$'\n'
+            [[ $_pl == "-----END"* ]] && break
+        done
+        if [[ $priv_content != *"-----BEGIN"* || $priv_content != *"-----END"* ]]; then
+            printf '  \e[31mInvalid private key — BEGIN/END markers not found.\e[0m\n'
+            return 1
+        fi
+
+        printf '\n  \e[36mPaste the public key (single line, e.g. ssh-ed25519 AAAA...):\e[0m\n'
+        local pub_content
+        # Skip any blank lines left over from the private key paste
+        while IFS= read -r pub_content; do
+            [[ -n $pub_content ]] && break
+        done
+        if [[ -z $pub_content ]]; then
+            printf '  \e[31mPublic key is required.\e[0m\n'
+            return 1
+        fi
+
+        mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
+        local dest_priv="$SSH_DIR/$key_name"
+        local dest_pub="${dest_priv}.pub"
+        if [[ -f $dest_priv ]]; then
+            local overwrite
+            overwrite=$(read_colored_input "  '$key_name' already exists. Overwrite? [y/N]" yellow)
+            [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
+        fi
+        printf '%s' "$priv_content" > "$dest_priv" && chmod 600 "$dest_priv"
+        printf '%s\n' "$pub_content"  > "$dest_pub"  && chmod 644 "$dest_pub"
+        printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
+        printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
+        _add_imported_to_config() {
+            local host_addr; host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
+            local remote_user; remote_user=$(read_remote_user "$DEFAULT_USER") || return 1
+            add_ssh_key_to_host_config "$key_name" "$host_addr" "$host_addr" "$remote_user"
+        }
+        confirm_user_choice "  Add '$key_name' to ~/.ssh/config?" "y" _add_imported_to_config || true
+        return 0
     else
-        printf '  \e[31mInvalid choice.\e[0m\n'
-        return 1
+        return 0
     fi
 
     # ── Install local copies ─────────────────────────────────────────────────

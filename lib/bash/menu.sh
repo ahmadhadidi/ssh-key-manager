@@ -459,6 +459,91 @@ _check_config_at_start() {
     fi
 }
 
+# ─── Menu help ────────────────────────────────────────────────────────────────
+
+_show_menu_help() {
+    printf '\e[2J\e[H'
+    local -a lines=(
+        ""
+        "  $(printf '\e[1;97mMenu Item Guide\e[0m')   $(printf '\e[90m(Q / Esc to close)\e[0m')"
+        ""
+        "  $(printf '\e[2m─── Remote ─────────────────────────────────────────────────────────────────\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🔑  Generate \& Install SSH Key on A Remote Machine\e[0m')"
+        "  $(printf '\e[90mCreates a new ED25519 key pair on this machine and pushes the public key\e[0m')"
+        "  $(printf '\e[90mto the remote host'\''s authorized_keys in one step. Best choice for\e[0m')"
+        "  $(printf '\e[90mfirst-time passwordless SSH setup to a new machine.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m📤  Install SSH Key on A Remote Machine\e[0m')"
+        "  $(printf '\e[90mInstalls an already-existing local key onto a remote host. Use this when\e[0m')"
+        "  $(printf '\e[90myou generated a key separately and want to deploy it to another machine.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🔌  Test SSH Connection\e[0m')"
+        "  $(printf '\e[90mVerifies that a key is accepted by a remote host. Run after installing a\e[0m')"
+        "  $(printf '\e[90mkey to confirm passwordless login works before disabling password access.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🗑️  Delete SSH Key From A Remote Machine\e[0m')"
+        "  $(printf '\e[90mRemoves a public key from a remote host'\''s authorized_keys. Also offers\e[0m')"
+        "  $(printf '\e[90mto delete the local key files and the IdentityFile line in ~/.ssh/config.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🔄  Promote Key on A Remote Machine\e[0m')"
+        "  $(printf '\e[90mInstalls a new key on a remote host while removing an old one in one\e[0m')"
+        "  $(printf '\e[90moperation. Use this to rotate keys or upgrade from a shared key to a\e[0m')"
+        "  $(printf '\e[90mdedicated one.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m📋  List Authorized Keys on Remote Host\e[0m')"
+        "  $(printf '\e[90mFetches and displays all public keys in the remote host'\''s authorized_keys.\e[0m')"
+        "  $(printf '\e[90mUseful for auditing which identities have access to a machine.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🔗  Add Config Block for Existing Remote Key\e[0m')"
+        "  $(printf '\e[90mReads the remote host'\''s authorized_keys, lets you pick a key, and registers\e[0m')"
+        "  $(printf '\e[90mthe host in ~/.ssh/config under an alias. Use to document access set up\e[0m')"
+        "  $(printf '\e[90moutside this tool.\e[0m')"
+        ""
+        "  $(printf '\e[2m─── Local ──────────────────────────────────────────────────────────────────\e[0m')"
+        ""
+        "  $(printf '\e[1;97m✨  Generate SSH Key (Without installation)\e[0m')"
+        "  $(printf '\e[90mCreates a key pair locally without pushing it anywhere. Use for offline\e[0m')"
+        "  $(printf '\e[90mgeneration or when you'\''ll deploy the key manually or via another tool.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🗝️  List SSH Keys\e[0m')"
+        "  $(printf '\e[90mShows all key pairs in ~/.ssh with fingerprints and which host config\e[0m')"
+        "  $(printf '\e[90mentries reference each key. Useful for auditing your key inventory.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m➕  Append SSH Key to Hostname in Host Config\e[0m')"
+        "  $(printf '\e[90mAdds an IdentityFile line to an existing host block in ~/.ssh/config.\e[0m')"
+        "  $(printf '\e[90mUse when a remote host should accept more than one of your local keys.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🗑️  Delete an SSH Key Locally\e[0m')"
+        "  $(printf '\e[90mRemoves the private and public key files from ~/.ssh on this machine only.\e[0m')"
+        "  $(printf '\e[90mDoes NOT revoke the key from any remote host — use Delete From Remote first.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m❌  Remove an SSH Key From Config\e[0m')"
+        "  $(printf '\e[90mRemoves an IdentityFile reference from a host block in ~/.ssh/config without\e[0m')"
+        "  $(printf '\e[90mdeleting the key files themselves.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m📥  Import SSH Key from Another Machine\e[0m')"
+        "  $(printf '\e[90mBrings a key pair into ~/.ssh from three sources:\e[0m')"
+        "  $(printf '\e[90m  1. Local file path — copy from a path already on this machine\e[0m')"
+        "  $(printf '\e[90m  2. Remote machine (SCP) — download directly from another host\e[0m')"
+        "  $(printf '\e[90m  3. Paste key content — paste the private and public key text directly\e[0m')"
+        ""
+        "  $(printf '\e[2m─── Config File ────────────────────────────────────────────────────────────\e[0m')"
+        ""
+        "  $(printf '\e[1;97m🏚️  Remove Host from SSH Config\e[0m')"
+        "  $(printf '\e[90mDeletes an entire Host block from ~/.ssh/config. Use when decommissioning\e[0m')"
+        "  $(printf '\e[90ma machine or cleaning up stale entries.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m👁️  View SSH Config\e[0m')"
+        "  $(printf '\e[90mDisplays the current ~/.ssh/config content with syntax highlighting.\e[0m')"
+        ""
+        "  $(printf '\e[1;97m✏️  Edit SSH Config\e[0m')"
+        "  $(printf '\e[90mOpens ~/.ssh/config in \$EDITOR (or nano) for manual editing.\e[0m')"
+        ""
+    )
+    show_paged "${lines[@]}"
+}
+
 # ─── Main menu ────────────────────────────────────────────────────────────────
 
 show_main_menu() {
@@ -632,9 +717,9 @@ show_main_menu() {
             fi
 
             # Two-row Nano-style hint bar
-            local hn_plain="  Up/Dn Navigate   Home/End Jump   Enter Select   F1 Help   F5 Conf"
+            local hn_plain="  Up/Dn Navigate   Home/End Jump   Enter Select   ? Guide   F5 Conf"
             local hk_plain="  G Generate   T Test   D Delete   L List   V View   E Edit   Q Quit"
-            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mHome/End\e[0;7m Jump   \e[1mEnter\e[0;7m Select   \e[1mF1\e[0;7m Help   \e[1mF5\e[0;7m Conf')"
+            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mHome/End\e[0;7m Jump   \e[1mEnter\e[0;7m Select   \e[1m?\e[0;7m Guide   \e[1mF5\e[0;7m Conf')"
             local hk; hk="$(printf '\e[7m  \e[1mG\e[0;7m Generate   \e[1mT\e[0;7m Test   \e[1mD\e[0;7m Delete   \e[1mL\e[0;7m List   \e[1mV\e[0;7m View   \e[1mE\e[0;7m Edit   \e[1mQ\e[0;7m Quit')"
             local hn_pad; hn_pad=$(_repeat ' ' "$(( term_w - ${#hn_plain} > 0 ? term_w - ${#hn_plain} : 0 ))")
             local hk_pad; hk_pad=$(_repeat ' ' "$(( term_w - ${#hk_plain} > 0 ? term_w - ${#hk_plain} : 0 ))")
@@ -701,6 +786,13 @@ show_main_menu() {
                 ;;
             "$KEY_F1_A"|"$KEY_F1_B")
                 _invoke_choice "10" "Help: Best Practices"
+                ;;
+            '?')
+                stty sane 2>/dev/null || true
+                printf '\e[?25h'
+                _show_menu_help
+                stty -echo -icanon min 0 time 0 2>/dev/null || true
+                need_full=1
                 ;;
             "$KEY_F2_A"|"$KEY_F2_B")
                 if (( _CONFIG_MISSING )); then
