@@ -337,7 +337,7 @@ select_from_list() {
             local r=$(( start_row + i ))
             if (( idx < fcount )); then
                 if (( idx == sel )); then
-                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  %s\e[K\e[0m' "$r" "${filtered[$idx]}"
+                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m    %s\e[K\e[0m' "$r" "${filtered[$idx]}"
                 else
                     printf -v _t '\e[%d;1H\e[K  \e[97m  %s\e[0m' "$r" "${filtered[$idx]}"
                 fi
