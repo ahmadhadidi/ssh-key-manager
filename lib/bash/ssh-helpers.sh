@@ -34,6 +34,97 @@ _out_item() {
     printf "  \e[32m+\e[0m  ${fmt}\n" "$@"
 }
 
+# show_op_banner KEY VAL [KEY VAL ...]
+# Renders a styled context block between the op title rule and the first prompt.
+# Style: #d97757 box (┌─┐/└─┘/│) with x-margins, faint-bg content+padding rows,
+#        bold-uppercase keys, white values, "• KEY:  val" format.
+#
+# Stream mode (default): prints to stdout; used by menu item dispatches.
+# Buffer mode: set _OP_BANNER_ROW to the starting row before calling.
+#   Writes absolute-positioned ANSI into _OP_BANNER_BUF; caller appends to
+#   its frame buffer. Used by self-contained TUI screens (inventory, config viewer).
+#
+# Always sets _OP_BANNER_ROWS (pair_count + 4) and _SFL_BANNER_ROWS.
+show_op_banner() {
+    local -a pairs=("$@")
+    local max_klen=0 i
+    for (( i=0; i<${#pairs[@]}; i+=2 )); do
+        (( ${#pairs[$i]} > max_klen )) && max_klen=${#pairs[$i]}
+    done
+
+    _OP_BANNER_ROWS=$(( ${#pairs[@]} / 2 + 4 ))   # border+pad+content+pad+border
+    _SFL_BANNER_ROWS=$_OP_BANNER_ROWS
+    _OP_BANNER_BUF=''
+
+    _term_size
+    local _mx=2                              # x-margin (spaces each side)
+    local _ow=$(( TERM_W - _mx * 2 ))        # outer box width (corners included)
+    (( _ow < 10 )) && _ow=10
+    local _iw=$(( _ow - 2 ))                 # inner width (between │ chars)
+
+    # Box-drawing chars (light set — all connect with ─)
+    local _TL=$'\xe2\x94\x8c'  # ┌
+    local _TR=$'\xe2\x94\x90'  # ┐
+    local _BL=$'\xe2\x94\x94'  # └
+    local _BR=$'\xe2\x94\x98'  # ┘
+    local _VB=$'\xe2\x94\x82'  # │
+    local _BUL=$'\xe2\x80\xa2' # •
+
+    # Styles
+    local _OC=$'\e[38;2;217;119;87m'  # #d97757 orange fg (border)
+    local _FB=$'\e[48;2;48;26;19m'    # faint dark bg (content + padding)
+    local _FW=$'\e[97m'               # bright white fg
+    local _BLD=$'\e[1m'               # bold on
+    local _NBD=$'\e[22m'              # bold off
+    local _RS=$'\e[0m'
+    local _MX; printf -v _MX '%*s' "$_mx" ''
+
+    # Horizontal rule: _ow-2 connected ─ chars (fits between corners)
+    local _hrule=''
+    printf -v _hrule '%*s' $(( _ow - 2 )) ''
+    _hrule="${_hrule// /─}"
+
+    # Inner blank: _iw spaces (fills faint-bg padding rows between │ chars)
+    local _ipad; printf -v _ipad '%*s' "$_iw" ''
+
+    # Pre-build content rows (display width: 2+1+1+(max_klen+1)+2+len(val) = 7+max_klen+len(val))
+    local -a _crow=()
+    for (( i=0; i<${#pairs[@]}; i+=2 )); do
+        local _val="${pairs[$i+1]}"
+        local _key_up; printf -v _key_up '%-*s' $(( max_klen + 1 )) "${pairs[$i]^^}:"
+        local _cdw=$(( 7 + max_klen + ${#_val} ))
+        local _pad_n=$(( _iw - _cdw ))
+        (( _pad_n < 0 )) && _pad_n=0
+        local _pad; printf -v _pad '%*s' "$_pad_n" ''
+        _crow+=( "  ${_BUL} ${_BLD}${_key_up}${_NBD}  ${_val}${_pad}" )
+    done
+
+    # Compose reusable row strings
+    local _top="${_MX}${_OC}${_TL}${_hrule}${_TR}${_RS}"
+    local _bot="${_MX}${_OC}${_BL}${_hrule}${_BR}${_RS}"
+    local _prow="${_MX}${_OC}${_VB}${_RS}${_FB}${_ipad}${_RS}${_OC}${_VB}${_RS}"
+
+    if [[ -n ${_OP_BANNER_ROW:-} ]]; then
+        local _t _r="$_OP_BANNER_ROW"
+        printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_top";  _OP_BANNER_BUF+="$_t"; (( _r++ ))
+        printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_prow"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
+        for (( i=0; i<${#_crow[@]}; i++ )); do
+            local _cr="${_MX}${_OC}${_VB}${_RS}${_FB}${_FW}${_crow[$i]}${_RS}${_OC}${_VB}${_RS}"
+            printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_cr"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
+        done
+        printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_prow"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
+        printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_bot";  _OP_BANNER_BUF+="$_t"
+    else
+        printf '%s\n' "$_top"
+        printf '%s\n' "$_prow"
+        for (( i=0; i<${#_crow[@]}; i++ )); do
+            printf '%s\n' "${_MX}${_OC}${_VB}${_RS}${_FB}${_FW}${_crow[$i]}${_RS}${_OC}${_VB}${_RS}"
+        done
+        printf '%s\n' "$_prow"
+        printf '%s\n' "$_bot"
+    fi
+}
+
 # ─── Connection helpers ───────────────────────────────────────────────────────
 
 # TCP port-22 pre-check. Returns 0 if reachable.
