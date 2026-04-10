@@ -154,6 +154,8 @@ format_menu_label() {
 # Interactive combo-box with filtering.
 # Args: [-s|--strict] [-p PROMPT] item1 item2 ...
 # Sets _SELECT_RESULT and _SELECT_CANCELLED (1=ESC). Returns 0 on selection, 1 on cancel.
+# All TUI output goes to /dev/tty so the widget renders correctly even when the caller
+# is inside a $(...) subshell (stdout captured for return value).
 select_from_list() {
     local strict=0 prompt="Select"
     while [[ ${1:-} == -* ]]; do
@@ -172,6 +174,10 @@ select_from_list() {
         return 1
     fi
 
+    # Always write TUI to the controlling terminal, never to a captured pipe.
+    local _tty=/dev/tty
+    [[ -c /dev/tty ]] || _tty=/proc/self/fd/2  # stderr fallback if no tty
+
     _term_size
     local start_row=8
     local max_vis=$(( TERM_H - start_row - 2 ))
@@ -182,7 +188,7 @@ select_from_list() {
     local filter=""
     local -a filtered=("${items[@]}")
 
-    printf '\e[?25l'
+    printf '\e[?25l' >"$_tty"
 
     while true; do
         filtered=()
@@ -219,9 +225,9 @@ select_from_list() {
             local r=$(( start_row + i ))
             if (( idx < fcount )); then
                 if (( idx == sel )); then
-                    f+="$(printf '\e[%d;1H\e[7m  %s\e[K\e[0m' "$r" "${filtered[$idx]}")"
+                    f+="$(printf '\e[%d;1H\e[48;5;6m\e[1;97m  %s\e[K\e[0m' "$r" "${filtered[$idx]}")"
                 else
-                    f+="$(printf '\e[%d;1H\e[K  \e[37m  %s\e[0m' "$r" "${filtered[$idx]}")"
+                    f+="$(printf '\e[%d;1H\e[K  \e[97m  %s\e[0m' "$r" "${filtered[$idx]}")"
                 fi
             else
                 f+="$(printf '\e[%d;1H\e[K' "$r")"
@@ -236,7 +242,7 @@ select_from_list() {
         hint_pad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
         f+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hint_pad")"
 
-        printf '%s' "$f"
+        printf '%s' "$f" >"$_tty"
 
         _read_key
         local k="$KEY"
@@ -272,19 +278,19 @@ select_from_list() {
                 elif [[ -n $filter ]]; then
                     chosen="$filter"
                 fi
-                printf '%s\e[%d;1H\e[K\e[?25h' "$clr" "$TERM_H"
+                printf '%s\e[%d;1H\e[K\e[?25h' "$clr" "$TERM_H" >"$_tty"
                 if [[ -n $chosen ]]; then
                     printf '\e[%d;1H  \e[90m%s\e[0m  \e[36m%s\e[0m\n' \
-                        "$prompt_row" "$prompt" "$chosen"
+                        "$prompt_row" "$prompt" "$chosen" >"$_tty"
                 else
-                    printf '\e[%d;1H' "$prompt_row"
+                    printf '\e[%d;1H' "$prompt_row" >"$_tty"
                 fi
                 _SELECT_RESULT="$chosen"
                 _SELECT_CANCELLED=0
                 return 0
                 ;;
             "$KEY_ESC")
-                printf '%s\e[%d;1H\e[K\e[%d;1H\e[?25h' "$clr" "$TERM_H" "$prompt_row"
+                printf '%s\e[%d;1H\e[K\e[%d;1H\e[?25h' "$clr" "$TERM_H" "$prompt_row" >"$_tty"
                 _SELECT_RESULT=""
                 _SELECT_CANCELLED=1
                 return 1
@@ -298,7 +304,7 @@ select_from_list() {
         esac
     done
 
-    printf '\e[?25h'
+    printf '\e[?25h' >"$_tty"
     _SELECT_RESULT=""
     _SELECT_CANCELLED=0
     return 1
