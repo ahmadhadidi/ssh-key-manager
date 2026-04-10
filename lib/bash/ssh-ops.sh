@@ -357,6 +357,42 @@ import_external_ssh_key() {
     (( _SELECT_CANCELLED )) && return 0
     local choice="$_SELECT_RESULT"
 
+    # Shared: multi-select hosts and add IdentityFile to each chosen block.
+    _add_key_to_hosts() {
+        local _kname="$1"
+        local -a _aliases=() _ips=() _users=() _display=()
+        while IFS='|' read -r _a _hn _u; do
+            _aliases+=("$_a"); _ips+=("$_hn"); _users+=("$_u")
+            [[ -n $_hn ]] && _display+=("$_a  ($_hn)") || _display+=("$_a")
+        done < <(get_configured_ssh_hosts)
+
+        if (( ${#_display[@]} == 0 )); then
+            printf '  \e[33mNo configured hosts — add a host block first.\e[0m\n'
+            return 0
+        fi
+
+        select_multi_from_list -p "Add '$_kname' as IdentityFile in:" "${_display[@]}"
+        (( _SELECT_CANCELLED )) && return 0
+        if (( ${#_SELECT_MULTI_RESULT[@]} == 0 )); then
+            printf '  \e[33mNo hosts selected.\e[0m\n'; return 0
+        fi
+
+        local _sel
+        for _sel in "${_SELECT_MULTI_RESULT[@]}"; do
+            local _alias="${_sel%%  (*}"
+            _alias="${_alias%"${_alias##*[! ]}"}"
+            local _i
+            for (( _i=0; _i<${#_aliases[@]}; _i++ )); do
+                if [[ "${_aliases[$_i]}" == "$_alias" ]]; then
+                    add_ssh_key_to_host_config \
+                        "$_kname" "${_aliases[$_i]}" "${_ips[$_i]}" \
+                        "${_users[$_i]:-$DEFAULT_USER}"
+                    break
+                fi
+            done
+        done
+    }
+
     local priv_src pub_src key_name
 
     if [[ $choice == "Local file path" ]]; then
@@ -369,7 +405,6 @@ import_external_ssh_key() {
             printf '  \e[31mFile not found: %s\e[0m\n' "$priv_path"
             return 1
         fi
-        # Try the matching .pub; let user override
         local auto_pub="${priv_path}.pub"
         local pub_path
         printf '  \e[90mPublic key — leave blank to use %s\e[0m\n' "$auto_pub"
@@ -413,20 +448,15 @@ import_external_ssh_key() {
             printf '  \e[33mPublic key not found at %s.pub — skipping.\e[0m\n' "$remote_priv"
         fi
         _ssh_fence_close
-
-        printf '  \e[32mKeys downloaded to %s\e[0m\n' "$SSH_DIR"
         chmod 600 "$dest_priv" 2>/dev/null || true
         [[ -f $dest_pub ]] && chmod 644 "$dest_pub" 2>/dev/null || true
-        printf '  \e[32mPermissions set (600 private, 644 public).\e[0m\n'
-        # Offer to add to SSH config
-        _add_imported_to_config() {
-            add_ssh_key_to_host_config "$key_name" "$host_addr" "$host_addr" "$remote_user"
-        }
-        confirm_user_choice "  Add '$key_name' to ~/.ssh/config?" "y" _add_imported_to_config || true
+        printf '  \e[32mKeys downloaded to %s (600/644).\e[0m\n' "$SSH_DIR"
+        _add_key_to_hosts "$key_name"
         return 0
+
     elif [[ $choice == "Paste key content" ]]; then
         # ── Paste ───────────────────────────────────────────────────────────
-        key_name=$(read_colored_input "  Key name (e.g. my-server)" cyan)
+        key_name=$(read_host_with_default "Key name:" "imported-key") || return 1
         [[ -z $key_name ]] && printf '  \e[31mKey name is required.\e[0m\n' && return 1
 
         printf '\n  \e[36mPaste the private key.\e[0m\n'
@@ -443,13 +473,11 @@ import_external_ssh_key() {
 
         printf '\n  \e[36mPaste the public key (single line, e.g. ssh-ed25519 AAAA...):\e[0m\n'
         local pub_content
-        # Skip any blank lines left over from the private key paste
         while IFS= read -r pub_content; do
             [[ -n $pub_content ]] && break
         done
         if [[ -z $pub_content ]]; then
-            printf '  \e[31mPublic key is required.\e[0m\n'
-            return 1
+            printf '  \e[31mPublic key is required.\e[0m\n'; return 1
         fi
 
         mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
@@ -464,42 +492,26 @@ import_external_ssh_key() {
         printf '%s\n' "$pub_content"  > "$dest_pub"  && chmod 644 "$dest_pub"
         printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
         printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
-        _add_imported_to_config() {
-            local host_addr; host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-            local remote_user; remote_user=$(read_remote_user "$DEFAULT_USER") || return 1
-            add_ssh_key_to_host_config "$key_name" "$host_addr" "$host_addr" "$remote_user"
-        }
-        confirm_user_choice "  Add '$key_name' to ~/.ssh/config?" "y" _add_imported_to_config || true
+        _add_key_to_hosts "$key_name"
         return 0
     else
         return 0
     fi
 
-    # ── Install local copies ─────────────────────────────────────────────────
-    mkdir -p "$SSH_DIR"
-    chmod 700 "$SSH_DIR"
-
+    # ── Install local copies (Local file path branch) ────────────────────────
+    mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
     local dest_priv="$SSH_DIR/$key_name"
     local dest_pub="${dest_priv}.pub"
-
     if [[ -f $dest_priv ]]; then
         local overwrite
         overwrite=$(read_colored_input "  '$key_name' already exists. Overwrite? [y/N]" yellow)
         [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
     fi
-
     cp "$priv_src" "$dest_priv" && chmod 600 "$dest_priv"
     cp "$pub_src"  "$dest_pub"  && chmod 644 "$dest_pub"
-
     printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
     printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
-
-    _add_imported_to_config() {
-        local host_addr; host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-        local remote_user; remote_user=$(read_remote_user "$DEFAULT_USER") || return 1
-        add_ssh_key_to_host_config "$key_name" "$host_addr" "$host_addr" "$remote_user"
-    }
-    confirm_user_choice "  Add '$key_name' to ~/.ssh/config?" "y" _add_imported_to_config || true
+    _add_key_to_hosts "$key_name"
 }
 
 deploy_promoted_key() {
