@@ -337,9 +337,9 @@ _run_conf_editor() {
             local row=$(( 6 + i ))
             cf+="$(printf '\e[%d;1H' "$row")"
             if (( i == conf_sel )); then
-                cf+="$(printf '\e[7m  %s  %s\e[K\e[0m' "${field_labels[$i]}" "$disp")"
+                cf+="$(printf '\e[48;5;6m\e[1;97m    %s  %s\e[K\e[0m' "${field_labels[$i]}" "$disp")"
             else
-                cf+="$(printf '  \e[0;37m    %s  \e[90m%s\e[0m\e[K' "${field_labels[$i]}" "$disp")"
+                cf+="$(printf '  \e[0;97m    %s  \e[90m%s\e[0m\e[K' "${field_labels[$i]}" "$disp")"
             fi
         done
         local hint="  Up/Dn navigate   Enter edit   Q back  "
@@ -507,11 +507,10 @@ show_main_menu() {
                     item)
                         item_rows[${fr_nidx[$i]}]=$row
                         if (( fr_nidx[$i] == sel )); then
-                            # Nano-style: full-width reverse video for selected item
-                            f+="$(printf '\e[%d;1H\e[7m  %s\e[K\e[0m' "$row" "${fr_label[$i]}")"
+                            f+="$(printf '\e[%d;1H\e[48;5;6m\e[1;97m    %s\e[K\e[0m' "$row" "${fr_label[$i]}")"
                         else
                             local lbl; lbl=$(format_menu_label "${fr_label[$i]}" "${fr_hotkey[$i]}")
-                            f+="$(printf '\e[%d;1H\e[0m\e[37m    %s\e[0m\e[K' "$row" "$lbl")"
+                            f+="$(printf '\e[%d;1H\e[0m\e[97m    %s\e[0m\e[K' "$row" "$lbl")"
                         fi
                         ;;
                 esac
@@ -547,9 +546,9 @@ show_main_menu() {
             if [[ -n ${item_rows[$sel]+x} && -n ${item_rows[$prev_sel]+x} ]]; then
                 local r=${item_rows[$prev_sel]}
                 local lbl; lbl=$(format_menu_label "${nav_label[$prev_sel]}" "${nav_hotkey[$prev_sel]}")
-                printf '\e[%d;1H\e[0m\e[37m    %s\e[0m\e[K' "$r" "$lbl"
+                printf '\e[%d;1H\e[0m\e[97m    %s\e[0m\e[K' "$r" "$lbl"
                 r=${item_rows[$sel]}
-                printf '\e[%d;1H\e[7m  %s\e[K\e[0m' "$r" "${nav_label[$sel]}"
+                printf '\e[%d;1H\e[48;5;6m\e[1;97m    %s\e[K\e[0m' "$r" "${nav_label[$sel]}"
                 prev_sel=$sel
             else
                 need_full=1
