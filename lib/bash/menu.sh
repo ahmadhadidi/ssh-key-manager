@@ -25,7 +25,9 @@ invoke_menu_choice() {
         2)  # Test SSH Connection
             local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
             local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
-            local sel_alias="$_LAST_SELECTED_ALIAS"
+            # _LAST_SELECTED_ALIAS is set inside read_remote_host_address which runs
+            # in a subshell via $(), so it never propagates. Reverse-look up the alias.
+            local sel_alias; sel_alias=$(get_alias_for_host_ip "$host")
 
             # Primary: IdentityFile entries from the config block for this host.
             # Fallback: all local keys in ~/.ssh when host has no config entry.
