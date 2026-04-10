@@ -3,7 +3,78 @@
 [[ -n "${_SSH_OPS_SH_LOADED:-}" ]] && return 0
 _SSH_OPS_SH_LOADED=1
 
-# ─── SSH connection test ──────────────────────────────────────────────────────
+# ─── Remote ───────────────────────────────────────────────────────────────────
+
+# Generate key if missing, then install on remote.
+deploy_ssh_key_to_remote() {
+    local keyname="$1"
+    _dbg "deploy_ssh_key_to_remote: keyname='$keyname'"
+    if ! find_private_key "$keyname"; then
+        printf '\n'
+        _out warn 'Key does not exist. Generating...'
+        local comment
+        comment=$(read_ssh_key_comment "${keyname}${DEFAULT_COMMENT_SUFFIX}")
+        add_ssh_key_in_host "$keyname" "$comment"
+    else
+        printf '\n'
+        _out info 'Key already exists. Proceeding with installation...'
+        printf '\n'
+    fi
+    install_ssh_key_on_remote "$keyname"
+}
+
+# Copy a public key to a remote's authorized_keys and register in ~/.ssh/config.
+install_ssh_key_on_remote() {
+    local keyname="$1"
+    _dbg "install_ssh_key_on_remote: keyname='$keyname'"
+
+    local pubkey
+    pubkey=$(get_public_key "$keyname") || return 1
+
+    _prompt_remote || return 1
+    local host_addr="$_REMOTE_HOST" selected_alias="$_REMOTE_ALIAS" remote_user="$_REMOTE_USER"
+
+    local target
+    target=$(resolve_ssh_target "$host_addr" "$remote_user")
+    _dbg "install_ssh_key_on_remote: target='$target'"
+
+    _print_identity_files "${selected_alias:-$host_addr}"
+    printf '  Connecting to %s...\n' "$target"
+
+    local remote_hostname
+    if [[ -n $DEFAULT_PASSWORD ]] && command -v sshpass &>/dev/null; then
+        _out dim 'Using sshpass with stored password.'
+        remote_hostname=$(printf '%s\n' "$pubkey" | \
+            sshpass -p "$DEFAULT_PASSWORD" ssh -o StrictHostKeyChecking=accept-new \
+            "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
+            _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
+            _dbg "install_ssh_key_on_remote: sshpass failed"
+            return 1
+        }
+    else
+        _ssh_fence "$target"
+        remote_hostname=$(printf '%s\n' "$pubkey" | \
+            ssh "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
+            _ssh_fence_close
+            _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
+            _dbg "install_ssh_key_on_remote: ssh failed"
+            return 1
+        }
+        _ssh_fence_close
+    fi
+
+    _out ok 'SSH Public Key installed successfully.'
+    _out dim 'Remote hostname: %s' "$remote_hostname"
+
+    local host_alias="${selected_alias:-$remote_hostname}"
+    _add_identity_to_config() {
+        printf "  Registering key to SSH config as '%s'...\n" "$host_alias"
+        add_ssh_key_to_host_config "$keyname" "$host_alias" "$host_addr" "$remote_user"
+    }
+    confirm_user_choice \
+        "  Add '$keyname' as IdentityFile in config block '$host_alias'?" \
+        "y" _add_identity_to_config || true
+}
 
 test_ssh_connection() {
     local user="$1" host="$2" identity="${3:-}"
@@ -54,192 +125,6 @@ test_ssh_connection() {
     fi
 }
 
-# ─── Key generation ───────────────────────────────────────────────────────────
-
-# Generate an ED25519 key pair in ~/.ssh.
-add_ssh_key_in_host() {
-    local keyname="$1" comment="$2"
-    local keypath="$SSH_DIR/$keyname"
-    _dbg "add_ssh_key_in_host: keyname='$keyname' comment='$comment'"
-
-    printf '  \e[36mPassphrase\e[0m \e[90m(empty = passwordless)\e[0m  '
-    local passphrase
-    IFS= read -r -s passphrase 2>/dev/null || passphrase=''
-    printf '\n'
-
-    local stars
-    if [[ -n $passphrase ]]; then
-        stars=$(printf '%*s' "${#passphrase}" '' | tr ' ' '*')
-    else
-        stars=$'\e[90m(none)\e[0m'
-    fi
-
-    printf '\n'
-    printf '  \e[90m  key      \e[0m\e[36m%s\e[0m\n' "$keyname"
-    printf '  \e[90m  comment  \e[0m\e[36m%s\e[0m\n' "$comment"
-    printf '  \e[90m  password \e[0m\e[90m%s\e[0m\n\n' "$stars"
-    _out dim 'Generating SSH key...'
-
-    _ensure_ssh_dir
-    ssh-keygen -t ed25519 -f "$keypath" -C "$comment" -N "$passphrase"
-    chmod 600 "$keypath"
-
-    _out_item '\e[36m%s\e[0m  generated.' "$keypath"
-}
-
-# ─── SSH config management ────────────────────────────────────────────────────
-
-# Add or update a Host block in ~/.ssh/config.
-add_ssh_key_to_host_config() {
-    local keyname="$1" host_name="$2" host_addr="$3" remote_user="$4"
-    local keypath="$SSH_DIR/$keyname"
-    local identity_line="    IdentityFile $keypath"
-    _dbg "add_ssh_key_to_host_config: keyname='$keyname' host='$host_name'"
-
-    if ! find_private_key "$keyname"; then
-        _out error 'Could not find private SSH key at %s' "$keypath"
-        return 1
-    fi
-
-    local cfg
-    cfg=$(find_config_file) || {
-        mkdir -p "$SSH_DIR"
-        touch "$SSH_CONFIG"
-        chmod 600 "$SSH_CONFIG"
-        cfg="$SSH_CONFIG"
-    }
-
-    _get_host_block "$host_name"
-    if [[ -n $_HOST_BLOCK ]]; then
-        if printf '%s\n' "$_HOST_BLOCK" | grep -qF "${identity_line#    }"; then
-            _out warn 'IdentityFile already exists under Host %s.' "$host_name"
-            return 0
-        fi
-        local new_block
-        new_block=$(printf '%s\n' "$_HOST_BLOCK" | awk -v il="$identity_line" '
-            { lines[NR]=$0 }
-            /^[[:space:]]*IdentityFile[[:space:]]/ { last_id=NR }
-            END {
-                ins = (last_id > 0) ? last_id : 1
-                for (i=1; i<=NR; i++) {
-                    print lines[i]
-                    if (i == ins) print il
-                }
-            }
-        ')
-        _replace_host_block "$_HOST_BLOCK" "$new_block" || \
-            printf '%s\n' "$new_block" >> "$SSH_CONFIG"
-        _out ok 'IdentityFile added to existing Host %s.' "$host_name"
-    else
-        local entry
-        entry=$(printf '\nHost %s\n    HostName %s\n    User %s\n    IdentityFile %s\n' \
-            "$host_name" "$host_addr" "$remote_user" "$keypath")
-        printf '%s' "$entry" >> "$SSH_CONFIG"
-        _out ok 'SSH config block created for %s.' "$host_name"
-        _out info 'Connect with: ssh %s' "$host_name"
-    fi
-}
-
-# Remove all IdentityFile lines referencing keyname from the named Host block.
-remove_identity_file_from_config_block() {
-    local keyname="$1" host_alias="$2"
-    [[ -f "$SSH_CONFIG" ]] || { _out warn 'No SSH config found.'; return 1; }
-
-    _get_host_block "$host_alias"
-    if [[ -z $_HOST_BLOCK ]]; then
-        _out warn "No config block found for '%s'." "$host_alias"
-        return 1
-    fi
-
-    local esc; esc=$(_regex_escape "$keyname")
-    local new_block
-    new_block=$(printf '%s\n' "$_HOST_BLOCK" | \
-        grep -vE "^\s*IdentityFile\s+.*[/\\\\]?${esc}\s*$" || true)
-
-    if [[ "$new_block" == "$_HOST_BLOCK" ]]; then
-        _out dim "Key '%s' not found in config block '%s'." "$keyname" "$host_alias"
-        return 0
-    fi
-
-    _replace_host_block "$_HOST_BLOCK" "$new_block"
-    _out ok "IdentityFile '%s' removed from config block '%s'." "$keyname" "$host_alias"
-}
-
-# ─── Remote key deployment ────────────────────────────────────────────────────
-
-# Copy a public key to a remote's authorized_keys and register in ~/.ssh/config.
-install_ssh_key_on_remote() {
-    local keyname="$1"
-    _dbg "install_ssh_key_on_remote: keyname='$keyname'"
-
-    local pubkey
-    pubkey=$(get_public_key "$keyname") || return 1
-
-    _prompt_remote || return 1
-    local host_addr="$_REMOTE_HOST" selected_alias="$_REMOTE_ALIAS" remote_user="$_REMOTE_USER"
-
-    local target
-    target=$(resolve_ssh_target "$host_addr" "$remote_user")
-    _dbg "install_ssh_key_on_remote: target='$target'"
-
-    _print_identity_files "${selected_alias:-$host_addr}"
-    printf '  Connecting to %s...\n' "$target"
-
-    local remote_hostname
-    if [[ -n $DEFAULT_PASSWORD ]] && command -v sshpass &>/dev/null; then
-        _out dim 'Using sshpass with stored password.'
-        remote_hostname=$(printf '%s' "$pubkey" | \
-            sshpass -p "$DEFAULT_PASSWORD" ssh -o StrictHostKeyChecking=accept-new \
-            "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
-            _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
-            _dbg "install_ssh_key_on_remote: sshpass failed"
-            return 1
-        }
-    else
-        _ssh_fence "$target"
-        remote_hostname=$(printf '%s' "$pubkey" | \
-            ssh "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
-            _ssh_fence_close
-            _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
-            _dbg "install_ssh_key_on_remote: ssh failed"
-            return 1
-        }
-        _ssh_fence_close
-    fi
-
-    _out ok 'SSH Public Key installed successfully.'
-    _out dim 'Remote hostname: %s' "$remote_hostname"
-
-    local default_alias="${selected_alias:-$remote_hostname}"
-    local host_alias
-    host_alias=$(read_host_with_default "Name this Host in ~/.ssh/config:" "$default_alias") || \
-        host_alias="$default_alias"
-    [[ -z $host_alias ]] && host_alias="$default_alias"
-
-    printf "  Registering key to SSH config as '%s'...\n" "$host_alias"
-    add_ssh_key_to_host_config "$keyname" "$host_alias" "$host_addr" "$remote_user"
-}
-
-# Generate key if missing, then install on remote.
-deploy_ssh_key_to_remote() {
-    local keyname="$1"
-    _dbg "deploy_ssh_key_to_remote: keyname='$keyname'"
-    if ! find_private_key "$keyname"; then
-        printf '\n'
-        _out warn 'Key does not exist. Generating...'
-        local comment
-        comment=$(read_ssh_key_comment "${keyname}${DEFAULT_COMMENT_SUFFIX}")
-        add_ssh_key_in_host "$keyname" "$comment"
-    else
-        printf '\n'
-        _out info 'Key already exists. Proceeding with installation...'
-        printf '\n'
-    fi
-    install_ssh_key_on_remote "$keyname"
-}
-
-# ─── Remote key removal ───────────────────────────────────────────────────────
-
 # Remove a public key from a remote's authorized_keys.
 remove_ssh_key_from_remote() {
     local remote_user="$1" remote_host="$2" keyname="$3"
@@ -283,7 +168,28 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
     fi
 }
 
-# ─── Remote config registration ───────────────────────────────────────────────
+deploy_promoted_key() {
+    _out info 'Which key do you want to demote (remove from remote)?'
+    local key_to_remove; key_to_remove=$(read_ssh_key_name) || return 1
+
+    _out info 'From which remote machine?'
+    local remote_host_name; remote_host_name=$(read_remote_host_name "$DEFAULT_SUBNET_PREFIX") || return 1
+
+    _out info 'Replace with which key?'
+    local key_new; key_new=$(read_ssh_key_name) || return 1
+    deploy_ssh_key_to_remote "$key_new"
+
+    local remote_addr; remote_addr=$(get_ip_from_host_config "$remote_host_name")
+    local remote_user; remote_user=$(get_user_from_host_config "$remote_host_name")
+
+    _do_demote() {
+        remove_ssh_key_from_remote "$remote_user" "${remote_addr:-$remote_host_name}" "$key_to_remove"
+    }
+    confirm_user_choice \
+        "  Remove demoted key '$key_to_remove' from remote '$remote_host_name'?" \
+        "n" \
+        _do_demote || true
+}
 
 # Connect to a host, match its authorized_keys against local keys,
 # and write the matching key into ~/.ssh/config.
@@ -344,7 +250,114 @@ register_remote_host_config() {
     add_ssh_key_to_host_config "$chosen" "$host_alias" "$host_addr" "$remote_user"
 }
 
-# ─── Key import ───────────────────────────────────────────────────────────────
+# ─── Local ────────────────────────────────────────────────────────────────────
+
+# Generate an ED25519 key pair in ~/.ssh.
+add_ssh_key_in_host() {
+    local keyname="$1" comment="$2"
+    local keypath="$SSH_DIR/$keyname"
+    _dbg "add_ssh_key_in_host: keyname='$keyname' comment='$comment'"
+
+    printf '  \e[36mPassphrase\e[0m \e[90m(empty = passwordless)\e[0m  '
+    local passphrase
+    IFS= read -r -s passphrase 2>/dev/null || passphrase=''
+    printf '\n'
+
+    local stars
+    if [[ -n $passphrase ]]; then
+        stars=$(printf '%*s' "${#passphrase}" '' | tr ' ' '*')
+    else
+        stars=$'\e[90m(none)\e[0m'
+    fi
+
+    printf '\n'
+    printf '  \e[90m  key      \e[0m\e[36m%s\e[0m\n' "$keyname"
+    printf '  \e[90m  comment  \e[0m\e[36m%s\e[0m\n' "$comment"
+    printf '  \e[90m  password \e[0m\e[90m%s\e[0m\n\n' "$stars"
+    _out dim 'Generating SSH key...'
+
+    _ensure_ssh_dir
+    ssh-keygen -t ed25519 -f "$keypath" -C "$comment" -N "$passphrase"
+    chmod 600 "$keypath"
+
+    _out_item '\e[36m%s\e[0m  generated.' "$keypath"
+}
+
+# Add or update a Host block in ~/.ssh/config.
+add_ssh_key_to_host_config() {
+    local keyname="$1" host_name="$2" host_addr="$3" remote_user="$4"
+    local keypath="$SSH_DIR/$keyname"
+    local identity_line="    IdentityFile $keypath"
+    _dbg "add_ssh_key_to_host_config: keyname='$keyname' host='$host_name'"
+
+    if ! find_private_key "$keyname"; then
+        _out error 'Could not find private SSH key at %s' "$keypath"
+        return 1
+    fi
+
+    local cfg
+    cfg=$(find_config_file) || {
+        mkdir -p "$SSH_DIR"
+        touch "$SSH_CONFIG"
+        chmod 600 "$SSH_CONFIG"
+        cfg="$SSH_CONFIG"
+    }
+
+    _get_host_block "$host_name"
+    if [[ -n $_HOST_BLOCK ]]; then
+        if printf '%s\n' "$_HOST_BLOCK" | grep -qF "${identity_line#    }"; then
+            _out warn '⚠️ IdentityFile already exists under Host %s.' "$host_name"
+            return 0
+        fi
+        local new_block
+        new_block=$(printf '%s\n' "$_HOST_BLOCK" | awk -v il="$identity_line" '
+            { lines[NR]=$0 }
+            /^[[:space:]]*IdentityFile[[:space:]]/ { last_id=NR }
+            END {
+                ins = (last_id > 0) ? last_id : 1
+                for (i=1; i<=NR; i++) {
+                    print lines[i]
+                    if (i == ins) print il
+                }
+            }
+        ')
+        _replace_host_block "$_HOST_BLOCK" "$new_block" || \
+            printf '%s\n' "$new_block" >> "$SSH_CONFIG"
+        _out ok '✅ IdentityFile added to existing Host %s.' "$host_name"
+    else
+        local entry
+        entry=$(printf '\nHost %s\n    HostName %s\n    User %s\n    IdentityFile %s\n' \
+            "$host_name" "$host_addr" "$remote_user" "$keypath")
+        printf '%s' "$entry" >> "$SSH_CONFIG"
+        _out ok 'SSH config block created for %s.' "$host_name"
+        _out info 'Connect with: ssh %s' "$host_name"
+    fi
+}
+
+# Remove all IdentityFile lines referencing keyname from the named Host block.
+remove_identity_file_from_config_block() {
+    local keyname="$1" host_alias="$2"
+    [[ -f "$SSH_CONFIG" ]] || { _out warn 'No SSH config found.'; return 1; }
+
+    _get_host_block "$host_alias"
+    if [[ -z $_HOST_BLOCK ]]; then
+        _out warn "No config block found for '%s'." "$host_alias"
+        return 1
+    fi
+
+    local esc; esc=$(_regex_escape "$keyname")
+    local new_block
+    new_block=$(printf '%s\n' "$_HOST_BLOCK" | \
+        grep -vE "^\s*IdentityFile\s+.*[/\\\\]?${esc}\s*$" || true)
+
+    if [[ "$new_block" == "$_HOST_BLOCK" ]]; then
+        _out dim "Key '%s' not found in config block '%s'." "$keyname" "$host_alias"
+        return 0
+    fi
+
+    _replace_host_block "$_HOST_BLOCK" "$new_block"
+    _out ok "IdentityFile '%s' removed from config block '%s'." "$keyname" "$host_alias"
+}
 
 # Multi-select configured hosts and append keyname as an IdentityFile to each chosen block.
 _add_key_to_hosts() {
@@ -498,29 +511,4 @@ import_external_ssh_key() {
     local dest_pub="${dest_priv}.pub"
     _write_key_pair "$dest_priv" "$dest_pub" "$priv_src" "$pub_src" 1 || return 1
     _add_key_to_hosts "$key_name"
-}
-
-# ─── Key rotation ─────────────────────────────────────────────────────────────
-
-deploy_promoted_key() {
-    _out info 'Which key do you want to demote (remove from remote)?'
-    local key_to_remove; key_to_remove=$(read_ssh_key_name) || return 1
-
-    _out info 'From which remote machine?'
-    local remote_host_name; remote_host_name=$(read_remote_host_name "$DEFAULT_SUBNET_PREFIX") || return 1
-
-    _out info 'Replace with which key?'
-    local key_new; key_new=$(read_ssh_key_name) || return 1
-    deploy_ssh_key_to_remote "$key_new"
-
-    local remote_addr; remote_addr=$(get_ip_from_host_config "$remote_host_name")
-    local remote_user; remote_user=$(get_user_from_host_config "$remote_host_name")
-
-    _do_demote() {
-        remove_ssh_key_from_remote "$remote_user" "${remote_addr:-$remote_host_name}" "$key_to_remove"
-    }
-    confirm_user_choice \
-        "  Remove demoted key '$key_to_remove' from remote '$remote_host_name'?" \
-        "n" \
-        _do_demote || true
 }

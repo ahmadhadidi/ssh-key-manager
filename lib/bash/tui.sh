@@ -216,7 +216,8 @@ select_multi_from_list() {
     stty -echo -icanon min 1 time 0 2>/dev/null || true
 
     _term_size
-    local start_row=8
+    local start_row=$(( 8 + ${_SFL_BANNER_ROWS:-0} ))
+    _SFL_BANNER_ROWS=0
     local max_vis=$(( TERM_H - start_row - 2 ))
     (( max_vis < 1 )) && max_vis=1
 
@@ -333,7 +334,8 @@ select_from_list() {
     stty -echo -icanon min 1 time 0 2>/dev/null || true
 
     _term_size
-    local start_row=8
+    local start_row=$(( 8 + ${_SFL_BANNER_ROWS:-0} ))
+    _SFL_BANNER_ROWS=0
     local max_vis=$(( TERM_H - start_row - 2 ))
     (( max_vis < 1 )) && max_vis=1
 

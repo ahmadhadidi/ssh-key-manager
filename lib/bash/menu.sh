@@ -10,11 +10,12 @@ invoke_menu_choice() {
     _dbg "invoke_menu_choice: '$choice'"
     case "$choice" in
         1)  # Generate & Install SSH Key on A Remote Machine
-            printf '\n'
+            show_op_banner "host" "$(hostname)"
             local keyname; keyname=$(read_ssh_key_name) || return 0
             deploy_ssh_key_to_remote "$keyname"
             ;;
         15) # Install SSH Key on A Remote Machine (key must already exist)
+            show_op_banner "host" "$(hostname)"
             local keyname; keyname=$(read_ssh_key_name) || return 0
             if ! find_private_key "$keyname"; then
                 printf '  \e[31mKey '\''%s'\'' not found locally. Use '\''Generate & Install'\'' to create it first.\e[0m\n' "$keyname"
@@ -23,6 +24,7 @@ invoke_menu_choice() {
             install_ssh_key_on_remote "$keyname"
             ;;
         2)  # Test SSH Connection
+            show_op_banner "host" "$(hostname)" "user" "$DEFAULT_USER"
             _prompt_remote || return 0
             local host="$_REMOTE_HOST" user="$_REMOTE_USER" sel_alias="$_REMOTE_ALIAS"
 
@@ -80,6 +82,7 @@ invoke_menu_choice() {
             fi
             ;;
         3)  # Delete SSH Key From A Remote Machine
+            show_op_banner "host" "$(hostname)"
             _prompt_remote || return 0
             local host="$_REMOTE_HOST" user="$_REMOTE_USER"
             local target; target=$(resolve_ssh_target "$host" "$user")
@@ -161,21 +164,27 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
                 "n" _rm_local_key3 || true
             ;;
         4)  # Promote Key on A Remote Machine
+            show_op_banner "host" "$(hostname)"
             deploy_promoted_key
             ;;
         5)  # Generate SSH Key (without installation)
+            show_op_banner "host" "$(hostname)"
             local keyname; keyname=$(read_ssh_key_name) || return 0
             local comment; comment=$(read_ssh_key_comment "${keyname}${DEFAULT_COMMENT_SUFFIX}") || return 0
             add_ssh_key_in_host "$keyname" "$comment"
             ;;
         6)  # List SSH Keys
             show_ssh_key_inventory
+            return 1
             ;;
         7)  # Append SSH Key to Hostname in Host Config
+            show_op_banner "config" "$SSH_CONFIG"
             local keyname; keyname=$(read_ssh_key_name) || return 0
-            local host_name; host_name=$(read_remote_host_name "$DEFAULT_SUBNET_PREFIX") || return 0
             _prompt_remote || return 0
             local host_addr="$_REMOTE_HOST" remote_user="$_REMOTE_USER"
+            local host_name="${_REMOTE_ALIAS:-$_REMOTE_HOST}"
+            local host_display="$host_name"
+            [[ "$host_name" != "$host_addr" ]] && host_display="$host_name ($host_addr)"
 
             local keypath="$SSH_DIR/$keyname"
             _ssh_fence
@@ -186,10 +195,10 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
                 "${remote_user}@${host_addr}" "echo ok" 2>&1) || true
 
             if [[ $test_out == "ok" ]]; then
-                printf '  \e[32mKey verified on %s.\e[0m\n' "$host_addr"
+                printf '  \e[32m✅ Key verified on %s.\e[0m\n' "$host_display"
             else
-                printf '  \e[33mCould not verify '\''%s'\'' on %s — it may not be installed yet.\e[0m\n' \
-                    "$keyname" "$host_addr"
+                printf '  \e[33m🚨 Could not verify '\''%s'\'' on %s — it may not be installed yet.\e[0m\n' \
+                    "$keyname" "$host_display"
                 local proceed
                 proceed=$(read_host_with_default "Add to config anyway? (y/N):" "N") || proceed="N"
                 [[ ${proceed,,} =~ ^y ]] || return 0
@@ -197,6 +206,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             add_ssh_key_to_host_config "$keyname" "$host_name" "$host_addr" "$remote_user"
             ;;
         8)  # Delete an SSH Key Locally
+            show_op_banner "ssh dir" "$SSH_DIR"
             local keyname; keyname=$(read_ssh_key_name) || return 0
             [[ -z $keyname ]] && return 0
 
@@ -249,6 +259,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             fi
             ;;
         9)  # Remove an SSH Key From Config
+            show_op_banner "config" "$SSH_CONFIG"
             local -a all_hosts=()
             while IFS='|' read -r alias _ _; do all_hosts+=("$alias"); done < <(get_configured_ssh_hosts)
             if (( ${#all_hosts[@]} == 0 )); then
@@ -303,6 +314,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             return 1
             ;;
         16) # List Authorized Keys on Remote Host
+            show_op_banner "host" "$(hostname)" "user" "$DEFAULT_USER"
             _prompt_remote || return 0
             local host="$_REMOTE_HOST" user="$_REMOTE_USER"
             local target; target=$(resolve_ssh_target "$host" "$user")
@@ -328,9 +340,11 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             fi
             ;;
         17) # Add Config Block for Existing Remote Key
+            show_op_banner "host" "$(hostname)" "config" "$SSH_CONFIG"
             register_remote_host_config
             ;;
         18) # Import SSH Key from Another Machine
+            show_op_banner "host" "$(hostname)" "ssh dir" "$SSH_DIR"
             import_external_ssh_key
             ;;
     esac
@@ -351,7 +365,7 @@ _run_conf_editor() {
     printf '\e[?25l'
     while (( conf_run )); do
         _term_size
-        local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+        local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
         local title="Conf: Global Defaults"
         local tpad; tpad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#title}) / 2 > 0 ? (TERM_W - 4 - ${#title}) / 2 : 0 ))")
         local cf
@@ -450,7 +464,7 @@ _do_create_config() {
 # Full-screen prompt shown once on startup when ~/.ssh/config is absent.
 _check_config_at_start() {
     _term_size
-    local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+    local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
     local warn_msg="  SSH Config File Not Found"
 
     printf '\e[2J\e[H'
@@ -664,7 +678,7 @@ show_main_menu() {
             _term_size
             term_w=$TERM_W; term_h=$TERM_H
 
-            local rule; rule=$(_repeat '-' "$(( term_w - 4 > 0 ? term_w - 4 : 0 ))")
+            local rule; rule=$(_repeat '─' "$(( term_w - 4 > 0 ? term_w - 4 : 0 ))")
             local menu_title="🌊 HDD SSH Keys Manager"
             local title_pad; title_pad=$(_repeat ' ' "$(( (term_w - 4 - ${#menu_title} - 1) / 2 > 0 ? (term_w - 4 - ${#menu_title} - 1) / 2 : 0 ))")
             local title_content="  ${title_pad}${menu_title}"
@@ -861,7 +875,7 @@ _invoke_choice() {
     local choice="$1" label="$2"
     _dbg "_invoke_choice: choice='$choice' label='$label'"
     _term_size
-    local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+    local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
     local pad; pad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#label}) / 2 > 0 ? (TERM_W - 4 - ${#label}) / 2 : 0 ))")
     local op_title="  ${pad}${label}"
     printf '\e[2J\e[H\e[?25h\n'
