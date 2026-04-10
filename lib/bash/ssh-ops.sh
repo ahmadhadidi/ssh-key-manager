@@ -3,6 +3,47 @@
 [[ -n "${_SSH_OPS_SH_LOADED:-}" ]] && return 0
 _SSH_OPS_SH_LOADED=1
 
+# ─── Internal helpers ─────────────────────────────────────────────────────────
+
+# Ensure ~/.ssh exists with correct permissions.
+_ensure_ssh_dir() {
+    mkdir -p "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
+}
+
+# Write a key pair to ~/.ssh and set permissions.
+# Prompts for overwrite confirmation if the private key already exists.
+# Args: priv_path pub_path priv_content pub_content [copy_mode]
+#   copy_mode=1  → cp from priv_content/pub_content as file paths
+#   copy_mode=0  → write priv_content/pub_content as literal strings
+# Returns 1 if aborted.
+_write_key_pair() {
+    local dest_priv="$1" dest_pub="$2" priv_data="$3" pub_data="$4" copy="${5:-0}"
+    if [[ -f $dest_priv ]]; then
+        local overwrite
+        overwrite=$(read_colored_input "  '$(basename "$dest_priv")' already exists. Overwrite? [y/N]" yellow)
+        [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
+    fi
+    if (( copy )); then
+        cp "$priv_data" "$dest_priv" && chmod 600 "$dest_priv"
+        cp "$pub_data"  "$dest_pub"  && chmod 644 "$dest_pub"
+    else
+        printf '%s' "$priv_data" > "$dest_priv" && chmod 600 "$dest_priv"
+        printf '%s\n' "${pub_data%$'\n'}" > "$dest_pub" && chmod 644 "$dest_pub"
+    fi
+    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
+    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
+}
+
+# Print the IdentityFile entries configured for a host (informational only).
+_print_identity_files() {
+    local id_lookup="$1"
+    local k
+    while IFS= read -r k; do
+        printf '  \e[90mUsing key: %s\e[0m\n' "$k"
+    done < <(get_identity_files_for_host "$id_lookup")
+}
+
 # ─── SSH key operations ───────────────────────────────────────────────────────
 
 # TCP port-22 pre-check. Returns 0 if reachable.
@@ -83,9 +124,7 @@ add_ssh_key_in_host() {
     printf '  \e[90m  password \e[0m\e[90m%s\e[0m\n\n' "$stars"
     printf '  \e[90mGenerating SSH key...\e[0m\n'
 
-    mkdir -p "$SSH_DIR"
-    chmod 700 "$SSH_DIR"
-
+    _ensure_ssh_dir
     ssh-keygen -t ed25519 -f "$keypath" -C "$comment" -N "$passphrase"
     chmod 600 "$keypath"
 
@@ -189,10 +228,7 @@ install_ssh_key_on_remote() {
     _dbg "install_ssh_key_on_remote: target='$target'"
 
     local id_lookup="${selected_alias:-$host_addr}"
-    local k
-    while IFS= read -r k; do
-        printf '  \e[90mUsing key: %s\e[0m\n' "$k"
-    done < <(get_identity_files_for_host "$id_lookup")
+    _print_identity_files "$id_lookup"
 
     printf '  Connecting to %s...\n' "$target"
 
@@ -255,10 +291,7 @@ remove_ssh_key_from_remote() {
 
     local target
     target=$(resolve_ssh_target "$remote_host" "$remote_user")
-    local k
-    while IFS= read -r k; do
-        printf '  \e[90mUsing key: %s\e[0m\n' "$k"
-    done < <(get_identity_files_for_host "$remote_host")
+    _print_identity_files "$remote_host"
 
     printf '\n  \e[33mWill connect to remove the public key from %s:\n  %s\e[0m\n\n' \
         "$target" "$(printf '%s' "$pubkey" | tr -d '\n')"
@@ -455,7 +488,7 @@ import_external_ssh_key() {
         _ssh_fence_close
         chmod 600 "$dest_priv" 2>/dev/null || true
         [[ -f $dest_pub ]] && chmod 644 "$dest_pub" 2>/dev/null || true
-        printf '  \e[32mKeys downloaded to %s (600/644).\e[0m\n' "$SSH_DIR"
+        printf '  \e[32mKeys downloaded to %s.\e[0m\n' "$SSH_DIR"
         _add_key_to_hosts "$key_name"
         return 0
 
@@ -485,18 +518,10 @@ import_external_ssh_key() {
             printf '  \e[31mPublic key is required.\e[0m\n'; return 1
         fi
 
-        mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
+        _ensure_ssh_dir
         local dest_priv="$SSH_DIR/$key_name"
         local dest_pub="${dest_priv}.pub"
-        if [[ -f $dest_priv ]]; then
-            local overwrite
-            overwrite=$(read_colored_input "  '$key_name' already exists. Overwrite? [y/N]" yellow)
-            [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
-        fi
-        printf '%s' "$priv_content" > "$dest_priv" && chmod 600 "$dest_priv"
-        printf '%s\n' "$pub_content"  > "$dest_pub"  && chmod 644 "$dest_pub"
-        printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
-        printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
+        _write_key_pair "$dest_priv" "$dest_pub" "$priv_content" "$pub_content" || return 1
         _add_key_to_hosts "$key_name"
         return 0
     else
@@ -504,18 +529,10 @@ import_external_ssh_key() {
     fi
 
     # ── Install local copies (Local file path branch) ────────────────────────
-    mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
+    _ensure_ssh_dir
     local dest_priv="$SSH_DIR/$key_name"
     local dest_pub="${dest_priv}.pub"
-    if [[ -f $dest_priv ]]; then
-        local overwrite
-        overwrite=$(read_colored_input "  '$key_name' already exists. Overwrite? [y/N]" yellow)
-        [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
-    fi
-    cp "$priv_src" "$dest_priv" && chmod 600 "$dest_priv"
-    cp "$pub_src"  "$dest_pub"  && chmod 644 "$dest_pub"
-    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
-    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
+    _write_key_pair "$dest_priv" "$dest_pub" "$priv_src" "$pub_src" 1 || return 1
     _add_key_to_hosts "$key_name"
 }
 
