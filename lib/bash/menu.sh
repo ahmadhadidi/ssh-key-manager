@@ -345,16 +345,32 @@ _run_conf_editor() {
                 cf+="$(printf '  \e[0;97m    %s  \e[90m%s\e[0m\e[K' "${field_labels[$i]}" "$disp")"
             fi
         done
-        # ── Persist command ──────────────────────────────────────────────────
-        local _cmd="bash ssh-key-manager.sh"
-        [[ -n $DEFAULT_USER           ]] && _cmd+=" --user $(printf '%q' "$DEFAULT_USER")"
-        [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _cmd+=" --subnet $(printf '%q' "$DEFAULT_SUBNET_PREFIX")"
-        [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _cmd+=" --comment-suffix $(printf '%q' "$DEFAULT_COMMENT_SUFFIX")"
-        [[ -n $DEFAULT_PASSWORD       ]] && _cmd+=" --password $(printf '%q' "$DEFAULT_PASSWORD")"
-        local _cmd_disp="$_cmd"
-        (( ${#_cmd_disp} > TERM_W - 4 )) && _cmd_disp="${_cmd_disp:0:$(( TERM_W - 7 ))}..."
+        # ── Persist commands (4 methods) ─────────────────────────────────────
+        local _raw_url="https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main"
+        local _bf="" _pf=""   # bash flags, powershell flags
+        [[ -n $DEFAULT_USER           ]] && _bf+=" --user $(printf '%q' "$DEFAULT_USER")"            && _pf+=" -DefaultUserName \"$DEFAULT_USER\""
+        [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _bf+=" --subnet $(printf '%q' "$DEFAULT_SUBNET_PREFIX")" && _pf+=" -DefaultSubnetPrefix \"$DEFAULT_SUBNET_PREFIX\""
+        [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _bf+=" --comment-suffix $(printf '%q' "$DEFAULT_COMMENT_SUFFIX")" && _pf+=" -DefaultCommentSuffix \"$DEFAULT_COMMENT_SUFFIX\""
+        [[ -n $DEFAULT_PASSWORD       ]] && _bf+=" --password $(printf '%q' "$DEFAULT_PASSWORD")"    && _pf+=" -DefaultPassword \"$DEFAULT_PASSWORD\""
+        local _c1="bash <(curl -fsSL ${_raw_url}/ssh-key-manager.sh)${_bf}"
+        local _c2="bash ssh-key-manager.sh${_bf}"
+        local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/generate_key_test.ps1\")); & \$sb${_pf}"
+        local _c4="& ./generate_key_test.ps1${_pf}"
+        # Truncate each command to terminal width
+        local _tw=$(( TERM_W - 4 ))
+        local _t1="$_c1"; (( ${#_t1} > _tw )) && _t1="${_t1:0:$(( _tw - 3 ))}..."
+        local _t2="$_c2"; (( ${#_t2} > _tw )) && _t2="${_t2:0:$(( _tw - 3 ))}..."
+        local _t3="$_c3"; (( ${#_t3} > _tw )) && _t3="${_t3:0:$(( _tw - 3 ))}..."
+        local _t4="$_c4"; (( ${#_t4} > _tw )) && _t4="${_t4:0:$(( _tw - 3 ))}..."
         cf+="$(printf '\e[11;1H  \e[90mTo persist across sessions:\e[0m\e[K')"
-        cf+="$(printf '\e[12;1H  \e[33m%s\e[0m\e[K' "$_cmd_disp")"
+        cf+="$(printf '\e[12;1H  \e[90mBash · cloud\e[0m\e[K')"
+        cf+="$(printf '\e[13;1H  \e[33m%s\e[0m\e[K' "$_t1")"
+        cf+="$(printf '\e[14;1H  \e[90mBash · local\e[0m\e[K')"
+        cf+="$(printf '\e[15;1H  \e[33m%s\e[0m\e[K' "$_t2")"
+        cf+="$(printf '\e[16;1H  \e[90mPowerShell · cloud\e[0m\e[K')"
+        cf+="$(printf '\e[17;1H  \e[36m%s\e[0m\e[K' "$_t3")"
+        cf+="$(printf '\e[18;1H  \e[90mPowerShell · local\e[0m\e[K')"
+        cf+="$(printf '\e[19;1H  \e[36m%s\e[0m\e[K' "$_t4")"
 
         local hint="  Up/Dn navigate   Enter edit   Q back  "
         local hpad; hpad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
