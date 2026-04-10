@@ -65,6 +65,16 @@ read_colored_input() {
                     printf '\b \b' >&2
                 fi
                 ;;
+            $'\x1b\x7f'|$'\x1b\x08'|$'\x17')
+                # ALT+Backspace or Ctrl+W — delete previous word
+                local _tmp="$buf" _cnt=0
+                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" == " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
+                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" != " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
+                if (( _cnt > 0 )); then
+                    local _i; for (( _i=0; _i<_cnt; _i++ )); do printf '\b \b' >&2; done
+                    buf="$_tmp"
+                fi
+                ;;
             *)
                 # Accept printable single-byte characters only
                 if [[ ${#k} -eq 1 ]] && (( $(printf '%d' "'$k" 2>/dev/null || echo 0) >= 32 )); then
@@ -104,6 +114,16 @@ read_host_with_default() {
                 if (( ${#buf} > 0 )); then
                     buf="${buf%?}"
                     printf '\b \b' >&2
+                fi
+                ;;
+            $'\x1b\x7f'|$'\x1b\x08'|$'\x17')
+                # ALT+Backspace or Ctrl+W — delete previous word
+                local _tmp="$buf" _cnt=0
+                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" == " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
+                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" != " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
+                if (( _cnt > 0 )); then
+                    local _i; for (( _i=0; _i<_cnt; _i++ )); do printf '\b \b' >&2; done
+                    buf="$_tmp"
                 fi
                 ;;
             *)
