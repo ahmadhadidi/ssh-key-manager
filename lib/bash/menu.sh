@@ -340,7 +340,8 @@ _run_conf_editor() {
             local row=$(( 6 + i ))
             cf+="$(printf '\e[%d;1H' "$row")"
             if (( i == conf_sel )); then
-                cf+="$(printf '\e[48;5;6m\e[1;97m    %s  %s\e[K\e[0m' "${field_labels[$i]}" "$disp")"
+                # 2-space margin inside the teal block so label aligns with unselected rows
+                cf+="$(printf '\e[48;5;6m\e[1;97m      %s  %s\e[K\e[0m' "${field_labels[$i]}" "$disp")"
             else
                 cf+="$(printf '  \e[0;97m    %s  \e[90m%s\e[0m\e[K' "${field_labels[$i]}" "$disp")"
             fi
@@ -356,21 +357,24 @@ _run_conf_editor() {
         local _c2="bash ssh-key-manager.sh${_bf}"
         local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/generate_key_test.ps1\")); & \$sb${_pf}"
         local _c4="& ./generate_key_test.ps1${_pf}"
-        # Truncate each command to terminal width
-        local _tw=$(( TERM_W - 4 ))
+        # Truncate each command to terminal width (account for 4-space indent)
+        local _tw=$(( TERM_W - 6 ))
         local _t1="$_c1"; (( ${#_t1} > _tw )) && _t1="${_t1:0:$(( _tw - 3 ))}..."
         local _t2="$_c2"; (( ${#_t2} > _tw )) && _t2="${_t2:0:$(( _tw - 3 ))}..."
         local _t3="$_c3"; (( ${#_t3} > _tw )) && _t3="${_t3:0:$(( _tw - 3 ))}..."
         local _t4="$_c4"; (( ${#_t4} > _tw )) && _t4="${_t4:0:$(( _tw - 3 ))}..."
-        cf+="$(printf '\e[11;1H  \e[90mTo persist across sessions:\e[0m\e[K')"
-        cf+="$(printf '\e[12;1H  \e[90mBash · cloud\e[0m\e[K')"
-        cf+="$(printf '\e[13;1H  \e[33m%s\e[0m\e[K' "$_t1")"
-        cf+="$(printf '\e[14;1H  \e[90mBash · local\e[0m\e[K')"
-        cf+="$(printf '\e[15;1H  \e[33m%s\e[0m\e[K' "$_t2")"
-        cf+="$(printf '\e[16;1H  \e[90mPowerShell · cloud\e[0m\e[K')"
-        cf+="$(printf '\e[17;1H  \e[36m%s\e[0m\e[K' "$_t3")"
-        cf+="$(printf '\e[18;1H  \e[90mPowerShell · local\e[0m\e[K')"
-        cf+="$(printf '\e[19;1H  \e[36m%s\e[0m\e[K' "$_t4")"
+        cf+="$(printf '\e[11;1H\e[K')"
+        cf+="$(printf '\e[12;1H  \e[90mTo persist across sessions:\e[0m\e[K')"
+        cf+="$(printf '\e[13;1H\e[K')"
+        cf+="$(printf '\e[14;1H  \e[90m☁️  Bash · cloud\e[0m\e[K')"
+        cf+="$(printf '\e[15;1H    \e[33m%s\e[0m\e[K' "$_t1")"
+        cf+="$(printf '\e[16;1H  \e[90m🏠  Bash · local\e[0m\e[K')"
+        cf+="$(printf '\e[17;1H    \e[33m%s\e[0m\e[K' "$_t2")"
+        cf+="$(printf '\e[18;1H\e[K')"
+        cf+="$(printf '\e[19;1H  \e[90m☁️  PowerShell · cloud\e[0m\e[K')"
+        cf+="$(printf '\e[20;1H    \e[36m%s\e[0m\e[K' "$_t3")"
+        cf+="$(printf '\e[21;1H  \e[90m🏠  PowerShell · local\e[0m\e[K')"
+        cf+="$(printf '\e[22;1H    \e[36m%s\e[0m\e[K' "$_t4")"
 
         local hint="  Up/Dn navigate   Enter edit   Q back  "
         local hpad; hpad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
