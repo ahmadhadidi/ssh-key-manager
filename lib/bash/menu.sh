@@ -508,9 +508,11 @@ show_main_menu() {
     local term_w=0 term_h=0 view_off=0
     local -A item_rows=()
 
-    # Enter alternate screen, save terminal state globally for reliable cleanup
+    # Enter alternate screen, save terminal state globally for reliable cleanup.
+    # Then enter raw/noecho immediately so the event loop never echoes escape sequences.
     _STTY_SAVED=$(stty -g 2>/dev/null) || true
     printf '\e[?1049h\e[?25l'
+    stty -echo -icanon min 0 time 0 2>/dev/null || true
 
     _menu_cleanup() {
         printf '\e[?25h\e[?1049l'
@@ -689,6 +691,7 @@ show_main_menu() {
                     printf '\n  \e[90mPress any key to continue...\e[0m'
                     _read_key
                     printf '\e[?25l'
+                    stty -echo -icanon min 0 time 0 2>/dev/null || true
                     need_full=1
                 fi
                 ;;
