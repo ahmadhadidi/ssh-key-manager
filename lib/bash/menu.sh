@@ -25,37 +25,33 @@ invoke_menu_choice() {
         2)  # Test SSH Connection
             local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
             local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
-            local sel_alias="$_LAST_SELECTED_ALIAS"
 
-            local -a cfg_keys=()
-            if [[ -n $sel_alias ]]; then
-                while IFS= read -r k; do cfg_keys+=("$k"); done \
-                    < <(get_identity_files_for_host "$sel_alias")
-            fi
+            local -a all_keys=()
+            while IFS= read -r k; do all_keys+=("$k"); done < <(get_available_ssh_keys)
 
-            if (( ${#cfg_keys[@]} > 1 )); then
-                local all_label="-- Test ALL (${#cfg_keys[@]} keys)"
-                select_from_list -p "Select key to test:" "$all_label" "${cfg_keys[@]}"
+            if (( ${#all_keys[@]} == 0 )); then
+                test_ssh_connection "$user" "$host"
+            elif (( ${#all_keys[@]} == 1 )); then
+                printf '  \e[90mUsing key: %s\e[0m\n' "${all_keys[0]}"
+                test_ssh_connection "$user" "$host" "$SSH_DIR/${all_keys[0]}"
+            else
+                local all_label="-- Test ALL (${#all_keys[@]} keys)"
+                select_from_list -p "Select key to test:" "$all_label" "${all_keys[@]}"
                 if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
                     local sel="$_SELECT_RESULT"
                     if [[ $sel == "-- Test ALL"* ]]; then
                         local first=1 k
-                        for k in "${cfg_keys[@]}"; do
+                        for k in "${all_keys[@]}"; do
                             (( first )) || printf '\n'
                             first=0
                             printf '  \e[90mTesting with key: %s\e[0m\n' "$k"
-                            test_ssh_connection "$user" "$host" "$k"
+                            test_ssh_connection "$user" "$host" "$SSH_DIR/$k"
                         done
                     else
                         printf '  \e[90mUsing key: %s\e[0m\n' "$sel"
-                        test_ssh_connection "$user" "$host" "$sel"
+                        test_ssh_connection "$user" "$host" "$SSH_DIR/$sel"
                     fi
                 fi
-            elif (( ${#cfg_keys[@]} == 1 )); then
-                printf '  \e[90mUsing key: %s\e[0m\n' "${cfg_keys[0]}"
-                test_ssh_connection "$user" "$host" "${cfg_keys[0]}"
-            else
-                test_ssh_connection "$user" "$host"
             fi
             ;;
         3)  # Delete SSH Key From A Remote Machine
