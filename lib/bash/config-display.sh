@@ -239,12 +239,6 @@ show_ssh_key_inventory() {
     # ── Interactive loop ─────────────────────────────────────────────────────
     local sel=0 off=0 need_redraw=1
     _term_size
-
-    # Hold raw mode so arrow/PgUp/PgDn keys are never echoed between reads.
-    local _inv_stty
-    _inv_stty=$(stty -g 2>/dev/null) || true
-    stty -echo -icanon min 1 time 0 2>/dev/null || true
-
     printf '\e[?25l'
 
     while true; do
@@ -336,7 +330,6 @@ show_ssh_key_inventory() {
         esac
     done
 
-    stty "$_inv_stty" 2>/dev/null || true
     printf '\e[?25h'
 }
 

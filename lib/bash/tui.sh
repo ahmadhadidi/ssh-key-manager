@@ -194,6 +194,11 @@ select_from_list() {
     local _tty=/dev/tty
     [[ -c /dev/tty ]] || _tty=/proc/self/fd/2  # stderr fallback if no tty
 
+    # Hold raw mode for the full widget so arrow keys are never echoed between reads.
+    local _sfl_stty
+    _sfl_stty=$(stty -g 2>/dev/null) || true
+    stty -echo -icanon min 1 time 0 2>/dev/null || true
+
     _term_size
     local start_row=8
     local max_vis=$(( TERM_H - start_row - 2 ))
@@ -301,12 +306,14 @@ select_from_list() {
                 else
                     printf '\e[%d;1H' "$prompt_row" >"$_tty"
                 fi
+                stty "$_sfl_stty" 2>/dev/null || true
                 _SELECT_RESULT="$chosen"
                 _SELECT_CANCELLED=0
                 return 0
                 ;;
             "$KEY_ESC")
                 printf '%s\e[%d;1H\e[K\e[%d;1H\e[?25h' "$clr" "$TERM_H" "$prompt_row" >"$_tty"
+                stty "$_sfl_stty" 2>/dev/null || true
                 _SELECT_RESULT=""
                 _SELECT_CANCELLED=1
                 return 1
@@ -320,6 +327,7 @@ select_from_list() {
         esac
     done
 
+    stty "$_sfl_stty" 2>/dev/null || true
     printf '\e[?25h' >"$_tty"
     _SELECT_RESULT=""
     _SELECT_CANCELLED=0
