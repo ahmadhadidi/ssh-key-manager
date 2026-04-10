@@ -54,20 +54,20 @@ _BASE_URL="https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/he
 _SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
     _candidate="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
-    # Only use local path if the lib directory actually exists there
-    [[ -d "${_candidate}/lib" ]] && _SCRIPT_DIR="$_candidate"
+    # Only use local path if the lib/bash directory actually exists there
+    [[ -d "${_candidate}/lib/bash" ]] && _SCRIPT_DIR="$_candidate"
 fi
 
 _source_lib() {
     local name="$1"
-    local local_path="${_SCRIPT_DIR}/lib/${name}.sh"
+    local local_path="${_SCRIPT_DIR}/lib/bash/${name}.sh"
     if [[ -n "$_SCRIPT_DIR" && -f "$local_path" ]]; then
         # shellcheck source=/dev/null
         source "$local_path"
     else
         # shellcheck source=/dev/null
-        source <(curl -fsSL "${_BASE_URL}/lib/${name}.sh") || {
-            printf 'Error: failed to load lib/%s.sh from %s\n' "$name" "$_BASE_URL" >&2
+        source <(curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh") || {
+            printf 'Error: failed to load lib/bash/%s.sh from %s\n' "$name" "$_BASE_URL" >&2
             exit 1
         }
     fi
