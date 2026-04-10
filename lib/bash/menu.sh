@@ -25,31 +25,57 @@ invoke_menu_choice() {
         2)  # Test SSH Connection
             local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
             local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
+            local sel_alias="$_LAST_SELECTED_ALIAS"
 
-            local -a all_keys=()
-            while IFS= read -r k; do all_keys+=("$k"); done < <(get_available_ssh_keys)
+            # Primary: IdentityFile entries from the config block for this host.
+            # Fallback: all local keys in ~/.ssh when host has no config entry.
+            local -a key_paths=() key_labels=()
+            local id_lookup="${sel_alias:-$host}"
+            local _kp
+            while IFS= read -r _kp; do
+                key_paths+=("$_kp")
+                key_labels+=("$(basename "$_kp")")
+            done < <(get_identity_files_for_host "$id_lookup")
 
-            if (( ${#all_keys[@]} == 0 )); then
+            if (( ${#key_paths[@]} == 0 )); then
+                # No config keys — offer all local keys
+                local _kn
+                while IFS= read -r _kn; do
+                    key_paths+=("$SSH_DIR/$_kn")
+                    key_labels+=("$_kn")
+                done < <(get_available_ssh_keys)
+            fi
+
+            _run_test_with_keys() {
+                local _path="$1" _label="$2"
+                printf '  \e[90mTesting with key: %s\e[0m\n' "$_label"
+                test_ssh_connection "$user" "$host" "$_path"
+            }
+
+            if (( ${#key_paths[@]} == 0 )); then
                 test_ssh_connection "$user" "$host"
-            elif (( ${#all_keys[@]} == 1 )); then
-                printf '  \e[90mUsing key: %s\e[0m\n' "${all_keys[0]}"
-                test_ssh_connection "$user" "$host" "$SSH_DIR/${all_keys[0]}"
+            elif (( ${#key_paths[@]} == 1 )); then
+                _run_test_with_keys "${key_paths[0]}" "${key_labels[0]}"
             else
-                local all_label="-- Test ALL (${#all_keys[@]} keys)"
-                select_from_list -p "Select key to test:" "$all_label" "${all_keys[@]}"
+                local all_label="-- Test ALL (${#key_paths[@]} keys)"
+                select_from_list -p "Select key to test:" "$all_label" "${key_labels[@]}"
                 if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
                     local sel="$_SELECT_RESULT"
                     if [[ $sel == "-- Test ALL"* ]]; then
-                        local first=1 k
-                        for k in "${all_keys[@]}"; do
-                            (( first )) || printf '\n'
-                            first=0
-                            printf '  \e[90mTesting with key: %s\e[0m\n' "$k"
-                            test_ssh_connection "$user" "$host" "$SSH_DIR/$k"
+                        local _i
+                        for (( _i=0; _i<${#key_paths[@]}; _i++ )); do
+                            (( _i > 0 )) && printf '\n'
+                            _run_test_with_keys "${key_paths[$_i]}" "${key_labels[$_i]}"
                         done
                     else
-                        printf '  \e[90mUsing key: %s\e[0m\n' "$sel"
-                        test_ssh_connection "$user" "$host" "$SSH_DIR/$sel"
+                        # Find matching path by label
+                        local _i
+                        for (( _i=0; _i<${#key_labels[@]}; _i++ )); do
+                            if [[ "${key_labels[$_i]}" == "$sel" ]]; then
+                                _run_test_with_keys "${key_paths[$_i]}" "${key_labels[$_i]}"
+                                break
+                            fi
+                        done
                     fi
                 fi
             fi
