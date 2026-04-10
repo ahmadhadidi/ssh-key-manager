@@ -142,66 +142,6 @@ readonly KEY_BACKSPACE2=$'\x08'
 
 # ─── TUI utilities ────────────────────────────────────────────────────────────
 
-# _ssh_fence [target]   — opening rule, e.g. "── SSH Session user@host ──"
-# _ssh_fence_close      — closing rule, "── SSH session closed ──"
-# On OpenSSH 8.4+ the _setup_askpass integration renders the password prompt
-# with 2-space padding; on older versions this fence is the visual fallback.
-_ssh_fence() {
-    local target="${1:-}"
-    _term_size
-    local inner_w=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
-    local label=""
-    [[ -n $target ]] && label=" SSH Session ${target} "
-    if [[ -n $label ]]; then
-        local llen=${#label}
-        local dtotal=$(( inner_w - llen ))
-        (( dtotal < 4 )) && dtotal=4
-        local lw=$(( dtotal / 2 )) rw=$(( dtotal - dtotal / 2 ))
-        printf '  \e[2m%s\e[0m\e[90m%s\e[0m\e[2m%s\e[0m\n' \
-            "$(_repeat '─' "$lw")" "$label" "$(_repeat '─' "$rw")"
-    else
-        printf '  \e[2m%s\e[0m\n' "$(_repeat '─' "$inner_w")"
-    fi
-}
-
-_ssh_fence_close() {
-    _term_size
-    local inner_w=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
-    local label=" SSH session closed "
-    local llen=${#label}
-    local dtotal=$(( inner_w - llen ))
-    (( dtotal < 4 )) && dtotal=4
-    local lw=$(( dtotal / 2 )) rw=$(( dtotal - dtotal / 2 ))
-    printf '  \e[2m%s\e[0m\e[90m%s\e[0m\e[2m%s\e[0m\n' \
-        "$(_repeat '─' "$lw")" "$label" "$(_repeat '─' "$rw")"
-}
-
-# Create a temporary SSH_ASKPASS helper so that SSH password prompts are
-# displayed with our 2-space left-padding instead of SSH writing raw to /dev/tty.
-# Requires OpenSSH 8.4+ (SSH_ASKPASS_REQUIRE=force); silently falls back to
-# the _ssh_fence separator on older versions.
-# Call _destroy_askpass when the SSH operation is done.
-_setup_askpass() {
-    _ASKPASS_TMP=$(mktemp /tmp/.ssh-askpass-XXXXXX 2>/dev/null) || return 0
-    chmod 700 "$_ASKPASS_TMP"
-    cat > "$_ASKPASS_TMP" << 'ASKPASS_SCRIPT'
-#!/bin/bash
-printf '  \e[36m%s\e[0m' "$1" >/dev/tty
-stty -echo </dev/tty 2>/dev/null
-IFS= read -r _pw </dev/tty
-stty echo </dev/tty 2>/dev/null
-printf '\n' >/dev/tty
-printf '%s\n' "$_pw"
-ASKPASS_SCRIPT
-    export SSH_ASKPASS="$_ASKPASS_TMP"
-    export SSH_ASKPASS_REQUIRE=force
-}
-
-_destroy_askpass() {
-    rm -f "${_ASKPASS_TMP:-}"
-    unset SSH_ASKPASS SSH_ASKPASS_REQUIRE _ASKPASS_TMP
-}
-
 # Show a "Press any key to return to menu" bar at the bottom of the screen.
 wait_user_acknowledge() {
     _term_size

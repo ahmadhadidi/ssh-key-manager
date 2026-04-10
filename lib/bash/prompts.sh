@@ -136,15 +136,6 @@ read_host_with_default() {
     done
 }
 
-# Prompt for a remote host and user in one call.
-# Sets globals: _REMOTE_HOST  _REMOTE_USER  _REMOTE_ALIAS
-# Returns 1 if the user cancels either prompt.
-_prompt_remote() {
-    _REMOTE_HOST=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-    _REMOTE_ALIAS=$(get_alias_for_host_ip "$_REMOTE_HOST")
-    _REMOTE_USER=$(read_remote_user "$DEFAULT_USER") || return 1
-}
-
 read_remote_user() {
     local default_user="${1:-$DEFAULT_USER}"
     read_host_with_default "Remote username:" "$default_user"
