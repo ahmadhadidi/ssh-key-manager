@@ -758,9 +758,11 @@ _invoke_choice() {
     _stty_saved_inner=$(stty -g 2>/dev/null) || true
     stty sane 2>/dev/null || true
 
+    _setup_askpass
     local skip_wait=0
     invoke_menu_choice "$choice" || skip_wait=$?
     _dbg "_invoke_choice: '$choice' completed, skip_wait=$skip_wait"
+    _destroy_askpass
 
     stty "$_stty_saved_inner" 2>/dev/null || true
 
