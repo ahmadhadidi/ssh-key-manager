@@ -264,7 +264,8 @@ select_from_list() {
     local max_vis=$(( TERM_H - start_row - 2 ))
     (( max_vis < 1 )) && max_vis=1
 
-    local sel=-1
+    local sel=0
+    (( item_count == 0 )) && sel=-1
     local view_off=0
     local filter=""
     local -a filtered=("${items[@]}")
@@ -335,17 +336,19 @@ select_from_list() {
 
         case "$k" in
             "$KEY_UP")
-                (( sel > 0 )) && (( sel-- )) || (( sel == 0 )) && sel=-1
+                if (( fcount > 0 )); then
+                    (( sel = (sel <= 0 ? fcount - 1 : sel - 1) ))
+                fi
                 ;;
             "$KEY_DOWN")
-                if (( sel == -1 && fcount > 0 )); then sel=0
-                elif (( sel < fcount - 1 )); then (( sel++ ))
+                if (( fcount > 0 )); then
+                    (( sel = (sel < 0 || sel >= fcount - 1 ? 0 : sel + 1) ))
                 fi
                 ;;
             "$KEY_BACKSPACE"|"$KEY_BACKSPACE2")
                 if (( ${#filter} > 0 )); then
                     filter="${filter%?}"
-                    sel=-1
+                    (( fcount > 0 && sel < 0 )) && sel=0
                 fi
                 ;;
             "$KEY_ENTER"|"$KEY_ENTER2")
