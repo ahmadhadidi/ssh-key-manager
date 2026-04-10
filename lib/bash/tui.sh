@@ -248,6 +248,118 @@ format_menu_label() {
     printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;97m/1"
 }
 
+# Multi-select checklist widget.
+# Args: [-p PROMPT] item1 item2 ...
+# Space toggles, Enter confirms, ESC cancels.
+# Sets _SELECT_MULTI_RESULT (array of selected items) and _SELECT_CANCELLED.
+select_multi_from_list() {
+    local prompt="Select"
+    while [[ ${1:-} == -* ]]; do
+        case "$1" in
+            -p|--prompt) prompt="$2"; shift 2 ;;
+            *) break ;;
+        esac
+    done
+
+    local -a items=("$@")
+    local item_count=${#items[@]}
+    _SELECT_MULTI_RESULT=()
+    _SELECT_CANCELLED=0
+
+    if (( item_count == 0 )); then return 1; fi
+
+    local _tty=/dev/tty
+    [[ -c /dev/tty ]] || _tty=/proc/self/fd/2
+
+    local _sml_stty
+    _sml_stty=$(stty -g 2>/dev/null) || true
+    stty -echo -icanon min 1 time 0 2>/dev/null || true
+
+    _term_size
+    local start_row=8
+    local max_vis=$(( TERM_H - start_row - 2 ))
+    (( max_vis < 1 )) && max_vis=1
+
+    local sel=0 view_off=0
+    local -a checked=()
+    local _ci
+    for (( _ci=0; _ci<item_count; _ci++ )); do checked+=( 0 ); done
+
+    printf '\e[?25l' >"$_tty"
+
+    local prompt_row=$(( start_row - 2 ))
+    local clr="" _ct
+    for (( _ci=prompt_row; _ci<start_row+max_vis+1 && _ci<TERM_H; _ci++ )); do
+        printf -v _ct '\e[%d;1H\e[K' "$_ci"; clr+="$_ct"
+    done
+
+    while true; do
+        if   (( sel >= view_off + max_vis )); then view_off=$(( sel - max_vis + 1 ))
+        elif (( sel < view_off           )); then view_off=$sel; fi
+        (( view_off < 0 )) && view_off=0
+
+        local _t f
+        printf -v _t '\e[%d;1H\e[K  \e[90m%s\e[0m' "$prompt_row" "$prompt"; f="$_t"
+
+        local i
+        for (( i=0; i<max_vis; i++ )); do
+            local idx=$(( view_off + i )) r=$(( start_row + i ))
+            if (( idx < item_count )); then
+                local _box="[ ]"; (( checked[idx] )) && _box="[✓]"
+                if (( idx == sel )); then
+                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  %s  %s\e[K\e[0m' "$r" "$_box" "${items[$idx]}"
+                elif (( checked[idx] )); then
+                    printf -v _t '\e[%d;1H\e[K  \e[32m%s\e[0m  %s' "$r" "$_box" "${items[$idx]}"
+                else
+                    printf -v _t '\e[%d;1H\e[K  \e[90m%s\e[0m  %s' "$r" "$_box" "${items[$idx]}"
+                fi
+            else
+                printf -v _t '\e[%d;1H\e[K' "$r"
+            fi
+            f+="$_t"
+        done
+
+        local up_ind="  " dn_ind="  "
+        (( view_off > 0 )) && up_ind="^ "
+        (( view_off + max_vis < item_count )) && dn_ind="v "
+        local hint="  Up/Dn navigate   Space toggle   Enter confirm   Esc cancel   ${up_ind}${dn_ind}"
+        local hint_pad="" _hn=$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 )) _hi
+        for (( _hi=0; _hi<_hn; _hi++ )); do hint_pad+=' '; done
+        printf -v _t '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hint_pad"; f+="$_t"
+
+        printf '%s' "$f" >"$_tty"
+        _read_key_raw
+
+        case "$KEY" in
+            "$KEY_UP")   (( sel = (sel <= 0          ? item_count-1 : sel-1) )) ;;
+            "$KEY_DOWN") (( sel = (sel >= item_count-1 ? 0           : sel+1) )) ;;
+            ' ')         (( checked[sel] = checked[sel] ? 0 : 1 )) ;;
+            "$KEY_ENTER"|"$KEY_ENTER2")
+                printf '%s\e[%d;1H\e[K\e[?25h' "$clr" "$TERM_H" >"$_tty"
+                local _si _labels=""
+                for (( _si=0; _si<item_count; _si++ )); do
+                    if (( checked[_si] )); then
+                        _SELECT_MULTI_RESULT+=( "${items[$_si]}" )
+                        [[ -n $_labels ]] && _labels+=", "
+                        _labels+="${items[$_si]}"
+                    fi
+                done
+                printf '\e[%d;1H  \e[90m%s\e[0m  \e[36m%s\e[0m\n' \
+                    "$prompt_row" "$prompt" "${_labels:-(none selected)}" >"$_tty"
+                stty "$_sml_stty" 2>/dev/null || true
+                _SELECT_CANCELLED=0
+                return 0
+                ;;
+            "$KEY_ESC")
+                printf '%s\e[%d;1H\e[K\e[%d;1H\e[?25h' "$clr" "$TERM_H" "$prompt_row" >"$_tty"
+                stty "$_sml_stty" 2>/dev/null || true
+                _SELECT_CANCELLED=1
+                return 1
+                ;;
+        esac
+    done
+}
+
 # Interactive combo-box with filtering.
 # Args: [-s|--strict] [-p PROMPT] item1 item2 ...
 # Sets _SELECT_RESULT and _SELECT_CANCELLED (1=ESC). Returns 0 on selection, 1 on cancel.
