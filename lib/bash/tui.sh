@@ -293,6 +293,17 @@ select_from_list() {
 
     printf '\e[?25l' >"$_tty"
 
+    # Geometry is fixed for the lifetime of this widget — compute once.
+    local prompt_row=$(( start_row - 2 ))
+    local input_row=$(( start_row - 1 ))
+
+    # Pre-build the clear-widget escape (used only on exit).
+    local clr="" _ct _ci
+    for (( _ci=prompt_row; _ci<start_row+max_vis+1 && _ci<TERM_H; _ci++ )); do
+        printf -v _ct '\e[%d;1H\e[K' "$_ci"
+        clr+="$_ct"
+    done
+
     while true; do
         filtered=()
         local it
@@ -309,18 +320,16 @@ select_from_list() {
         fi
         (( view_off < 0 )) && view_off=0
 
-        local prompt_row=$(( start_row - 2 ))
-        local input_row=$(( start_row - 1 ))
-        local input_disp
+        # ── Build render frame without any subshell forks ────────────────────
+        local _t f input_disp
         if [[ -n $filter ]]; then
-            input_disp="$(printf '\e[37m%s\e[90m|\e[0m' "$filter")"
+            printf -v input_disp '\e[37m%s\e[90m|\e[0m' "$filter"
         else
-            input_disp="$(printf '\e[90m(type to filter or create new)\e[0m')"
+            input_disp=$'\e[90m(type to filter or create new)\e[0m'
         fi
 
-        local f
-        f="$(printf '\e[%d;1H\e[K  \e[90m%s\e[0m' "$prompt_row" "$prompt")"
-        f+="$(printf '\e[%d;1H\e[K  \e[36m>\e[0m %s' "$input_row" "$input_disp")"
+        printf -v _t '\e[%d;1H\e[K  \e[90m%s\e[0m' "$prompt_row" "$prompt"; f="$_t"
+        printf -v _t '\e[%d;1H\e[K  \e[36m>\e[0m %s' "$input_row" "$input_disp"; f+="$_t"
 
         local i
         for (( i=0; i<max_vis; i++ )); do
@@ -328,32 +337,28 @@ select_from_list() {
             local r=$(( start_row + i ))
             if (( idx < fcount )); then
                 if (( idx == sel )); then
-                    f+="$(printf '\e[%d;1H\e[48;5;6m\e[1;97m  %s\e[K\e[0m' "$r" "${filtered[$idx]}")"
+                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  %s\e[K\e[0m' "$r" "${filtered[$idx]}"
                 else
-                    f+="$(printf '\e[%d;1H\e[K  \e[97m  %s\e[0m' "$r" "${filtered[$idx]}")"
+                    printf -v _t '\e[%d;1H\e[K  \e[97m  %s\e[0m' "$r" "${filtered[$idx]}"
                 fi
             else
-                f+="$(printf '\e[%d;1H\e[K' "$r")"
+                printf -v _t '\e[%d;1H\e[K' "$r"
             fi
+            f+="$_t"
         done
 
         local up_ind="  " dn_ind="  "
         (( view_off > 0 )) && up_ind="^ "
         (( view_off + max_vis < fcount )) && dn_ind="v "
         local hint="  Up/Dn navigate   Enter select   type filter/new   Esc cancel   ${up_ind}${dn_ind}"
-        local hint_pad
-        hint_pad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
-        f+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hint_pad")"
+        local hint_pad="" _hn=$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 )) _hi
+        for (( _hi=0; _hi<_hn; _hi++ )); do hint_pad+=' '; done
+        printf -v _t '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hint_pad"; f+="$_t"
 
         printf '%s' "$f" >"$_tty"
 
         _read_key_raw
         local k="$KEY"
-
-        local clr="" ci
-        for (( ci=prompt_row; ci<start_row+max_vis+1 && ci<TERM_H; ci++ )); do
-            clr+="$(printf '\e[%d;1H\e[K' "$ci")"
-        done
 
         case "$k" in
             "$KEY_UP")
