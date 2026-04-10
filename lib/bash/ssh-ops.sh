@@ -25,8 +25,13 @@ test_ssh_connection() {
     if [[ -n $identity ]]; then
         # Bypass ~/.ssh/config entirely so no other IdentityFile entries from the
         # host's config block can succeed as fallbacks — this tests ONLY this key.
+        # Do NOT use BatchMode=yes: passphrase-protected keys need to prompt.
+        # PreferredAuthentications=publickey restricts to key auth only (no
+        # password fallback). SSH_ASKPASS_REQUIRE=force (set by _setup_askpass)
+        # routes any passphrase prompt through our padded askpass script.
         target="${user}@${host}"
-        ssh_args+=(-F /dev/null -i "$identity" -o IdentitiesOnly=yes -o BatchMode=yes)
+        ssh_args+=(-F /dev/null -i "$identity" -o IdentitiesOnly=yes \
+                   -o PreferredAuthentications=publickey)
     else
         target=$(resolve_ssh_target "$host" "$user")
     fi
@@ -44,7 +49,7 @@ test_ssh_connection() {
         return 1
     elif printf '%s' "$result" | grep -q "Permission denied"; then
         if [[ -n $identity ]]; then
-            printf '  \e[33mKey rejected or passphrase required — add key to ssh-agent first.\e[0m\n'
+            printf '  \e[33mKey not authorized on %s.\e[0m\n' "$host"
         else
             printf '  \e[33mSSH reachable, but permission denied for user '\''%s'\''.\e[0m\n' "$user"
         fi
