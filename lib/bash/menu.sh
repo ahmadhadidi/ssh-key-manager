@@ -188,7 +188,8 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             local keypath="$SSH_DIR/$keyname"
             _ssh_fence
             local test_out
-            test_out=$(ssh -i "$keypath" -o BatchMode=yes -o ConnectTimeout=6 \
+            test_out=$(ssh -F /dev/null -i "$keypath" -o IdentitiesOnly=yes \
+                -o BatchMode=yes -o ConnectTimeout=6 \
                 -o StrictHostKeyChecking=accept-new \
                 "${remote_user}@${host_addr}" "echo ok" 2>&1) || true
 
