@@ -113,7 +113,7 @@ edit_ssh_config_file() {
         editor="$EDITOR"
     else
         local e
-        for e in nvim vim nano vi; do
+        for e in nano vi vim nvim; do
             command -v "$e" &>/dev/null && editor="$e" && break
         done
     fi
