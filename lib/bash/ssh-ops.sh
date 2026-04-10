@@ -119,15 +119,8 @@ add_ssh_key_to_host_config() {
                 }
             }
         ')
-        perl -0777 -i -pe "s/\Q${_HOST_BLOCK}\E/${new_block}/" "$SSH_CONFIG" 2>/dev/null || \
-            python3 -c "
-import sys, re
-old=open('$SSH_CONFIG').read()
-new=old.replace(open('/dev/stdin').read().rstrip('\n'), '''${new_block}''', 1)
-open('$SSH_CONFIG','w').write(new)
-" <<< "$_HOST_BLOCK" 2>/dev/null || {
+        _replace_host_block "$_HOST_BLOCK" "$new_block" || \
             printf '%s\n' "$new_block" >> "$SSH_CONFIG"
-        }
         printf '  \e[32mIdentityFile added to existing Host %s.\e[0m\n' "$host_name"
     else
         local entry
@@ -161,19 +154,9 @@ remove_identity_file_from_config_block() {
         return 0
     fi
 
-    perl -0777 -i -pe "s/\Q${_HOST_BLOCK}\E/${new_block}/" "$SSH_CONFIG" 2>/dev/null || \
-        python3 -c "
-f='$SSH_CONFIG'
-old=open(f).read()
-open(f,'w').write(old.replace('''${_HOST_BLOCK}''', '''${new_block}''', 1))
-" 2>/dev/null
+    _replace_host_block "$_HOST_BLOCK" "$new_block"
     printf '  \e[32mIdentityFile '\''%s'\'' removed from config block '\''%s'\''.\e[0m\n' \
         "$keyname" "$host_alias"
-}
-
-remove_identity_file_from_config_entry() {
-    local keyname="$1" host_name="$2"
-    remove_identity_file_from_config_block "$keyname" "$host_name"
 }
 
 # Install a public key on a remote machine and register in ~/.ssh/config.

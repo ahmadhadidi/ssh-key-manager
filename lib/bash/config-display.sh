@@ -162,12 +162,7 @@ remove_host_from_ssh_config() {
         return
     fi
 
-    perl -0777 -i -pe "s/\Q${_HOST_BLOCK}\E//" "$SSH_CONFIG" 2>/dev/null || \
-        python3 -c "
-f='$SSH_CONFIG'
-content=open(f).read()
-open(f,'w').write(content.replace('''${_HOST_BLOCK}''', '', 1))
-" 2>/dev/null
+    _replace_host_block "$_HOST_BLOCK" ""
 
     local cleaned; cleaned=$(sed -e 's/[[:space:]]*$//' -e '/^$/N;/^\n$/d' "$SSH_CONFIG")
     printf '%s\n' "$cleaned" > "$SSH_CONFIG"

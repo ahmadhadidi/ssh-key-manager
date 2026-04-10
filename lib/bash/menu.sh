@@ -252,7 +252,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             select_from_list -p "Select key to remove from '$host_name':" "${key_names[@]}"
             (( _SELECT_CANCELLED )) && return 0
             [[ -z $_SELECT_RESULT ]] && return 0
-            remove_identity_file_from_config_entry "$_SELECT_RESULT" "$host_name"
+            remove_identity_file_from_config_block "$_SELECT_RESULT" "$host_name"
             ;;
         10) # Help: Best Practices
             printf '\n'
