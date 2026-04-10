@@ -196,6 +196,7 @@ install_ssh_key_on_remote() {
             return 1
         }
     else
+        _ssh_fence
         remote_hostname=$(printf '%s\n' "$pubkey" | \
             ssh "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
             printf '  \e[31mFailed to inject SSH key. Check network, credentials, or host status.\e[0m\n'
@@ -255,6 +256,7 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys \
 && rm -f \$TMP_FILE"
 
+    _ssh_fence
     if ssh "$target" "$remote_cmd"; then
         printf '  \e[32mSSH key removed from remote authorized_keys.\e[0m\n'
         local priv="$SSH_DIR/$keyname" pub="$SSH_DIR/${keyname}.pub"
@@ -283,6 +285,7 @@ register_remote_host_config() {
     local target="${remote_user}@${host_addr}"
 
     printf '  \e[90mConnecting to %s to read authorized_keys...\e[0m\n' "$target"
+    _ssh_fence
     local raw_keys
     raw_keys=$(ssh -o StrictHostKeyChecking=accept-new "$target" \
         "cat ~/.ssh/authorized_keys 2>/dev/null") || {
@@ -385,6 +388,7 @@ import_external_ssh_key() {
         local dest_pub="${dest_priv}.pub"
 
         printf '  \e[90mDownloading %s ...\e[0m\n' "$remote_priv"
+        _ssh_fence
         if ! scp -q "${target}:${remote_priv}" "$dest_priv" 2>&1; then
             printf '  \e[31mFailed to download private key.\e[0m\n'
             return 1
