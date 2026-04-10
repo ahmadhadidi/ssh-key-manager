@@ -24,7 +24,7 @@ test_ssh_connection() {
 
     local -a ssh_args=()
     if [[ -n $identity ]]; then
-        ssh_args+=(-i "$identity" -o BatchMode=yes)
+        ssh_args+=(-i "$identity" -o IdentitiesOnly=yes -o BatchMode=yes)
     fi
     ssh_args+=(-o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new \
                "$target" "echo SSH Connection Successful")
