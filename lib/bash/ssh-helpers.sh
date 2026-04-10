@@ -3,6 +3,37 @@
 [[ -n "${_SSH_HELPERS_SH_LOADED:-}" ]] && return 0
 _SSH_HELPERS_SH_LOADED=1
 
+# ─── Output helpers ───────────────────────────────────────────────────────────
+
+# _out STYLE FORMAT [ARGS...]
+# Prints a 2-space indented, color-coded line to stdout.
+# Styles: ok (green)  warn (yellow)  error (red)  info (cyan)
+#         dim (gray)  heading (bright-cyan)  plain (bright-white)
+_out() {
+    local style="$1" fmt="$2"; shift 2
+    local code
+    case "$style" in
+        ok)      code=32 ;;
+        warn)    code=33 ;;
+        error)   code=31 ;;
+        info)    code=36 ;;
+        dim)     code=90 ;;
+        heading) code=96 ;;
+        plain)   code=97 ;;
+        *)       code=37 ;;
+    esac
+    # shellcheck disable=SC2059
+    printf "  \e[${code}m${fmt}\e[0m\n" "$@"
+}
+
+# _out_item FORMAT [ARGS...]
+# Prints "  + FORMAT" with a green plus sign and plain unstyled text.
+_out_item() {
+    local fmt="$1"; shift
+    # shellcheck disable=SC2059
+    printf "  \e[32m+\e[0m  ${fmt}\n" "$@"
+}
+
 # ─── Connection helpers ───────────────────────────────────────────────────────
 
 # TCP port-22 pre-check. Returns 0 if reachable.
@@ -86,7 +117,7 @@ _write_key_pair() {
     if [[ -f $dest_priv ]]; then
         local overwrite
         overwrite=$(read_colored_input "  '$(basename "$dest_priv")' already exists. Overwrite? [y/N]" yellow)
-        [[ ! ${overwrite,,} =~ ^y ]] && printf '  \e[33mAborted.\e[0m\n' && return 1
+        [[ ! ${overwrite,,} =~ ^y ]] && _out warn 'Aborted.' && return 1
     fi
     if (( copy )); then
         cp "$priv_data" "$dest_priv" && chmod 600 "$dest_priv"
@@ -95,8 +126,8 @@ _write_key_pair() {
         printf '%s' "$priv_data" > "$dest_priv" && chmod 600 "$dest_priv"
         printf '%s\n' "${pub_data%$'\n'}" > "$dest_pub" && chmod 644 "$dest_pub"
     fi
-    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_priv"
-    printf '  \e[32m+\e[0m  %s  imported.\n' "$dest_pub"
+    _out_item '%s  imported.' "$dest_priv"
+    _out_item '%s  imported.' "$dest_pub"
 }
 
 # ─── Prompt helpers ───────────────────────────────────────────────────────────
@@ -106,7 +137,7 @@ _print_identity_files() {
     local id_lookup="$1"
     local k
     while IFS= read -r k; do
-        printf '  \e[90mUsing key: %s\e[0m\n' "$k"
+        _out dim 'Using key: %s' "$k"
     done < <(get_identity_files_for_host "$id_lookup")
 }
 
