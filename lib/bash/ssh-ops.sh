@@ -199,7 +199,7 @@ install_ssh_key_on_remote() {
     local remote_hostname
     if [[ -n $DEFAULT_PASSWORD ]] && command -v sshpass &>/dev/null; then
         printf '  \e[90mUsing sshpass with stored password.\e[0m\n'
-        remote_hostname=$(printf '%s\n' "$pubkey" | \
+        remote_hostname=$(printf '%s' "$pubkey" | \
             sshpass -p "$DEFAULT_PASSWORD" ssh -o StrictHostKeyChecking=accept-new \
             "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
             printf '  \e[31mFailed to inject SSH key. Check network, credentials, or host status.\e[0m\n'
@@ -208,7 +208,7 @@ install_ssh_key_on_remote() {
         }
     else
         _ssh_fence "$target"
-        remote_hostname=$(printf '%s\n' "$pubkey" | \
+        remote_hostname=$(printf '%s' "$pubkey" | \
             ssh "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
             _ssh_fence_close
             printf '  \e[31mFailed to inject SSH key. Check network, credentials, or host status.\e[0m\n'
