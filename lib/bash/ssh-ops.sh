@@ -29,6 +29,7 @@ test_ssh_connection() {
     ssh_args+=(-o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new \
                "$target" "echo SSH Connection Successful")
 
+    _ssh_fence
     local result
     result=$(ssh "${ssh_args[@]}" 2>&1) || true
     _dbg "test_ssh_connection result: $result"
