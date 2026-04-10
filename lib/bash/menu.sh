@@ -383,7 +383,7 @@ _run_conf_editor() {
             "$KEY_DOWN") (( conf_sel = (conf_sel + 1) % ${#field_names[@]} )) ;;
             "$KEY_ENTER"|"$KEY_ENTER2")
                 local row=$(( 6 + conf_sel ))
-                printf '\e[%d;1H\e[K  \e[1;33m  %s  \e[0;33m' "$row" "${field_labels[$conf_sel]}"
+                printf '\e[%d;1H\e[K  \e[1;33m    %s  \e[0;33m' "$row" "${field_labels[$conf_sel]}"
                 printf '\e[?25h'
                 local new_val
                 read -r new_val || new_val=''
@@ -452,21 +452,21 @@ show_main_menu() {
         "🔑  Generate & Install SSH Key on A Remote Machine"
         "📤  Install SSH Key on A Remote Machine"
         "🔌  Test SSH Connection"
-        "🗑️   Delete SSH Key From A Remote Machine"
+        "🗑️  Delete SSH Key From A Remote Machine"
         "🔄  Promote Key on A Remote Machine"
         "📋  List Authorized Keys on Remote Host"
         "🔗  Add Config Block for Existing Remote Key"
         "Local"
         "✨  Generate SSH Key (Without installation)"
-        "🗝️   List SSH Keys"
+        "🗝️  List SSH Keys"
         "➕  Append SSH Key to Hostname in Host Config"
-        "🗑️   Delete an SSH Key Locally"
+        "🗑️  Delete an SSH Key Locally"
         "❌  Remove an SSH Key From Config"
         "📥  Import SSH Key from Another Machine"
         "Config File"
-        "🏚️   Remove Host from SSH Config"
-        "👁️   View SSH Config"
-        "✏️   Edit SSH Config"
+        "🏚️  Remove Host from SSH Config"
+        "👁️  View SSH Config"
+        "✏️  Edit SSH Config"
         "🚪  Exit"
     )
     local -a m_choice=(
