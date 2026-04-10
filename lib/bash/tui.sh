@@ -148,7 +148,7 @@ format_menu_label() {
         return
     fi
     local lo="${hotkey,,}" up="${hotkey^^}"
-    printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;37m/1"
+    printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;97m/1"
 }
 
 # Interactive combo-box with filtering.
