@@ -116,3 +116,21 @@ get_identity_file_from_host_config() {
     raw="${raw/#\$HOME/$HOME}"
     printf '%s' "$raw"
 }
+
+# Replace old_block with new_block in SSH_CONFIG.
+# Pass new_block="" to delete the block entirely.
+# Uses perl (preferred) with python3 fallback.
+_replace_host_block() {
+    local old_block="$1" new_block="${2:-}"
+    if command -v perl &>/dev/null; then
+        perl -0777 -i -pe "s/\Q${old_block}\E/${new_block}/" "$SSH_CONFIG" 2>/dev/null && return 0
+    fi
+    if command -v python3 &>/dev/null; then
+        python3 -c "
+f='$SSH_CONFIG'
+content=open(f).read()
+open(f,'w').write(content.replace('''${old_block}''', '''${new_block}''', 1))
+" 2>/dev/null && return 0
+    fi
+    return 1
+}

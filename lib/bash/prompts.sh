@@ -236,13 +236,13 @@ get_public_key() {
     local keyname="$1"
     local path="$SSH_DIR/${keyname}.pub"
     if [[ ! -f "$path" ]]; then
-        printf '  \e[31mPublic key '\''%s.pub'\'' not found at %s.\e[0m\n' "$keyname" "$path"
+        printf '  \e[31mPublic key '\''%s.pub'\'' not found at %s.\e[0m\n' "$keyname" "$path" >&2
         return 1
     fi
-    local content
-    content=$(cat "$path")
-    printf '  \e[32mPublic key loaded successfully:\n  %s\e[0m\n' "$content"
-    printf '%s' "$content"
+    # Feedback goes to stderr so callers using pubkey=$(get_public_key ...) capture
+    # only the raw key content — no ANSI codes or status messages mixed in.
+    printf '  \e[32mPublic key loaded.\e[0m\n' >&2
+    cat "$path"
 }
 
 # Given an IP/address and user, return "user@alias" if a matching Host block exists,
