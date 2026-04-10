@@ -217,11 +217,8 @@ install_ssh_key_on_remote() {
     local pubkey
     pubkey=$(get_public_key "$keyname") || return 1
 
-    local host_addr
-    host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-    local selected_alias="$_LAST_SELECTED_ALIAS"
-    local remote_user
-    remote_user=$(read_remote_user "$DEFAULT_USER") || return 1
+    _prompt_remote || return 1
+    local host_addr="$_REMOTE_HOST" selected_alias="$_REMOTE_ALIAS" remote_user="$_REMOTE_USER"
 
     local target
     target=$(resolve_ssh_target "$host_addr" "$remote_user")
@@ -323,14 +320,8 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 }
 
 register_remote_host_config() {
-    printf '  \e[36mEnter the IP or hostname of the remote machine (not yet in config).\e[0m\n'
-    local host_addr
-    host_addr=$(read_colored_input "  Remote IP / hostname" cyan)
-    [[ $host_addr =~ ^[0-9]{1,3}$ ]] && host_addr="${DEFAULT_SUBNET_PREFIX}.${host_addr}"
-    if [[ -z $host_addr ]]; then return; fi
-
-    local remote_user
-    remote_user=$(read_remote_user "$DEFAULT_USER")
+    _prompt_remote || return 1
+    local host_addr="$_REMOTE_HOST" remote_user="$_REMOTE_USER"
     local target="${remote_user}@${host_addr}"
 
     printf '  \e[90mConnecting to %s to read authorized_keys...\e[0m\n' "$target"
@@ -460,10 +451,8 @@ import_external_ssh_key() {
     elif [[ $choice == "Remote machine (SCP)" ]]; then
         # ── Remote SCP ──────────────────────────────────────────────────────
         printf '  \e[90mConnect to the machine that holds the keys.\e[0m\n'
-        local host_addr
-        host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-        local remote_user
-        remote_user=$(read_remote_user "$DEFAULT_USER") || return 1
+        _prompt_remote || return 1
+        local host_addr="$_REMOTE_HOST" remote_user="$_REMOTE_USER"
         local target="${remote_user}@${host_addr}"
 
         local remote_priv

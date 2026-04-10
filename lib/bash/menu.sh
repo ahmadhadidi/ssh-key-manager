@@ -23,11 +23,8 @@ invoke_menu_choice() {
             install_ssh_key_on_remote "$keyname"
             ;;
         2)  # Test SSH Connection
-            local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
-            local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
-            # _LAST_SELECTED_ALIAS is set inside read_remote_host_address which runs
-            # in a subshell via $(), so it never propagates. Reverse-look up the alias.
-            local sel_alias; sel_alias=$(get_alias_for_host_ip "$host")
+            _prompt_remote || return 0
+            local host="$_REMOTE_HOST" user="$_REMOTE_USER" sel_alias="$_REMOTE_ALIAS"
 
             # Primary: IdentityFile entries from the config block for this host.
             # Fallback: all local keys in ~/.ssh when host has no config entry.
@@ -83,15 +80,10 @@ invoke_menu_choice() {
             fi
             ;;
         3)  # Delete SSH Key From A Remote Machine
-            local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
-            local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
-            local sel_alias="$_LAST_SELECTED_ALIAS"
+            _prompt_remote || return 0
+            local host="$_REMOTE_HOST" user="$_REMOTE_USER"
             local target; target=$(resolve_ssh_target "$host" "$user")
-            local id_lookup="${sel_alias:-$host}"
-            local k
-            while IFS= read -r k; do
-                printf '  \e[90mUsing key: %s\e[0m\n' "$k"
-            done < <(get_identity_files_for_host "$id_lookup")
+            _print_identity_files "${_REMOTE_ALIAS:-$host}"
 
             printf '  \e[90mFetching authorized keys from %s...\e[0m\n' "$target"
             _ssh_fence "$target"
@@ -182,8 +174,8 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
         7)  # Append SSH Key to Hostname in Host Config
             local keyname; keyname=$(read_ssh_key_name) || return 0
             local host_name; host_name=$(read_remote_host_name "$DEFAULT_SUBNET_PREFIX") || return 0
-            local host_addr; host_addr=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
-            local remote_user; remote_user=$(read_remote_user "$DEFAULT_USER") || return 0
+            _prompt_remote || return 0
+            local host_addr="$_REMOTE_HOST" remote_user="$_REMOTE_USER"
 
             local keypath="$SSH_DIR/$keyname"
             _ssh_fence
@@ -311,8 +303,8 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
             return 1
             ;;
         16) # List Authorized Keys on Remote Host
-            local host; host=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 0
-            local user; user=$(read_remote_user "$DEFAULT_USER") || return 0
+            _prompt_remote || return 0
+            local host="$_REMOTE_HOST" user="$_REMOTE_USER"
             local target; target=$(resolve_ssh_target "$host" "$user")
             printf '  \e[90mFetching authorized_keys from %s...\e[0m\n' "$target"
             _ssh_fence "$target"
