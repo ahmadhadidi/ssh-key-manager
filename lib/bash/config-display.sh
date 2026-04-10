@@ -176,6 +176,7 @@ show_ssh_key_inventory() {
         return
     fi
 
+    # ── Build key metadata ──────────────────────────────────────────────────
     local -A has_pub=() has_priv=()
     local f
     for f in "$SSH_DIR"/*.pub; do
@@ -213,9 +214,10 @@ show_ssh_key_inventory() {
 
     local -a sorted_keys=()
     while IFS= read -r k; do sorted_keys+=("$k"); done < <(printf '%s\n' "${!all_keys[@]}" | sort)
+    local key_count=${#sorted_keys[@]}
 
-    local w_num=${#sorted_keys[@]}
-    w_num=${#w_num}
+    # ── Column widths ───────────────────────────────────────────────────────
+    local w_num=${#key_count}; (( w_num < 1 )) && w_num=1
     local w_key=3 w_use=5
     for k in "${sorted_keys[@]}"; do
         (( ${#k} > w_key )) && w_key=${#k}
@@ -223,38 +225,209 @@ show_ssh_key_inventory() {
         (( ${#u} > w_use )) && w_use=${#u}
     done
 
-    local w_pub=3 w_prv=4
-    local top mid bot hdr
-    local h1=$(( w_num + 2 )) h2=$(( w_key + 2 )) h3=$(( w_pub + 2 )) h4=$(( w_prv + 1 )) h5=$(( w_use + 2 ))
+    # ── Build static header lines ───────────────────────────────────────────
+    local h1=$(( w_num + 2 )) h2=$(( w_key + 2 )) h3=5 h4=4 h5=$(( w_use + 2 ))
     local r1; r1=$(_repeat '-' "$h1")
     local r2; r2=$(_repeat '-' "$h2")
     local r3; r3=$(_repeat '-' "$h3")
     local r4; r4=$(_repeat '-' "$h4")
     local r5; r5=$(_repeat '-' "$h5")
-    top="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
-    hdr="  | $(printf '%*s' "$w_num" '#') | $(printf '%-*s' "$w_key" 'Key') | Pub | Prv | $(printf '%-*s' "$w_use" 'Usage') |"
-    mid="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
-    bot="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
+    local tbl_top="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
+    local tbl_hdr="  | $(printf '%*s' "$w_num" '#') | $(printf '%-*s' "$w_key" 'Key') |  Pub |Prv| $(printf '%-*s' "$w_use" 'Usage') |"
+    local tbl_sep="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
 
-    local -a table_lines=()
-    table_lines+=("$(printf '\e[97m%s\e[0m' "$top")")
-    table_lines+=("$(printf '\e[1;37m%s\e[0m' "$hdr")")
-    table_lines+=("$(printf '\e[97m%s\e[0m' "$mid")")
+    # ── Interactive loop ─────────────────────────────────────────────────────
+    local sel=0 off=0 need_redraw=1
+    _term_size
+    printf '\e[?25l'
 
-    local i=1
-    for k in "${sorted_keys[@]}"; do
-        local pub_c prv_c
-        if [[ -n ${has_pub[$k]+x} ]]; then pub_c="$(printf '\e[32m  Y  \e[0m')"
-        else                                  pub_c="$(printf '\e[31m  N  \e[0m')"; fi
-        if [[ -n ${has_priv[$k]+x} ]]; then prv_c="$(printf '\e[32m  Y  \e[0m')"
-        else                                   prv_c="$(printf '\e[31m  N  \e[0m')"; fi
-        local usage="${usage_map[$k]:-}"
-        local row
-        row="  $(printf '\e[97m|\e[0m') $(printf '%*d' "$w_num" "$i") $(printf '\e[97m|\e[0m') $(printf '\e[36m%-*s\e[0m' "$w_key" "$k") $(printf '\e[97m|\e[0m')${pub_c}$(printf '\e[97m|\e[0m')${prv_c}$(printf '\e[97m|\e[0m') $(printf '\e[37m%-*s\e[0m' "$w_use" "$usage") $(printf '\e[97m|\e[0m')"
-        table_lines+=("$row")
-        (( i++ ))
+    while true; do
+        if (( need_redraw )); then
+            _term_size
+            local hdr_rows=7   # 2J + rule + title + rule + tbl_top + tbl_hdr + tbl_sep
+            local content_rows=$(( TERM_H - hdr_rows - 2 ))  # -2 for hint bar + border row
+            (( content_rows < 1 )) && content_rows=1
+
+            # Keep sel in viewport
+            if (( sel < off )); then off=$sel
+            elif (( sel >= off + content_rows )); then off=$(( sel - content_rows + 1 ))
+            fi
+            (( off < 0 )) && off=0
+
+            local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+            local title_str="  SSH Key Inventory"
+            local title_fill; title_fill=$(_repeat ' ' "$(( TERM_W - ${#title_str} > 0 ? TERM_W - ${#title_str} : 0 ))")
+            local g
+            g="$(printf '\e[2J\e[H')"
+            g+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
+            g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s%s\e[0m' "$title_str" "$title_fill")"
+            g+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
+            g+="$(printf '\e[5;1H\e[97m%s\e[0m\e[K' "$tbl_top")"
+            g+="$(printf '\e[6;1H\e[1;37m%s\e[0m\e[K' "$tbl_hdr")"
+            g+="$(printf '\e[7;1H\e[97m%s\e[0m\e[K' "$tbl_sep")"
+
+            local row=8 idx
+            for (( idx=off; idx<off+content_rows && idx<key_count; idx++ )); do
+                k="${sorted_keys[$idx]}"
+                local pub_c prv_c
+                if [[ -n ${has_pub[$k]+x} ]]; then pub_c="$(printf '\e[32m  Y  \e[0m')"
+                else                                pub_c="$(printf '\e[31m  N  \e[0m')"; fi
+                if [[ -n ${has_priv[$k]+x} ]]; then prv_c="$(printf '\e[32m Y\e[0m')"
+                else                                 prv_c="$(printf '\e[31m N\e[0m')"; fi
+                local usage="${usage_map[$k]:-}"
+                local num_str; num_str=$(printf '%*d' "$w_num" $(( idx + 1 )))
+
+                if (( idx == sel )); then
+                    g+="$(printf '\e[%d;1H\e[48;5;6m\e[1;97m  | %s | %-*s |%s|%s| %-*s |\e[K\e[0m' \
+                        "$row" "$num_str" "$w_key" "$k" "$pub_c" "$prv_c" "$w_use" "$usage")"
+                else
+                    local bar; bar="$(printf '\e[97m|\e[0m')"
+                    g+="$(printf '\e[%d;1H  %s %s %s \e[36m%-*s\e[0m %s%s%s%s%s \e[37m%-*s\e[0m %s\e[K' \
+                        "$row" "$bar" "$num_str" "$bar" "$w_key" "$k" "$bar" "$pub_c" "$bar" "$prv_c" "$bar" "$w_use" "$usage" "$bar")"
+                fi
+                (( row++ ))
+            done
+
+            # Bottom border + blank rows
+            g+="$(printf '\e[%d;1H\e[97m%s\e[0m\e[K' "$row" "$tbl_top")"
+            (( row++ ))
+            while (( row < TERM_H - 1 )); do
+                g+="$(printf '\e[%d;1H\e[K' "$row")"
+                (( row++ ))
+            done
+
+            # Hint bar
+            local hint="  Up/Dn navigate   Enter view key   Q close"
+            local hpad; hpad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")
+            g+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$hint" "$hpad")"
+
+            printf '%s' "$g"
+            need_redraw=0
+        fi
+
+        _read_key
+        case "$KEY" in
+            "$KEY_UP")
+                (( sel > 0 )) && { (( sel-- )); need_redraw=1; }
+                ;;
+            "$KEY_DOWN")
+                (( sel < key_count - 1 )) && { (( sel++ )); need_redraw=1; }
+                ;;
+            "$KEY_PGUP")
+                (( sel -= 5 )); (( sel < 0 )) && sel=0; need_redraw=1
+                ;;
+            "$KEY_PGDN")
+                (( sel += 5 )); (( sel >= key_count )) && sel=$(( key_count - 1 )); need_redraw=1
+                ;;
+            "$KEY_HOME"|"$KEY_HOME2") sel=0; need_redraw=1 ;;
+            "$KEY_END"|"$KEY_END2")   sel=$(( key_count - 1 )); need_redraw=1 ;;
+            "$KEY_ENTER"|"$KEY_ENTER2")
+                _view_ssh_key "${sorted_keys[$sel]}"
+                need_redraw=1
+                ;;
+            q|Q) break ;;
+        esac
     done
-    table_lines+=("$(printf '\e[97m%s\e[0m' "$bot")")
 
-    show_paged "${table_lines[@]}"
+    printf '\e[?25h'
+}
+
+# Show a key viewer submenu then display the selected key file in a pager.
+_view_ssh_key() {
+    local keyname="$1"
+
+    local -a options=()
+    [[ -f "$SSH_DIR/${keyname}.pub" ]] && options+=("Public Key  (.pub)")
+    [[ -f "$SSH_DIR/$keyname"       ]] && options+=("Private Key (handle with care)")
+    options+=("Back")
+
+    select_from_list -s -p "View — $keyname" "${options[@]}"
+    (( _SELECT_CANCELLED )) && return
+
+    case "$_SELECT_RESULT" in
+        "Public Key"*)
+            _display_key_file "$SSH_DIR/${keyname}.pub" "Public Key — ${keyname}.pub"
+            ;;
+        "Private Key"*)
+            # Confirm before showing private key
+            _term_size
+            printf '\e[%d;1H\e[41m\e[1;97m  WARNING: You are about to display a private key on screen.%s\e[0m' \
+                "$(( TERM_H - 3 ))" \
+                "$(_repeat ' ' $(( TERM_W - 57 > 0 ? TERM_W - 57 : 0 )))"
+            printf '\e[%d;1H  \e[97mShow private key contents? [y/N] \e[0m' "$(( TERM_H - 2 ))"
+            printf '\e[?25h'
+            _read_key
+            printf '\e[?25l'
+            [[ $KEY =~ ^[Yy]$ ]] || return
+            _display_key_file "$SSH_DIR/$keyname" "Private Key — $keyname"
+            ;;
+    esac
+}
+
+# Full-screen pager for a raw key file.
+_display_key_file() {
+    local file="$1" title="$2"
+    if [[ ! -f $file ]]; then
+        printf '  \e[31mFile not found: %s\e[0m\n' "$file"
+        wait_user_acknowledge
+        return
+    fi
+
+    local -a lines=()
+    while IFS= read -r line; do
+        lines+=("  $(printf '\e[37m%s\e[0m' "$line")")
+    done < "$file"
+
+    _term_size
+    local total=${#lines[@]}
+    local content_rows=$(( TERM_H - 6 ))
+    (( content_rows < 1 )) && content_rows=1
+    local off=0
+
+    printf '\e[?25l'
+    while true; do
+        (( off < 0 )) && off=0
+        local max_off=$(( total - content_rows ))
+        (( max_off < 0 )) && max_off=0
+        (( off > max_off )) && off=$max_off
+
+        local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
+        local t_fill; t_fill=$(_repeat ' ' "$(( TERM_W - ${#title} - 4 > 0 ? TERM_W - ${#title} - 4 : 0 ))")
+        local g
+        g="$(printf '\e[2J\e[H')"
+        g+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
+        g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m  %s%s\e[0m' "$title" "$t_fill")"
+        g+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
+
+        local row=5 i
+        for (( i=off; i<off+content_rows && i<total; i++ )); do
+            g+="$(printf '\e[%d;1H%s\e[K' "$row" "${lines[$i]}")"
+            (( row++ ))
+        done
+        while (( row <= TERM_H - 1 )); do
+            g+="$(printf '\e[%d;1H\e[K' "$row")"
+            (( row++ ))
+        done
+
+        local pct
+        if (( total <= content_rows )); then pct="all"
+        else pct="$(( (off + content_rows) * 100 / total ))%"
+        fi
+        local status="  Up/Dn/PgUp/PgDn scroll   Home top   End bottom   Q close   ${pct}  "
+        local spad; spad=$(_repeat ' ' "$(( TERM_W - ${#status} > 0 ? TERM_W - ${#status} : 0 ))")
+        g+="$(printf '\e[%d;1H\e[7m%s%s\e[0m' "$TERM_H" "$status" "$spad")"
+        printf '%s' "$g"
+
+        _read_key
+        case "$KEY" in
+            "$KEY_UP")               (( off-- )) ;;
+            "$KEY_DOWN")             (( off++ )) ;;
+            "$KEY_PGUP")             (( off -= content_rows )) ;;
+            "$KEY_PGDN")             (( off += content_rows )) ;;
+            "$KEY_HOME"|"$KEY_HOME2") off=0 ;;
+            "$KEY_END"|"$KEY_END2")   off=$max_off ;;
+            q|Q) break ;;
+        esac
+    done
+    printf '\e[?25h'
 }
