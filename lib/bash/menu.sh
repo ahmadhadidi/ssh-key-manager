@@ -525,7 +525,7 @@ show_main_menu() {
     stty -echo -icanon min 0 time 0 2>/dev/null || true
 
     _menu_cleanup() {
-        printf '\e[?25h\e[?1049l'
+        printf '\e[?25h\e[?1049l' >/dev/tty 2>/dev/null || printf '\e[?25h\e[?1049l'
         stty "$_STTY_SAVED" 2>/dev/null || stty sane 2>/dev/null || true
     }
 
