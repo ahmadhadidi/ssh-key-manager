@@ -540,7 +540,7 @@ show_main_menu() {
             term_w=$TERM_W; term_h=$TERM_H
 
             local rule; rule=$(_repeat '-' "$(( term_w - 4 > 0 ? term_w - 4 : 0 ))")
-            local menu_title="SSH Key Manager"
+            local menu_title="🌊 HDD SSH Keys Manager"
             local title_pad; title_pad=$(_repeat ' ' "$(( (term_w - 4 - ${#menu_title} - 1) / 2 > 0 ? (term_w - 4 - ${#menu_title} - 1) / 2 : 0 ))")
             local title_content="  ${title_pad}${menu_title}"
             local title_fill; title_fill=$(_repeat ' ' "$(( term_w - ${#title_content} > 0 ? term_w - ${#title_content} : 0 ))")
