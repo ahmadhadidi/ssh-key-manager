@@ -303,6 +303,9 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
         17) # Add Config Block for Existing Remote Key
             register_remote_host_config
             ;;
+        18) # Import SSH Key from Another Machine
+            import_external_ssh_key
+            ;;
     esac
     return 0
 }
@@ -376,7 +379,7 @@ _run_conf_editor() {
 show_main_menu() {
     local -a m_type=(
         header  item    item    item    item    item    item    item
-        header  item    item    item    item    item
+        header  item    item    item    item    item    item
         header  item    item    item    item
     )
     local -a m_label=(
@@ -394,6 +397,7 @@ show_main_menu() {
         "➕  Append SSH Key to Hostname in Host Config"
         "🗑️   Delete an SSH Key Locally"
         "❌  Remove an SSH Key From Config"
+        "📥  Import SSH Key from Another Machine"
         "Config File"
         "🏚️   Remove Host from SSH Config"
         "👁️   View SSH Config"
@@ -402,12 +406,12 @@ show_main_menu() {
     )
     local -a m_choice=(
         ""   "1"  "15" "2"  "3"  "4"  "16" "17"
-        ""   "5"  "6"  "7"  "8"  "9"
+        ""   "5"  "6"  "7"  "8"  "9"  "18"
         ""   "12" "13" "14" "q"
     )
     local -a m_hotkey=(
         ""   "G"  "I"  "T"  "D"  "P"  "Z"  "N"
-        ""   "W"  "L"  "A"  "X"  "R"
+        ""   "W"  "L"  "A"  "X"  "R"  "M"
         ""   "H"  "V"  "E"  "Q"
     )
 
