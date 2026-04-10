@@ -32,9 +32,10 @@ _max() { (( $1 >= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 _min() { (( $1 <= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 
 # Read one keypress (blocking). Sets global KEY.
-# Handles arrow keys and other multi-byte escape sequences.
+# Handles arrow keys and multi-byte escape sequences including 2-digit F-keys
+# (e.g. F5 = \x1b[15~, F10 = \x1b[21~).
 _read_key() {
-    local k s1 s2 s3
+    local k s1 s2 s3 s4
     local _st
     _st=$(stty -g 2>/dev/null) || true
     stty -echo -icanon min 1 time 0 2>/dev/null || true
@@ -46,11 +47,18 @@ _read_key() {
         IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
         IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
+            # Numeric modifier — may be a 1-digit (\x1b[5~) or 2-digit (\x1b[21~) code
             IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
+                # Two-digit code: read the trailing terminator (~)
+                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+            else
+                s4=''
+            fi
         else
-            s3=''
+            s3=''; s4=''
         fi
-        k="${k}${s1}${s2}${s3}"
+        k="${k}${s1}${s2}${s3}${s4}"
     fi
     stty "$_st" 2>/dev/null || true
     KEY="$k"
@@ -59,7 +67,7 @@ _read_key() {
 # Non-blocking read: waits up to ~50 ms. Returns 0 if key read, 1 on timeout.
 # Sets global KEY on success.
 _read_key_nb() {
-    local k s1 s2 s3
+    local k s1 s2 s3 s4
     local _st
     _st=$(stty -g 2>/dev/null) || true
     stty -echo -icanon min 0 time 0 2>/dev/null || true
@@ -75,10 +83,15 @@ _read_key_nb() {
         IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
             IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
+                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+            else
+                s4=''
+            fi
         else
-            s3=''
+            s3=''; s4=''
         fi
-        k="${k}${s1}${s2}${s3}"
+        k="${k}${s1}${s2}${s3}${s4}"
     fi
     stty "$_st" 2>/dev/null || true
     KEY="$k"
