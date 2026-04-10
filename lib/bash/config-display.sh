@@ -49,11 +49,10 @@ show_ssh_config_file() {
 
         local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
         local hdr="  $SSH_CONFIG"
-        local hfill; hfill=$(_repeat ' ' "$(( TERM_W - ${#hdr} > 0 ? TERM_W - ${#hdr} : 0 ))")
         local f
         f="$(printf '\e[2J\e[H')"
         f+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
-        f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s%s\e[0m' "$hdr" "$hfill")"
+        f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s\e[K\e[0m' "$hdr")"
         f+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
 
         local row=5 i
@@ -256,11 +255,10 @@ show_ssh_key_inventory() {
 
             local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
             local title_str="  SSH Key Inventory"
-            local title_fill; title_fill=$(_repeat ' ' "$(( TERM_W - ${#title_str} > 0 ? TERM_W - ${#title_str} : 0 ))")
             local g
             g="$(printf '\e[2J\e[H')"
             g+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
-            g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s%s\e[0m' "$title_str" "$title_fill")"
+            g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s\e[K\e[0m' "$title_str")"
             g+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
             g+="$(printf '\e[5;1H\e[97m%s\e[0m\e[K' "$tbl_top")"
             g+="$(printf '\e[6;1H\e[1;37m%s\e[0m\e[K' "$tbl_hdr")"
@@ -393,11 +391,10 @@ _display_key_file() {
         (( off > max_off )) && off=$max_off
 
         local rule; rule=$(_repeat '-' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
-        local t_fill; t_fill=$(_repeat ' ' "$(( TERM_W - ${#title} - 4 > 0 ? TERM_W - ${#title} - 4 : 0 ))")
         local g
         g="$(printf '\e[2J\e[H')"
         g+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
-        g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m  %s%s\e[0m' "$title" "$t_fill")"
+        g+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m  %s\e[K\e[0m' "$title")"
         g+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
 
         local row=5 i
