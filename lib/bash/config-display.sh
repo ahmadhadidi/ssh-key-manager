@@ -226,14 +226,14 @@ show_ssh_key_inventory() {
     done
 
     # ── Build static header lines ───────────────────────────────────────────
-    local h1=$(( w_num + 2 )) h2=$(( w_key + 2 )) h3=5 h4=4 h5=$(( w_use + 2 ))
+    local h1=$(( w_num + 2 )) h2=$(( w_key + 2 )) h3=5 h4=5 h5=$(( w_use + 2 ))
     local r1; r1=$(_repeat '-' "$h1")
     local r2; r2=$(_repeat '-' "$h2")
     local r3; r3=$(_repeat '-' "$h3")
     local r4; r4=$(_repeat '-' "$h4")
     local r5; r5=$(_repeat '-' "$h5")
     local tbl_top="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
-    local tbl_hdr="  | $(printf '%*s' "$w_num" '#') | $(printf '%-*s' "$w_key" 'Key') |  Pub |Prv| $(printf '%-*s' "$w_use" 'Usage') |"
+    local tbl_hdr="  | $(printf '%*s' "$w_num" '#') | $(printf '%-*s' "$w_key" 'Key') | Pub | Prv | $(printf '%-*s' "$w_use" 'Usage') |"
     local tbl_sep="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
 
     # ── Interactive loop ─────────────────────────────────────────────────────
@@ -272,8 +272,8 @@ show_ssh_key_inventory() {
                 local pub_c prv_c
                 if [[ -n ${has_pub[$k]+x} ]]; then pub_c="$(printf '\e[32m  Y  \e[0m')"
                 else                                pub_c="$(printf '\e[31m  N  \e[0m')"; fi
-                if [[ -n ${has_priv[$k]+x} ]]; then prv_c="$(printf '\e[32m Y\e[0m')"
-                else                                 prv_c="$(printf '\e[31m N\e[0m')"; fi
+                if [[ -n ${has_priv[$k]+x} ]]; then prv_c="$(printf '\e[32m  Y  \e[0m')"
+                else                                 prv_c="$(printf '\e[31m  N  \e[0m')"; fi
                 local usage="${usage_map[$k]:-}"
                 local num_str; num_str=$(printf '%*d' "$w_num" $(( idx + 1 )))
 
