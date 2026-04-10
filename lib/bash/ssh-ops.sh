@@ -29,9 +29,10 @@ test_ssh_connection() {
     ssh_args+=(-o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new \
                "$target" "echo SSH Connection Successful")
 
-    _ssh_fence
+    _ssh_fence "$target"
     local result
     result=$(ssh "${ssh_args[@]}" 2>&1) || true
+    _ssh_fence_close
     _dbg "test_ssh_connection result: $result"
 
     if printf '%s' "$result" | grep -qE "Name or service not known|Could not resolve hostname"; then
@@ -197,13 +198,15 @@ install_ssh_key_on_remote() {
             return 1
         }
     else
-        _ssh_fence
+        _ssh_fence "$target"
         remote_hostname=$(printf '%s\n' "$pubkey" | \
             ssh "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
+            _ssh_fence_close
             printf '  \e[31mFailed to inject SSH key. Check network, credentials, or host status.\e[0m\n'
             _dbg "install_ssh_key_on_remote: ssh failed"
             return 1
         }
+        _ssh_fence_close
     fi
 
     printf '  \e[32mSSH Public Key installed successfully.\e[0m\n'
@@ -257,8 +260,11 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys \
 && rm -f \$TMP_FILE"
 
-    _ssh_fence
-    if ssh "$target" "$remote_cmd"; then
+    _ssh_fence "$target"
+    local _rm_rc=0
+    ssh "$target" "$remote_cmd" || _rm_rc=$?
+    _ssh_fence_close
+    if (( _rm_rc == 0 )); then
         printf '  \e[32mSSH key removed from remote authorized_keys.\e[0m\n'
         local priv="$SSH_DIR/$keyname" pub="$SSH_DIR/${keyname}.pub"
         _do_delete_local_key() {
@@ -286,13 +292,15 @@ register_remote_host_config() {
     local target="${remote_user}@${host_addr}"
 
     printf '  \e[90mConnecting to %s to read authorized_keys...\e[0m\n' "$target"
-    _ssh_fence
+    _ssh_fence "$target"
     local raw_keys
     raw_keys=$(ssh -o StrictHostKeyChecking=accept-new "$target" \
         "cat ~/.ssh/authorized_keys 2>/dev/null") || {
+        _ssh_fence_close
         printf '  \e[31mConnection failed.\e[0m\n'
         return 1
     }
+    _ssh_fence_close
 
     if [[ -z $raw_keys ]]; then
         printf '  \e[33mNo authorized_keys found on %s.\e[0m\n' "$target"
@@ -389,8 +397,9 @@ import_external_ssh_key() {
         local dest_pub="${dest_priv}.pub"
 
         printf '  \e[90mDownloading %s ...\e[0m\n' "$remote_priv"
-        _ssh_fence
+        _ssh_fence "$target"
         if ! scp -q "${target}:${remote_priv}" "$dest_priv" 2>&1; then
+            _ssh_fence_close
             printf '  \e[31mFailed to download private key.\e[0m\n'
             return 1
         fi
@@ -398,6 +407,7 @@ import_external_ssh_key() {
         if ! scp -q "${target}:${remote_priv}.pub" "$dest_pub" 2>/dev/null; then
             printf '  \e[33mPublic key not found at %s.pub — skipping.\e[0m\n' "$remote_priv"
         fi
+        _ssh_fence_close
 
         printf '  \e[32mKeys downloaded to %s\e[0m\n' "$SSH_DIR"
         chmod 600 "$dest_priv" 2>/dev/null || true
