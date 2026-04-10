@@ -643,18 +643,22 @@ show_main_menu() {
     printf '\e[?1049h\e[?25l'
     stty -echo -icanon min 0 time 0 2>/dev/null || true
 
+    _MENU_CLEANED_UP=0
     _menu_cleanup() {
-        printf '\e[?25h\e[?1049l' >/dev/tty 2>/dev/null || printf '\e[?25h\e[?1049l'
+        (( _MENU_CLEANED_UP )) && return 0
+        _MENU_CLEANED_UP=1
+        # Clear the alternate screen before leaving so no content bleeds through,
+        # then restore cursor visibility and switch back to the normal screen.
+        printf '\e[?25h\e[2J\e[H\e[?1049l' >/dev/tty 2>/dev/null || \
+        printf '\e[?25h\e[2J\e[H\e[?1049l'
         stty "$_STTY_SAVED" 2>/dev/null || stty sane 2>/dev/null || true
     }
 
-    # INT (Ctrl+C): cleanup + exit with SIGINT code
-    # TSTP (Ctrl+Z): cleanup + exit cleanly
-    # TERM: cleanup + exit
-    # EXIT: cleanup (catches all paths)
+    # EXIT covers all paths. INT/TERM/TSTP set the right exit code then let EXIT
+    # handle cleanup — the guard flag ensures _menu_cleanup runs exactly once.
     trap '_menu_cleanup' EXIT
-    trap '_menu_cleanup; exit 130' INT
-    trap '_menu_cleanup; exit 0'   TERM TSTP
+    trap 'exit 130' INT
+    trap 'exit 0'   TERM TSTP
 
     # ── Startup config file check ────────────────────────────────────────────
     if [[ ! -f "$SSH_CONFIG" ]]; then
