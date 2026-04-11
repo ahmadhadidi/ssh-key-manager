@@ -684,8 +684,8 @@ show_main_menu() {
             local title_content="  ${title_pad}${menu_title}"
 
             local content_start=5
-            # Reserve 2 rows for hint bar; add 1 more if config warning bar is shown
-            local content_end=$(( _CONFIG_MISSING ? term_h - 3 : term_h - 2 ))
+            # Reserve 1 row for hint bar; add 1 more if config warning bar is shown
+            local content_end=$(( _CONFIG_MISSING ? term_h - 2 : term_h - 1 ))
             local content_rows=$(( content_end - content_start + 1 ))
             (( content_rows < 1 )) && content_rows=1
 
@@ -746,18 +746,14 @@ show_main_menu() {
             if (( _CONFIG_MISSING )); then
                 local wmsg="  ⚠  SSH config missing — press F2 to create it"
                 local wpad; wpad=$(_repeat ' ' "$(( term_w - ${#wmsg} > 0 ? term_w - ${#wmsg} : 0 ))")
-                f+="$(printf '\e[%d;1H\e[41m\e[1;97m%s%s\e[0m' "$(( term_h - 2 ))" "$wmsg" "$wpad")"
+                f+="$(printf '\e[%d;1H\e[41m\e[1;97m%s%s\e[0m' "$(( term_h - 1 ))" "$wmsg" "$wpad")"
             fi
 
-            # Two-row Nano-style hint bar
-            local hn_plain="  Up/Dn Navigate   Home/End Jump   Enter Select   ? Guide   F5 Conf"
-            local hk_plain="  G Generate   T Test   D Delete   L List   V View   E Edit   Q Quit"
-            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mHome/End\e[0;7m Jump   \e[1mEnter\e[0;7m Select   \e[1m?\e[0;7m Guide   \e[1mF5\e[0;7m Conf')"
-            local hk; hk="$(printf '\e[7m  \e[1mG\e[0;7m Generate   \e[1mT\e[0;7m Test   \e[1mD\e[0;7m Delete   \e[1mL\e[0;7m List   \e[1mV\e[0;7m View   \e[1mE\e[0;7m Edit   \e[1mQ\e[0;7m Quit')"
+            # Single-row hint bar
+            local hn_plain="  Up/Dn Navigate   Enter Select   G Generate   T Test   D Delete   L List   Q Quit"
+            local hn; hn="$(printf '\e[7m  \e[1mUp/Dn\e[0;7m Navigate   \e[1mEnter\e[0;7m Select   \e[1mG\e[0;7m Generate   \e[1mT\e[0;7m Test   \e[1mD\e[0;7m Delete   \e[1mL\e[0;7m List   \e[1mQ\e[0;7m Quit')"
             local hn_pad; hn_pad=$(_repeat ' ' "$(( term_w - ${#hn_plain} > 0 ? term_w - ${#hn_plain} : 0 ))")
-            local hk_pad; hk_pad=$(_repeat ' ' "$(( term_w - ${#hk_plain} > 0 ? term_w - ${#hk_plain} : 0 ))")
-            f+="$(printf '\e[%d;1H%s%s\e[0m' "$(( term_h - 1 ))" "$hn" "$hn_pad")"
-            f+="$(printf '\e[%d;1H%s%s\e[0m' "$term_h"           "$hk" "$hk_pad")"
+            f+="$(printf '\e[%d;1H%s%s\e[0m' "$term_h" "$hn" "$hn_pad")"
 
             printf '%s' "$f"
             prev_sel=$sel
@@ -875,13 +871,21 @@ _invoke_choice() {
     local choice="$1" label="$2"
     _dbg "_invoke_choice: choice='$choice' label='$label'"
     _term_size
-    local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
-    local pad; pad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#label}) / 2 > 0 ? (TERM_W - 4 - ${#label}) / 2 : 0 ))")
-    local op_title="  ${pad}${label}"
+    local _bw=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
+    local _iw=$(( _bw - 2 ))
+    local _TL=$'\xe2\x94\x8c' _TR=$'\xe2\x94\x90' _BL=$'\xe2\x94\x94' _BR=$'\xe2\x94\x98' _VB=$'\xe2\x94\x82'
+    local _hrule; printf -v _hrule '%*s' "$_iw" ''; _hrule="${_hrule// /─}"
+    local _ipad; printf -v _ipad '%*s' "$_iw" ''
+    local _llen=${#label}
+    local _lpad=$(( (_iw - _llen) / 2 )); (( _lpad < 0 )) && _lpad=0
+    local _rpad=$(( _iw - _llen - _lpad )); (( _rpad < 0 )) && _rpad=0
+    local _lspc _rspc; printf -v _lspc '%*s' "$_lpad" ''; printf -v _rspc '%*s' "$_rpad" ''
     printf '\e[2J\e[H\e[?25h\n'
-    printf '  \e[96m%s\e[0m\n' "$rule"
-    printf '\e[48;5;23m\e[1;97m%s\e[K\e[0m\n' "$op_title"
-    printf '  \e[96m%s\e[0m\n\n' "$rule"
+    printf '  \e[96m%s%s%s\e[0m\n' "$_TL" "$_hrule" "$_TR"
+    printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_ipad" "$_VB"
+    printf '  \e[96m%s\e[0m\e[48;5;23m\e[1;97m%s%s%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_lspc" "$label" "$_rspc" "$_VB"
+    printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_ipad" "$_VB"
+    printf '  \e[96m%s%s%s\e[0m\n\n' "$_BL" "$_hrule" "$_BR"
 
     # Restore cooked terminal mode for operations that use normal read
     local _stty_saved_inner

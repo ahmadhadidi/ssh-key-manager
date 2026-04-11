@@ -154,15 +154,6 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 
     if (( _rm_rc == 0 )); then
         _out ok 'SSH key removed from remote authorized_keys.'
-        local priv="$SSH_DIR/$keyname" pub="$SSH_DIR/${keyname}.pub"
-        _do_delete_local_key() {
-            [[ -f $priv ]] && rm -f "$priv" && _out ok 'Deleted: %s' "$priv"
-            [[ -f $pub  ]] && rm -f "$pub"  && _out ok 'Deleted: %s' "$pub"
-        }
-        confirm_user_choice \
-            "  Remove local key '$keyname' from THIS machine?" \
-            "n" \
-            _do_delete_local_key || true
     else
         _out error 'Failed to remove the SSH key from remote.'
     fi

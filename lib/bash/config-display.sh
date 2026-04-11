@@ -254,13 +254,18 @@ show_ssh_key_inventory() {
     local r3; r3=$(_repeat '─' "$h3")
     local r4; r4=$(_repeat '─' "$h4")
     local r5; r5=$(_repeat '─' "$h5")
-    local tbl_top="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
-    local tbl_hdr="  | $(printf '%*s' "$w_num" '#') | $(printf '%-*s' "$w_key" 'Key') | Pub | Prv | $(printf '%-*s' "$w_use" 'Usage') |"
-    local tbl_sep="  +${r1}+${r2}+${r3}+${r4}+${r5}+"
+    # Box-drawing chars for multi-column table
+    local _TL=$'\xe2\x94\x8c' _TR=$'\xe2\x94\x90' _BL=$'\xe2\x94\x94' _BR=$'\xe2\x94\x98'
+    local _VB=$'\xe2\x94\x82' _TT=$'\xe2\x94\xac' _BT=$'\xe2\x94\xb4'
+    local _LT=$'\xe2\x94\x9c' _RT=$'\xe2\x94\xa4' _CT=$'\xe2\x94\xbc'
+    local tbl_top="  ${_TL}${r1}${_TT}${r2}${_TT}${r3}${_TT}${r4}${_TT}${r5}${_TR}"
+    local tbl_hdr="  ${_VB} $(printf '%*s' "$w_num" '#') ${_VB} $(printf '%-*s' "$w_key" 'Key') ${_VB} Pub ${_VB} Prv ${_VB} $(printf '%-*s' "$w_use" 'Usage') ${_VB}"
+    local tbl_sep="  ${_LT}${r1}${_CT}${r2}${_CT}${r3}${_CT}${r4}${_CT}${r5}${_RT}"
+    local tbl_bot="  ${_BL}${r1}${_BT}${r2}${_BT}${r3}${_BT}${r4}${_BT}${r5}${_BR}"
 
     # Pre-build colored Y/N strings for unselected rows (contain \e[0m — not safe in highlights).
     local _CY=$'\e[32m  Y  \e[0m' _CN=$'\e[31m  N  \e[0m'
-    local _BAR=$'\e[97m|\e[0m'
+    local _BAR=$'\e[97m\xe2\x94\x82\e[0m'  # │
 
     # ── Interactive loop ─────────────────────────────────────────────────────
     local sel=0 off=0 need_redraw=1
@@ -308,7 +313,7 @@ show_ssh_key_inventory() {
                     local pub_s prv_s
                     [[ -n ${has_pub[$k]+x} ]]  && pub_s="  Y  " || pub_s="  N  "
                     [[ -n ${has_priv[$k]+x} ]] && prv_s="  Y  " || prv_s="  N  "
-                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  | %s | %-*s |%s|%s| %-*s |\e[K\e[0m' \
+                    printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  \xe2\x94\x82 %s \xe2\x94\x82 %-*s \xe2\x94\x82%s\xe2\x94\x82%s\xe2\x94\x82 %-*s \xe2\x94\x82\e[K\e[0m' \
                         "$row" "$num_str" "$w_key" "$k" "$pub_s" "$prv_s" "$w_use" "$usage"
                 else
                     printf -v _t '\e[%d;1H  %s %s %s \e[36m%-*s\e[0m %s%s%s%s%s \e[37m%-*s\e[0m %s\e[K' \
@@ -320,7 +325,7 @@ show_ssh_key_inventory() {
             done
 
             # Bottom border + blank rows
-            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K' "$row" "$tbl_top"; g+="$_t"
+            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K' "$row" "$tbl_bot"; g+="$_t"
             (( row++ ))
             while (( row < TERM_H - 1 )); do
                 printf -v _t '\e[%d;1H\e[K' "$row"; g+="$_t"

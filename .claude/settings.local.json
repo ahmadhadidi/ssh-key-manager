@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(bash -n ssh-key-manager.sh)",
+      "Bash(bash -n lib/tui.sh)",
+      "Bash(bash -n lib/ssh-config.sh)",
+      "Bash(bash -n lib/prompts.sh)",
+      "Bash(bash -n lib/ssh-ops.sh)",
+      "Bash(wc -l /proj/ssh-key-manager/generate_key_test.ps1 /proj/ssh-key-manager/lib/ps/*.ps1)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/config-display.sh)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/tui.sh)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/ssh-config.sh)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/prompts.sh)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/ssh-ops.sh)",
+      "Bash(bash -n /proj/ssh-key-manager/lib/bash/menu.sh)",
+      "Bash(ls:*)",
+      "Read(///192.168.0.100/all/dev/204-dev-ct/ssh-key-manager/lib/bash/**)"
+    ]
+  }
+}
