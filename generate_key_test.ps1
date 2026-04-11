@@ -19,6 +19,11 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $P = "  "
 $script:_LastSelectedAlias = $null
+$script:_RemoteHost        = $null
+$script:_RemoteUser        = $null
+$script:_RemoteAlias       = $null
+$script:_OpBannerBuf       = ""
+$script:_OpBannerRows      = 0
 
 # ── Library loader ────────────────────────────────────────────────────────────
 $_BASE_URL  = "https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main"
@@ -27,7 +32,7 @@ if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "lib\ps"))) {
     $_SCRIPT_DIR = $PSScriptRoot
 }
 
-$__libs = @("tui", "ssh-config", "prompts", "ssh-ops", "config-display", "menu")
+$__libs = @("tui", "ssh-helpers", "ssh-config", "prompts", "ssh-ops", "config-display", "menu")
 foreach ($__lib in $__libs) {
     $__local = if ($_SCRIPT_DIR) { Join-Path $_SCRIPT_DIR "lib\ps\$__lib.ps1" } else { "" }
     if ($__local -and (Test-Path $__local)) {

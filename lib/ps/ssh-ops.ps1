@@ -15,11 +15,11 @@ function Resolve-SSHTarget {
         foreach ($hb in [regex]::Matches($config, $pattern)) {
             $alias = $hb.Groups[1].Value.Trim()
             if ($alias -eq $RemoteHostAddress) {
-                Write-Host "  SSH config entry '$alias' will be used." -ForegroundColor DarkGray
+                Write-Out 'dim' "SSH config entry '$alias' will be used."
                 return "$RemoteUser@$alias"
             }
             if ($hb.Value -match "(?m)^\s*HostName\s+$([regex]::Escape($RemoteHostAddress))\s*$") {
-                Write-Host "  SSH config entry '$alias' found for $RemoteHostAddress — key from config will be used." -ForegroundColor DarkGray
+                Write-Out 'dim' "SSH config entry '$alias' found for $RemoteHostAddress — key from config will be used."
                 return "$RemoteUser@$alias"
             }
         }
@@ -34,90 +34,96 @@ function Install-SSHKeyOnRemote {
     $PublicKey = Get-PublicKeyInHost -KeyName $KeyName
     if (-not $PublicKey) { return }
 
-    $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-    $selectedAlias     = $script:_LastSelectedAlias
-    $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+    Invoke-RemotePrompt
+    $RemoteHostAddress = $script:_RemoteHost
+    $selectedAlias     = $script:_RemoteAlias
+    $RemoteUser        = $script:_RemoteUser
 
-    $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-    $_idLookup = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
-    foreach ($k in (Get-IdentityFilesForHost $_idLookup)) {
-        Write-Host "  Using key: $k" -ForegroundColor DarkGray
-    }
-    Write-Host "  Connecting to $target..."
+    $target    = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+    $idLookup  = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
+    Write-IdentityFiles $idLookup
+    Write-Out 'plain' "Connecting to $target..."
 
     try {
         if (![string]::IsNullOrEmpty($DefaultPassword) -and (Get-Command sshpass -ErrorAction SilentlyContinue)) {
-            Write-Host "  Using sshpass with stored password." -ForegroundColor DarkGray
+            Write-Out 'dim' "Using sshpass with stored password."
             $RemoteHostName = $PublicKey | sshpass -p $DefaultPassword ssh -o StrictHostKeyChecking=accept-new $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
         } else {
+            Write-SSHFence $target
             $RemoteHostName = $PublicKey | ssh $target 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname'
+            Write-SSHFenceClose
         }
-        Write-Host "  SSH Public Key installed successfully." -ForegroundColor Green
+        Write-Out 'ok' 'SSH Public Key installed successfully.'
+        Write-Out 'dim' "Remote hostname: $RemoteHostName"
 
         $defaultAlias = if ($selectedAlias) { $selectedAlias } else { $RemoteHostName }
-        Write-Host "  Remote hostname: $RemoteHostName" -ForegroundColor DarkGray
-        $hostAlias = Read-HostWithDefault -Prompt "Name this Host in ~/.ssh/config:" -Default $defaultAlias
+        $hostAlias    = Read-HostWithDefault -Prompt "Name this Host in ~/.ssh/config:" -Default $defaultAlias
         if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $defaultAlias }
 
-        Write-Host "  Registering key to SSH config as '$hostAlias'..."
-        Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
+        Confirm-UserChoice -Message "  Add '$KeyName' as IdentityFile in config block '$hostAlias'?" -Action {
+            Write-Out 'plain' "Registering key to SSH config as '$hostAlias'..."
+            Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
+        } -DefaultAnswer "y"
+    } catch [System.OperationCanceledException] {
+        throw
     } catch {
-        Write-Host "  Failed to inject SSH key. Check network, credentials, or host status." -ForegroundColor Red
+        Write-Out 'error' 'Failed to inject SSH key. Check network, credentials, or host status.'
     }
 }
 
 
 function Register-RemoteHostConfig {
-    Write-Host "  Enter the IP or hostname of the remote machine (not yet in config)." -ForegroundColor Cyan
-    $RemoteHostAddress = Read-ColoredInput -Prompt "  Remote IP / hostname" -ForegroundColor "Cyan"
-    if ($RemoteHostAddress -match "^\d{1,3}$") { $RemoteHostAddress = "$DefaultSubnetPrefix.$RemoteHostAddress" }
-    if ([string]::IsNullOrWhiteSpace($RemoteHostAddress)) { return }
+    Write-Out 'info' "Enter the IP or hostname of the remote machine (not yet in config)."
+    Invoke-RemotePrompt
+    $RemoteHostAddress = $script:_RemoteHost
+    $RemoteUser        = $script:_RemoteUser
+    $target            = "$RemoteUser@$RemoteHostAddress"
 
-    $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
-    $target     = "$RemoteUser@$RemoteHostAddress"
-
-    Write-Host "  Connecting to $target to read authorized_keys..." -ForegroundColor DarkGray
+    Write-Out 'dim' "Connecting to $target to read authorized_keys..."
+    Write-SSHFence $target
     try {
         $rawKeys = ssh -o StrictHostKeyChecking=accept-new $target "cat ~/.ssh/authorized_keys 2>/dev/null"
     } catch {
-        Write-Host "  Connection failed: $($_.Exception.Message)" -ForegroundColor Red
+        Write-SSHFenceClose
+        Write-Out 'error' "Connection failed: $($_.Exception.Message)"
         return
     }
+    Write-SSHFenceClose
 
     $remoteLines = @($rawKeys -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     if ($remoteLines.Count -eq 0) {
-        Write-Host "  No authorized_keys found on $target." -ForegroundColor Yellow
+        Write-Out 'warn' "No authorized_keys found on $target."
         return
     }
 
-    $sshDir  = "$env:USERPROFILE\.ssh"
-    $matches = @()
+    $sshDir      = "$env:USERPROFILE\.ssh"
+    $matchedKeys = @()
     foreach ($pub in (Get-ChildItem -Path $sshDir -Filter "*.pub" -File -ErrorAction SilentlyContinue)) {
         $content = (Get-Content $pub.FullName -Raw -Encoding UTF8).Trim()
         if ($remoteLines -contains $content) {
-            $matches += [pscustomobject]@{ KeyName = $pub.BaseName; PubPath = $pub.FullName }
+            $matchedKeys += [pscustomobject]@{ KeyName = $pub.BaseName; PubPath = $pub.FullName }
         }
     }
 
-    if ($matches.Count -eq 0) {
-        Write-Host "  No local public keys match the authorized_keys on $target." -ForegroundColor Yellow
-        Write-Host "  Install a key first via 'Generate & Install' or 'Install SSH Key'." -ForegroundColor DarkGray
+    if ($matchedKeys.Count -eq 0) {
+        Write-Out 'warn' "No local public keys match the authorized_keys on $target."
+        Write-Out 'dim'  "Install a key first via 'Generate & Install' or 'Install SSH Key'."
         return
     }
 
-    Write-Host "  Found $($matches.Count) matching local key(s):" -ForegroundColor Green
-    $matches | ForEach-Object { Write-Host "     $($_.KeyName)" -ForegroundColor Cyan }
+    Write-Out 'ok' "Found $($matchedKeys.Count) matching local key(s):"
+    $matchedKeys | ForEach-Object { Write-Out 'info' "  $($_.KeyName)" }
 
-    if ($matches.Count -gt 1) {
-        $labels  = @($matches | ForEach-Object { $_.KeyName })
+    if ($matchedKeys.Count -gt 1) {
+        $labels  = @($matchedKeys | ForEach-Object { $_.KeyName })
         $picked  = Select-FromList -Items $labels -Prompt "Select key for the config block:" -StrictList
         if (-not $picked) { return }
-        $chosen  = $matches | Where-Object { $_.KeyName -eq $picked } | Select-Object -First 1
+        $chosen  = $matchedKeys | Where-Object { $_.KeyName -eq $picked } | Select-Object -First 1
     } else {
-        $chosen  = $matches[0]
+        $chosen  = $matchedKeys[0]
     }
 
-    $hostAlias = Read-HostWithDefault -Prompt "  Alias for this host in ~/.ssh/config:" -Default $RemoteHostAddress
+    $hostAlias = Read-HostWithDefault -Prompt "Alias for this host in ~/.ssh/config:" -Default $RemoteHostAddress
     if ([string]::IsNullOrWhiteSpace($hostAlias)) { $hostAlias = $RemoteHostAddress }
 
     Add-SSHKeyToHostConfig -KeyName $chosen.KeyName -RemoteHostAddress $RemoteHostAddress -RemoteHostName $hostAlias -RemoteUser $RemoteUser
@@ -128,11 +134,11 @@ function Deploy-SSHKeyToRemote {
     param ([string]$KeyName)
 
     if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
-        Write-Host "`n  Key does not exist. Generating..." -ForegroundColor Yellow
+        Write-Out 'warn' 'Key does not exist. Generating...'
         $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
         Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
     } else {
-        Write-Host "`n  Key already exists. Proceeding with installation...`n" -ForegroundColor Cyan
+        Write-Out 'info' 'Key already exists. Proceeding with installation...'
     }
 
     Install-SSHKeyOnRemote -KeyName $KeyName
@@ -147,8 +153,6 @@ function Test-SSHConnection {
         [switch]$ReturnResult
     )
 
-    $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
-
     $tcpOk = $false
     try {
         $tcp   = New-Object System.Net.Sockets.TcpClient
@@ -158,37 +162,42 @@ function Test-SSHConnection {
     } catch { $tcpOk = $false }
 
     if (-not $tcpOk) {
-        Write-Host "  Connection refused: $RemoteHost is not accepting SSH connections on port 22." -ForegroundColor Red
+        Write-Out 'error' "Connection refused: $RemoteHost is not accepting SSH connections on port 22."
         if ($ReturnResult) { return $false } else { return }
     }
 
-    try {
-        $sshArgs = @($target, "echo SSH Connection Successful")
-        if ($IdentityFile) {
-            $sshArgs = @("-i", $IdentityFile, "-o", "BatchMode=yes") + $sshArgs
-        }
-        $result = ssh @sshArgs 2>&1
+    $sshArgs = @("-o", "ConnectTimeout=6", "-o", "StrictHostKeyChecking=accept-new")
+    if ($IdentityFile) {
+        # Bypass config entirely so no fallback keys from the host's block can succeed.
+        # Do NOT use BatchMode=yes — passphrase-protected keys need to prompt.
+        $sshArgs = @("-F", "NUL", "-i", $IdentityFile, "-o", "IdentitiesOnly=yes",
+                     "-o", "PreferredAuthentications=publickey") + $sshArgs
+        $target = "$RemoteUser@$RemoteHost"
+    } else {
+        $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
+    }
+    $sshArgs += @($target, "echo SSH Connection Successful")
 
-        if ($result -match "Name or service not known" -or $result -match "Could not resolve hostname") {
-            Write-Host "  DNS error: Could not resolve $RemoteHost." -ForegroundColor Red
-            if ($ReturnResult) { return $false } else { return }
-        }
-        elseif ($result -match "Permission denied") {
-            if ($IdentityFile) {
-                Write-Host "  Key rejected or passphrase required — add key to ssh-agent first." -ForegroundColor Yellow
-            } else {
-                Write-Host "  SSH reachable, but permission denied for user '$RemoteUser'." -ForegroundColor Yellow
-            }
-            if ($ReturnResult) { return $true } else { return }
-        }
-        else {
-            Write-Host "  SSH connection to $RemoteHost is successful." -ForegroundColor Green
-            if ($ReturnResult) { return $true } else { return }
-        }
-    } catch {
-        Write-Host "  Unexpected error during SSH test:" -ForegroundColor Red
-        Write-Host "  $($_.Exception.Message)"
+    Write-SSHFence $target
+    try {
+        $result = & ssh @sshArgs 2>&1
+    } finally {
+        Write-SSHFenceClose
+    }
+
+    if ($result -match "Name or service not known" -or $result -match "Could not resolve hostname") {
+        Write-Out 'error' "DNS error: Could not resolve $RemoteHost."
         if ($ReturnResult) { return $false } else { return }
+    } elseif ($result -match "Permission denied") {
+        if ($IdentityFile) {
+            Write-Out 'warn' "Key not authorized on $RemoteHost."
+        } else {
+            Write-Out 'warn' "SSH reachable, but permission denied for user '$RemoteUser'."
+        }
+        if ($ReturnResult) { return $true } else { return }
+    } else {
+        Write-Out 'ok' "SSH connection to $RemoteHost is successful."
+        if ($ReturnResult) { return $true } else { return }
     }
 }
 
@@ -202,18 +211,18 @@ function Remove-IdentityFileFromConfigBlock {
     $aliasE     = [regex]::Escape($HostAlias)
     $blockMatch = [regex]::Match($config, "(?ms)^Host\s+$aliasE\b.*?(?=^Host\s|\z)")
     if (-not $blockMatch.Success) {
-        Write-Host "  No config block found for '$HostAlias'." -ForegroundColor Yellow
+        Write-Out 'warn' "No config block found for '$HostAlias'."
         return
     }
     $block    = $blockMatch.Value
     $keyE     = [regex]::Escape($KeyName)
     $newBlock = [regex]::Replace($block, "(?m)^\s*IdentityFile\s+[^\r\n]*[\\/]$keyE[^\r\n]*(\r?\n|$)", "")
     if ($newBlock -eq $block) {
-        Write-Host "  Key '$KeyName' not found in config block '$HostAlias'." -ForegroundColor DarkGray
+        Write-Out 'dim' "Key '$KeyName' not found in config block '$HostAlias'."
         return
     }
     Set-Content $sshConfig -Value ($config.Replace($block, $newBlock)) -Encoding UTF8
-    Write-Host "  IdentityFile '$KeyName' removed from config block '$HostAlias'." -ForegroundColor Green
+    Write-Out 'ok' "IdentityFile '$KeyName' removed from config block '$HostAlias'."
 }
 
 
@@ -225,38 +234,46 @@ function Remove-SSHKeyFromRemote {
     )
 
     $PublicKey     = Get-PublicKeyInHost -KeyName $KeyName
-    $RemoteCommand = "TMP_FILE=`$(mktemp) && printf '%s`\n' '$PublicKey' > `$TMP_FILE && awk 'NR==FNR { keys[`$0]; next } !(`$0 in keys)' `$TMP_FILE ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && rm -f `$TMP_FILE"
+    if (-not $PublicKey) { return }
+
     $target        = Resolve-SSHTarget -RemoteHostAddress $RemoteHost -RemoteUser $RemoteUser
+    Write-IdentityFiles $RemoteHost
 
-    foreach ($k in (Get-IdentityFilesForHost $RemoteHost)) {
-        Write-Host "  Using key: $k" -ForegroundColor DarkGray
-    }
-    Write-Host "`n  Will connect to remove the public key from ${target}:`n  $($PublicKey.Trim())`n" -ForegroundColor Yellow
+    $RemoteCommand = "TMP_FILE=`$(mktemp) && printf '%s`\n' '$PublicKey' > `$TMP_FILE && awk 'NR==FNR { keys[`$0]; next } !(`$0 in keys)' `$TMP_FILE ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && rm -f `$TMP_FILE"
 
+    Write-Out 'warn' "Will connect to remove the public key from ${target}:"
+    Write-Out 'dim'  "  $($PublicKey.Trim())"
+
+    Write-SSHFence $target
     try {
         ssh $target $RemoteCommand
-        Write-Host "  SSH key removed from remote authorized_keys." -ForegroundColor Green
+        Write-SSHFenceClose
+        Write-Out 'ok' 'SSH key removed from remote authorized_keys.'
 
         $privPath = "$env:USERPROFILE\.ssh\$KeyName"
         $pubPath  = "$privPath.pub"
         Confirm-UserChoice -Message "  Remove local key '$KeyName' from THIS machine?" -Action {
-            if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Host "  Deleted: $privPath" -ForegroundColor Green }
-            if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Host "  Deleted: $pubPath"  -ForegroundColor Green }
+            if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Out 'ok' "Deleted: $privPath" }
+            if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Out 'ok' "Deleted: $pubPath"  }
         } -DefaultAnswer "n"
+    } catch [System.OperationCanceledException] {
+        Write-SSHFenceClose
+        throw
     } catch {
-        Write-Host "  Failed to remove the SSH key from remote." -ForegroundColor Red
+        Write-SSHFenceClose
+        Write-Out 'error' 'Failed to remove the SSH key from remote.'
     }
 }
 
 
 function Deploy-PromotedKey {
-    Write-Host "  Which key do you want to demote (remove from remote)?" -ForegroundColor Cyan
+    Write-Out 'info' 'Which key do you want to demote (remove from remote)?'
     $KeyNameToRemove = Read-SSHKeyName
 
-    Write-Host "  From which remote machine?" -ForegroundColor Cyan
+    Write-Out 'info' 'From which remote machine?'
     $RemoteHostName = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
 
-    Write-Host "  Replace with which key?" -ForegroundColor Cyan
+    Write-Out 'info' 'Replace with which key?'
     $KeyNameNew = Read-SSHKeyName
     Deploy-SSHKeyToRemote -KeyName $KeyNameNew
 
@@ -269,6 +286,146 @@ function Deploy-PromotedKey {
 }
 
 
+function Add-KeyToHosts {
+    # Multi-select configured hosts and append $KeyName as IdentityFile to each chosen block.
+    param([string]$KeyName)
+
+    $hosts = @(Get-ConfiguredSSHHosts)
+    if ($hosts.Count -eq 0) {
+        Write-Out 'warn' "No configured hosts — add a host block first."
+        return
+    }
+
+    $labels = @($hosts | ForEach-Object {
+        if ($_.HostName) { "$($_.Alias)  ($($_.HostName))" } else { $_.Alias }
+    })
+
+    try {
+        $selected = Select-MultiFromList -Items $labels -Prompt "Add '$KeyName' as IdentityFile in:"
+    } catch [System.OperationCanceledException] {
+        return
+    }
+
+    if ($selected.Count -eq 0) {
+        Write-Out 'warn' 'No hosts selected.'
+        return
+    }
+
+    foreach ($lbl in $selected) {
+        $alias = ($lbl -split '\s+\(')[0].Trim()
+        $h     = $hosts | Where-Object { $_.Alias -eq $alias } | Select-Object -First 1
+        if ($h) {
+            Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostAddress $h.HostName -RemoteHostName $h.Alias -RemoteUser $h.User
+        }
+    }
+}
+
+
+function Import-ExternalSSHKey {
+    # Import a key pair from a local path, a remote machine (SCP), or pasted content.
+    $choice = $null
+    try {
+        $choice = Select-FromList -Items @("Local file path", "Remote machine (SCP)", "Paste key content") `
+                                  -Prompt "Import source" -StrictList
+    } catch [System.OperationCanceledException] { return }
+    if (-not $choice) { return }
+
+    $sshDir = "$env:USERPROFILE\.ssh"
+
+    if ($choice -eq "Local file path") {
+        # ── Local path ──────────────────────────────────────────────────────────
+        $privPath = Read-ColoredInput -Prompt "  Path to private key file" -ForegroundColor Cyan
+        if ([string]::IsNullOrWhiteSpace($privPath)) { Write-Out 'error' 'Path is required.'; return }
+        $privPath = $privPath -replace '^~', $env:USERPROFILE
+        if (-not (Test-Path $privPath)) { Write-Out 'error' "File not found: $privPath"; return }
+
+        $autoPub = "$privPath.pub"
+        Write-Out 'dim' "Public key — leave blank to use $autoPub"
+        $pubPath = Read-ColoredInput -Prompt "  Path to public key file" -ForegroundColor Cyan
+        if ([string]::IsNullOrWhiteSpace($pubPath)) { $pubPath = $autoPub }
+        $pubPath = $pubPath -replace '^~', $env:USERPROFILE
+        if (-not (Test-Path $pubPath)) { Write-Out 'error' "Public key not found: $pubPath"; return }
+
+        $keyName  = Split-Path $privPath -Leaf
+        $destPriv = Join-Path $sshDir $keyName
+        $destPub  = "$destPriv.pub"
+        Ensure-SSHDir
+        $ok = Write-KeyPair $destPriv $destPub $privPath $pubPath $true
+        if ($ok) { Add-KeyToHosts $keyName }
+
+    } elseif ($choice -eq "Remote machine (SCP)") {
+        # ── Remote SCP ──────────────────────────────────────────────────────────
+        Write-Out 'dim' "Connect to the machine that holds the keys."
+        Invoke-RemotePrompt
+        $RemoteHostAddress = $script:_RemoteHost
+        $RemoteUser        = $script:_RemoteUser
+        $target            = "${RemoteUser}@${RemoteHostAddress}"
+
+        $remotePath = Read-ColoredInput -Prompt "  Full path to private key on remote" -ForegroundColor Cyan
+        if ([string]::IsNullOrWhiteSpace($remotePath)) { Write-Out 'error' 'Path is required.'; return }
+
+        $keyName  = Split-Path $remotePath -Leaf
+        $destPriv = Join-Path $sshDir $keyName
+        $destPub  = "$destPriv.pub"
+
+        Ensure-SSHDir
+        Write-Out 'dim' "Downloading $remotePath ..."
+        Write-SSHFence $target
+        $scpOk = $true
+        try {
+            scp -q "${target}:${remotePath}" $destPriv 2>&1 | Out-Null
+            if ($LASTEXITCODE -ne 0) { $scpOk = $false }
+        } catch { $scpOk = $false }
+
+        if (-not $scpOk) {
+            Write-SSHFenceClose
+            Write-Out 'error' 'Failed to download private key.'
+            return
+        }
+
+        Write-Out 'dim' "Downloading $remotePath.pub ..."
+        try {
+            scp -q "${target}:${remotePath}.pub" $destPub 2>&1 | Out-Null
+        } catch {
+            Write-Out 'warn' "Public key not found at $remotePath.pub — skipping."
+        }
+        Write-SSHFenceClose
+        Write-Out 'ok' "Keys downloaded to $sshDir."
+        Add-KeyToHosts $keyName
+
+    } elseif ($choice -eq "Paste key content") {
+        # ── Paste ───────────────────────────────────────────────────────────────
+        $keyName = Read-HostWithDefault -Prompt "Key name:" -Default "imported-key"
+        if ([string]::IsNullOrWhiteSpace($keyName)) { Write-Out 'error' 'Key name is required.'; return }
+
+        Write-Out 'info' "Paste the private key."
+        Write-Out 'dim'  "Input ends automatically at the -----END...----- line."
+        Write-Host ""
+
+        $privContent = ""
+        do {
+            $pl = Read-Host
+            $privContent += $pl + "`n"
+        } while ($pl -notlike "-----END*")
+
+        if ($privContent -notmatch "-----BEGIN" -or $privContent -notmatch "-----END") {
+            Write-Out 'error' 'Invalid private key — BEGIN/END markers not found.'
+            return
+        }
+
+        Write-Host ""
+        Write-Out 'info' "Paste the public key (single line, e.g. ssh-ed25519 AAAA...):"
+        do { $pubContent = Read-Host } while ([string]::IsNullOrWhiteSpace($pubContent))
+
+        $destPriv = Join-Path $sshDir $keyName
+        $destPub  = "$destPriv.pub"
+        Ensure-SSHDir
+        $ok = Write-KeyPair $destPriv $destPub $privContent $pubContent $false
+        if ($ok) { Add-KeyToHosts $keyName }
+    }
+}
+
+
 function Remove-IdentityFileFromConfigEntry {
     param (
         [Parameter(Mandatory)][string]$KeyName,
@@ -276,14 +433,14 @@ function Remove-IdentityFileFromConfigEntry {
     )
     $ConfigPath = "$env:USERPROFILE\.ssh\config"
     if (-not (Test-Path $ConfigPath)) {
-        Write-Host "  SSH config not found at $ConfigPath" -ForegroundColor Red
+        Write-Out 'error' "SSH config not found at $ConfigPath"
         return
     }
     $config = Get-Content -Path $ConfigPath -Raw -Encoding UTF8
     $pattern = "(?ms)^Host\s+$RemoteHostName\b.*?(?=^Host\s|\z)"
     $match = [regex]::Match($config, $pattern)
     if (-not $match.Success) {
-        Write-Host "  No Host block found for '$RemoteHostName'" -ForegroundColor Yellow
+        Write-Out 'warn' "No Host block found for '$RemoteHostName'"
         return
     }
     $block = $match.Value
@@ -292,13 +449,13 @@ function Remove-IdentityFileFromConfigEntry {
     $lines = $block -split "`n"
     $newLines = $lines | Where-Object { $_ -notmatch $identityPattern }
     if ($lines.Count -eq $newLines.Count) {
-        Write-Host "  No IdentityFile ending in '$KeyName' was found under Host '$RemoteHostName'" -ForegroundColor Yellow
+        Write-Out 'warn' "No IdentityFile ending in '$KeyName' was found under Host '$RemoteHostName'"
         return
     }
     $newBlock  = $newLines -join "`n"
     $newConfig = $config -replace [regex]::Escape($block), $newBlock
     Set-Content -Path $ConfigPath -Value $newConfig -Encoding UTF8
-    Write-Host "  IdentityFile '$KeyName' removed from Host '$RemoteHostName'" -ForegroundColor Green
+    Write-Out 'ok' "IdentityFile '$KeyName' removed from Host '$RemoteHostName'"
 }
 
 
@@ -316,7 +473,7 @@ function Invoke-SSHWithKeyThenPassword {
     $code = $LASTEXITCODE
     if ($code -eq 0) { return @{ Success = $true; UsedPassword = $false; Output = $out } }
     if ($out -match "Permission denied" -or $out -match "Authentication failed") {
-        Write-Host "  No usable SSH key found for $RemoteUser@$RemoteHost. Falling back to password..." -ForegroundColor Yellow
+        Write-Out 'warn' "No usable SSH key found for $RemoteUser@$RemoteHost. Falling back to password..."
         $passwordArgs = $baseArgs + @("$RemoteUser@$RemoteHost", $RemoteCommand)
         $out2  = & ssh @passwordArgs 2>&1
         $code2 = $LASTEXITCODE

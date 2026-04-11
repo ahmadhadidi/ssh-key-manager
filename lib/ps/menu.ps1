@@ -3,24 +3,25 @@
 function Show-MainMenu {
     $menuDef = @(
         [pscustomobject]@{ Type = "header"; Label = "Remote" }
-        [pscustomobject]@{ Type = "item";   Label = "Generate & Install SSH Key on A Remote Machine"; Choice = "1";  Hotkey = "G" }
-        [pscustomobject]@{ Type = "item";   Label = "Install SSH Key on A Remote Machine";            Choice = "15"; Hotkey = "I" }
-        [pscustomobject]@{ Type = "item";   Label = "Test SSH Connection";                            Choice = "2";  Hotkey = "T" }
-        [pscustomobject]@{ Type = "item";   Label = "Delete SSH Key From A Remote Machine";           Choice = "3";  Hotkey = "D" }
-        [pscustomobject]@{ Type = "item";   Label = "Promote Key on A Remote Machine";                Choice = "4";  Hotkey = "P" }
-        [pscustomobject]@{ Type = "item";   Label = "List Authorized Keys on Remote Host";            Choice = "16"; Hotkey = "Z" }
-        [pscustomobject]@{ Type = "item";   Label = "Add Config Block for Existing Remote Key";       Choice = "17"; Hotkey = "N" }
+        [pscustomobject]@{ Type = "item";   Label = "🔑  Generate & Install SSH Key on A Remote Machine"; Choice = "1";  Hotkey = "G" }
+        [pscustomobject]@{ Type = "item";   Label = "📤  Install SSH Key on A Remote Machine";            Choice = "15"; Hotkey = "I" }
+        [pscustomobject]@{ Type = "item";   Label = "🔌  Test SSH Connection";                            Choice = "2";  Hotkey = "T" }
+        [pscustomobject]@{ Type = "item";   Label = "🗑️  Delete SSH Key From A Remote Machine";           Choice = "3";  Hotkey = "D" }
+        [pscustomobject]@{ Type = "item";   Label = "🔄  Promote Key on A Remote Machine";                Choice = "4";  Hotkey = "P" }
+        [pscustomobject]@{ Type = "item";   Label = "📋  List Authorized Keys on Remote Host";            Choice = "16"; Hotkey = "Z" }
+        [pscustomobject]@{ Type = "item";   Label = "🔗  Add Config Block for Existing Remote Key";       Choice = "17"; Hotkey = "N" }
         [pscustomobject]@{ Type = "header"; Label = "Local" }
-        [pscustomobject]@{ Type = "item";   Label = "Generate SSH Key (Without Installation)";        Choice = "5";  Hotkey = "W" }
-        [pscustomobject]@{ Type = "item";   Label = "List SSH Keys";                                  Choice = "6";  Hotkey = "L" }
-        [pscustomobject]@{ Type = "item";   Label = "Append SSH Key to Hostname in Host Config";      Choice = "7";  Hotkey = "A" }
-        [pscustomobject]@{ Type = "item";   Label = "Delete an SSH Key Locally";                      Choice = "8";  Hotkey = "X" }
-        [pscustomobject]@{ Type = "item";   Label = "Remove an SSH Key From Config";                  Choice = "9";  Hotkey = "R" }
+        [pscustomobject]@{ Type = "item";   Label = "✨  Generate SSH Key (Without Installation)";        Choice = "5";  Hotkey = "W" }
+        [pscustomobject]@{ Type = "item";   Label = "🗝️  List SSH Keys";                                  Choice = "6";  Hotkey = "L" }
+        [pscustomobject]@{ Type = "item";   Label = "➕  Append SSH Key to Hostname in Host Config";      Choice = "7";  Hotkey = "A" }
+        [pscustomobject]@{ Type = "item";   Label = "🗑️  Delete an SSH Key Locally";                      Choice = "8";  Hotkey = "X" }
+        [pscustomobject]@{ Type = "item";   Label = "❌  Remove an SSH Key From Config";                  Choice = "9";  Hotkey = "R" }
+        [pscustomobject]@{ Type = "item";   Label = "📥  Import SSH Key from Another Machine";            Choice = "18"; Hotkey = "M" }
         [pscustomobject]@{ Type = "header"; Label = "Config File" }
-        [pscustomobject]@{ Type = "item";   Label = "Remove Host from SSH Config";                    Choice = "12"; Hotkey = "H" }
-        [pscustomobject]@{ Type = "item";   Label = "View SSH Config";                                Choice = "13"; Hotkey = "V" }
-        [pscustomobject]@{ Type = "item";   Label = "Edit SSH Config";                                Choice = "14"; Hotkey = "E" }
-        [pscustomobject]@{ Type = "item";   Label = "Exit";                                           Choice = "q";  Hotkey = "Q" }
+        [pscustomobject]@{ Type = "item";   Label = "🏚️  Remove Host from SSH Config";                    Choice = "12"; Hotkey = "H" }
+        [pscustomobject]@{ Type = "item";   Label = "👁️  View SSH Config";                                Choice = "13"; Hotkey = "V" }
+        [pscustomobject]@{ Type = "item";   Label = "✏️  Edit SSH Config";                                Choice = "14"; Hotkey = "E" }
+        [pscustomobject]@{ Type = "item";   Label = "🚪  Exit";                                           Choice = "q";  Hotkey = "Q" }
     )
 
     $navItems = @($menuDef | Where-Object { $_.Type -eq "item" })
@@ -58,7 +59,7 @@ function Show-MainMenu {
                 $termHeight = $Host.UI.RawUI.WindowSize.Height
 
                 $menuRule     = "-" * [Math]::Max(0, $termWidth - 4)
-                $menuTitle    = "SSH Key Manager"
+                $menuTitle    = "🌊 HDD SSH Keys Manager"
                 $menuTitlePad = " " * [Math]::Max(0, [int](($termWidth - 4 - ($menuTitle.Length + 1)) / 2))
 
                 # Content rows: 5..(termHeight-2). Two-row hint bar: termHeight-1 and termHeight.
@@ -247,27 +248,18 @@ function Invoke-MenuChoice {
 
     switch ($Choice) {
         "1" {
-            Write-Host "`n"
+            Show-OpBanner @("host", $env:COMPUTERNAME)
             $KeyName = Read-SSHKeyName
             Deploy-SSHKeyToRemote -KeyName $KeyName
         }
         "2" {
-            $RemoteHost = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            Show-OpBanner @("host", $env:COMPUTERNAME, "user", $DefaultUserName)
+            Invoke-RemotePrompt
+            $RemoteHost = $script:_RemoteHost
+            $RemoteUser = $script:_RemoteUser
+            $selAlias   = $script:_RemoteAlias
 
-            $cfgKeys   = @()
-            $selAlias  = $script:_LastSelectedAlias
-            if ($selAlias) {
-                $cfgPath = "$env:USERPROFILE\.ssh\config"
-                if (-not (Test-Path $cfgPath)) { $cfgPath = "$env:HOME/.ssh/config" }
-                if (Test-Path $cfgPath) {
-                    $cfgRaw  = Get-Content $cfgPath -Raw -Encoding UTF8
-                    $aliasE  = [regex]::Escape($selAlias)
-                    $block   = [regex]::Match($cfgRaw, "(?ms)^Host\s+$aliasE\b.*?(?=^Host\s|\z)").Value
-                    $cfgKeys = @([regex]::Matches($block, '(?m)^\s*IdentityFile\s+(.+?)\s*$') |
-                                 ForEach-Object { $_.Groups[1].Value.Trim().Trim('"') })
-                }
-            }
+            $cfgKeys = @(Get-IdentityFilesForHost ($(if ($selAlias) { $selAlias } else { $RemoteHost })))
 
             if ($cfgKeys.Count -gt 1) {
                 $allLabel  = "-- Test ALL ($($cfgKeys.Count) keys)"
@@ -278,38 +270,42 @@ function Invoke-MenuChoice {
                     $cfgKeys | ForEach-Object {
                         if (-not $isFirst) { Write-Host "" }
                         $isFirst = $false
-                        Write-Host "  Testing with key: $_" -ForegroundColor DarkGray
+                        Write-Out 'dim' "Testing with key: $_"
                         Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost -IdentityFile $_
                     }
                 } elseif ($selected) {
-                    Write-Host "  Using key: $selected" -ForegroundColor DarkGray
+                    Write-Out 'dim' "Testing with key: $selected"
                     Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost -IdentityFile $selected
                 }
             } else {
-                if ($cfgKeys.Count -eq 1) { Write-Host "  Using key: $($cfgKeys[0])" -ForegroundColor DarkGray }
+                if ($cfgKeys.Count -eq 1) { Write-Out 'dim' "Testing with key: $($cfgKeys[0])" }
                 Test-SSHConnection -RemoteUser $RemoteUser -RemoteHost $RemoteHost
             }
         }
         "3" {
-            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
-            $selectedAlias     = $script:_LastSelectedAlias
+            Show-OpBanner @("host", $env:COMPUTERNAME)
+            Invoke-RemotePrompt
+            $RemoteHostAddress = $script:_RemoteHost
+            $RemoteUser        = $script:_RemoteUser
+            $selectedAlias     = $script:_RemoteAlias
             $target            = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-            $_idLookup = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
-            foreach ($k in (Get-IdentityFilesForHost $_idLookup)) {
-                Write-Host "  Using key: $k" -ForegroundColor DarkGray
-            }
+            $idLookup          = if ($selectedAlias) { $selectedAlias } else { $RemoteHostAddress }
+            Write-IdentityFiles $idLookup
 
-            Write-Host "  Fetching authorized keys from $target..." -ForegroundColor DarkGray
+            Write-Out 'dim' "Fetching authorized keys from $target..."
+            Write-SSHFence $target
             try {
                 $rawKeys = ssh $target "cat ~/.ssh/authorized_keys 2>/dev/null"
             } catch {
-                Write-Host "  Could not connect to ${target}: $($_.Exception.Message)" -ForegroundColor Red
+                Write-SSHFenceClose
+                Write-Out 'error' "Could not connect to ${target}: $($_.Exception.Message)"
                 return
             }
+            Write-SSHFenceClose
+
             $remoteLines = @($rawKeys -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
             if ($remoteLines.Count -eq 0) {
-                Write-Host "  No authorized_keys found on $target." -ForegroundColor DarkGray
+                Write-Out 'dim' "No authorized_keys found on $target."
                 return
             }
 
@@ -322,7 +318,7 @@ function Invoke-MenuChoice {
                 }
             }
             if ($matchedKeys.Count -eq 0) {
-                Write-Host "  No local public keys found in $target authorized_keys." -ForegroundColor Yellow
+                Write-Out 'warn' "No local public keys found in $target authorized_keys."
                 return
             }
 
@@ -333,12 +329,15 @@ function Invoke-MenuChoice {
 
             $pubContent    = $pick.PubContent
             $RemoteCommand = "TMP_FILE=`$(mktemp) && printf '%s`\n' '$pubContent' > `$TMP_FILE && awk 'NR==FNR { keys[`$0]; next } !(`$0 in keys)' `$TMP_FILE ~/.ssh/authorized_keys > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && rm -f `$TMP_FILE"
-            Write-Host "  Removing key '$($pick.KeyName)' from $target..." -ForegroundColor Yellow
+            Write-Out 'warn' "Removing key '$($pick.KeyName)' from $target..."
+            Write-SSHFence $target
             try {
                 ssh $target $RemoteCommand
-                Write-Host "  Key removed from remote authorized_keys." -ForegroundColor Green
+                Write-SSHFenceClose
+                Write-Out 'ok' "Key removed from remote authorized_keys."
             } catch {
-                Write-Host "  Failed to remove key from remote." -ForegroundColor Red
+                Write-SSHFenceClose
+                Write-Out 'error' "Failed to remove key from remote."
                 return
             }
 
@@ -351,39 +350,50 @@ function Invoke-MenuChoice {
             $privPath = "$sshDir\$($pick.KeyName)"
             $pubPath  = "$privPath.pub"
             Confirm-UserChoice -Message "  Delete local key '$($pick.KeyName)' from this machine?" -Action {
-                if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Host "  Deleted: $privPath" -ForegroundColor Green }
-                if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Host "  Deleted: $pubPath"  -ForegroundColor Green }
+                if (Test-Path $privPath) { Remove-Item $privPath -Force; Write-Out 'ok' "Deleted: $privPath" }
+                if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; Write-Out 'ok' "Deleted: $pubPath"  }
             } -DefaultAnswer "n"
         }
         "4" {
+            Show-OpBanner @("host", $env:COMPUTERNAME)
             Deploy-PromotedKey
         }
         "5" {
+            Show-OpBanner @("host", $env:COMPUTERNAME)
             $KeyName = Read-SSHKeyName
             $Comment = Read-SSHKeyComment -DefaultComment "$KeyName$DefaultCommentSuffix"
             Add-SSHKeyInHost -KeyName $KeyName -Comment $Comment
         }
         "6" {
             Show-SSHKeyInventory
+            return $true
         }
         "7" {
-            $KeyName           = Read-SSHKeyName
-            $RemoteHostName    = Read-RemoteHostName -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            Show-OpBanner @("config", "$env:USERPROFILE\.ssh\config")
+            $KeyName = Read-SSHKeyName
+            Invoke-RemotePrompt
+            $RemoteHostAddress = $script:_RemoteHost
+            $RemoteUser        = $script:_RemoteUser
+            $hostName          = if ($script:_RemoteAlias) { $script:_RemoteAlias } else { $script:_RemoteHost }
+            $hostDisplay       = if ($hostName -ne $RemoteHostAddress) { "$hostName ($RemoteHostAddress)" } else { $hostName }
 
             $keyPath = "$env:USERPROFILE\.ssh\$KeyName"
-            $testOut = & ssh -i $keyPath -o BatchMode=yes -o ConnectTimeout=6 -o StrictHostKeyChecking=accept-new "$RemoteUser@$RemoteHostAddress" "echo ok" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "  Key verified on $RemoteHostAddress." -ForegroundColor Green
+            Write-SSHFence
+            $testOut = & ssh -F NUL -i $keyPath -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=6 `
+                             -o StrictHostKeyChecking=accept-new "$RemoteUser@$RemoteHostAddress" "echo ok" 2>&1
+            Write-SSHFenceClose
+
+            if ($testOut -eq "ok") {
+                Write-Out 'ok' "Key verified on $hostDisplay."
             } else {
-                Write-Host "  Could not verify '$KeyName' on $RemoteHostAddress -- it may not be installed yet." -ForegroundColor Yellow
+                Write-Out 'warn' "Could not verify '$KeyName' on $hostDisplay — it may not be installed yet."
                 $proceed = Read-HostWithDefault -Prompt "Add to config anyway? (y/N):" -Default "N"
                 if ($proceed -notmatch '^[Yy]') { return }
             }
-            Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $RemoteHostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
+            Add-SSHKeyToHostConfig -KeyName $KeyName -RemoteHostName $hostName -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
         }
         "8" {
+            Show-OpBanner @("ssh dir", "$env:USERPROFILE\.ssh")
             $KeyName = Read-SSHKeyName
             if (-not $KeyName) { return }
 
@@ -408,11 +418,11 @@ function Invoke-MenuChoice {
                 foreach ($h in $targetsToRemove) {
                     $rUser = if ($h.User) { $h.User } else { $DefaultUserName }
                     $rHost = if ($h.HostName) { $h.HostName } else { $h.Alias }
-                    Write-Host "  Removing key from $($h.Alias)..." -ForegroundColor DarkGray
+                    Write-Out 'dim' "Removing key from $($h.Alias)..."
                     Remove-SSHKeyFromRemote -RemoteUser $rUser -RemoteHost $rHost -KeyName $KeyName
                 }
             } else {
-                Write-Host "  No configured hosts reference this key." -ForegroundColor DarkGray
+                Write-Out 'dim' "No configured hosts reference this key."
             }
 
             $privPath = "$env:USERPROFILE\.ssh\$KeyName"
@@ -421,16 +431,17 @@ function Invoke-MenuChoice {
             if (Test-Path $privPath) { Remove-Item $privPath -Force; $deleted += $privPath }
             if (Test-Path $pubPath)  { Remove-Item $pubPath  -Force; $deleted += $pubPath  }
             if ($deleted.Count -gt 0) {
-                $deleted | ForEach-Object { Write-Host "  Deleted: $_" -ForegroundColor Green }
-                Write-Host "  Key '$KeyName' removed locally." -ForegroundColor Green
+                $deleted | ForEach-Object { Write-Out 'ok' "Deleted: $_" }
+                Write-Out 'ok' "Key '$KeyName' removed locally."
             } else {
-                Write-Host "  No local key files found for '$KeyName'." -ForegroundColor Yellow
+                Write-Out 'warn' "No local key files found for '$KeyName'."
             }
         }
         "9" {
+            Show-OpBanner @("config", "$env:USERPROFILE\.ssh\config")
             $allHosts = Get-ConfiguredSSHHosts
             if ($allHosts.Count -eq 0) {
-                Write-Host "  No configured hosts found in ~/.ssh/config." -ForegroundColor DarkGray
+                Write-Out 'dim' "No configured hosts found in ~/.ssh/config."
                 return
             }
             $hostName = Select-FromList -Items @($allHosts | ForEach-Object { $_.Alias }) -Prompt "Select host:" -StrictList
@@ -443,7 +454,7 @@ function Invoke-MenuChoice {
                            ForEach-Object { [System.IO.Path]::GetFileName($_.Groups[1].Value.Trim().Trim('"')) })
 
             if ($keyNames.Count -eq 0) {
-                Write-Host "  No IdentityFile entries found under host '$hostName'." -ForegroundColor DarkGray
+                Write-Out 'dim' "No IdentityFile entries found under host '$hostName'."
                 return
             }
             $KeyName = Select-FromList -Items $keyNames -Prompt "Select key to remove from '$hostName':"
@@ -453,12 +464,12 @@ function Invoke-MenuChoice {
         }
         "10" {
             Write-Host ""
-            Write-Host "  Best Practices" -ForegroundColor Cyan
-            Write-Host "  --------------" -ForegroundColor DarkGray
-            Write-Host "  1. CTs demo'd over LAN         -> shared key (e.g. demo-lan)" -ForegroundColor Cyan
-            Write-Host "  2. CTs in development over LAN -> shared key (e.g. dev-lan)" -ForegroundColor Cyan
-            Write-Host "  3. CTs promoted into the stack -> shared key (e.g. prod-lan)" -ForegroundColor Cyan
-            Write-Host "  4. CTs accessed over the WAN   -> individual key (e.g. sonarr-wan)" -ForegroundColor Red
+            Write-Out 'info' "Best Practices"
+            Write-Out 'dim'  "--------------"
+            Write-Out 'info' "1. CTs demo'd over LAN         -> shared key (e.g. demo-lan)"
+            Write-Out 'info' "2. CTs in development over LAN -> shared key (e.g. dev-lan)"
+            Write-Out 'info' "3. CTs promoted into the stack -> shared key (e.g. prod-lan)"
+            Write-Out 'error' "4. CTs accessed over the WAN   -> individual key (e.g. sonarr-wan)"
         }
         "11" {
             $fieldDefs = @(
@@ -492,6 +503,42 @@ function Invoke-MenuChoice {
                         $cf += "  `e[0;37m    $($fieldDefs[$i].Label)  `e[90m$disp`e[0m`e[K"
                     }
                 }
+
+                # ── Persist commands (4 methods) ────────────────────────────────
+                $rawUrl = "https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main"
+                $bf = ""; $pf = ""
+                $uVal = (Get-Variable -Name "DefaultUserName"      -Scope Script -EA SilentlyContinue).Value
+                $sVal = (Get-Variable -Name "DefaultSubnetPrefix"  -Scope Script -EA SilentlyContinue).Value
+                $cVal = (Get-Variable -Name "DefaultCommentSuffix" -Scope Script -EA SilentlyContinue).Value
+                $pVal = (Get-Variable -Name "DefaultPassword"      -Scope Script -EA SilentlyContinue).Value
+                if ($uVal) { $bf += " --user `"$uVal`"";           $pf += " -DefaultUserName `"$uVal`"" }
+                if ($sVal) { $bf += " --subnet `"$sVal`"";         $pf += " -DefaultSubnetPrefix `"$sVal`"" }
+                if ($cVal) { $bf += " --comment-suffix `"$cVal`""; $pf += " -DefaultCommentSuffix `"$cVal`"" }
+                if ($pVal) { $bf += " --password `"$pVal`"";       $pf += " -DefaultPassword `"$pVal`"" }
+
+                $maxCw = $tw - 6
+                $c1 = "bash <(curl -fsSL $rawUrl/ssh-key-manager.sh)$bf"
+                $c2 = "bash ssh-key-manager.sh$bf"
+                $c3 = "`$sb=[scriptblock]::Create((irm `"$rawUrl/generate_key_test.ps1`")); & `$sb$pf"
+                $c4 = "& ./generate_key_test.ps1$pf"
+                if ($c1.Length -gt $maxCw) { $c1 = $c1.Substring(0, $maxCw - 3) + "..." }
+                if ($c2.Length -gt $maxCw) { $c2 = $c2.Substring(0, $maxCw - 3) + "..." }
+                if ($c3.Length -gt $maxCw) { $c3 = $c3.Substring(0, $maxCw - 3) + "..." }
+                if ($c4.Length -gt $maxCw) { $c4 = $c4.Substring(0, $maxCw - 3) + "..." }
+
+                $cf += "`e[11;1H`e[K"
+                $cf += "`e[12;1H  `e[90mTo persist across sessions:`e[0m`e[K"
+                $cf += "`e[13;1H`e[K"
+                $cf += "`e[14;1H  `e[90m`u{2601}`u{FE0F}  Bash `u{00B7} cloud`e[0m`e[K"
+                $cf += "`e[15;1H    `e[33m$c1`e[0m`e[K"
+                $cf += "`e[16;1H  `e[90m`u{1F3E0}  Bash `u{00B7} local`e[0m`e[K"
+                $cf += "`e[17;1H    `e[33m$c2`e[0m`e[K"
+                $cf += "`e[18;1H`e[K"
+                $cf += "`e[19;1H  `e[90m`u{2601}`u{FE0F}  PowerShell `u{00B7} cloud`e[0m`e[K"
+                $cf += "`e[20;1H    `e[36m$c3`e[0m`e[K"
+                $cf += "`e[21;1H  `e[90m`u{1F3E0}  PowerShell `u{00B7} local`e[0m`e[K"
+                $cf += "`e[22;1H    `e[36m$c4`e[0m`e[K"
+
                 $hint = "  Up/Dn  navigate     Enter  edit     Q  back  "
                 $cf += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
                 [Console]::Write($cf)
@@ -517,26 +564,32 @@ function Invoke-MenuChoice {
 
             [Console]::Write("`e[?25h")
             Write-Host ""
-            Write-Host "  Defaults updated for this session." -ForegroundColor Green
-            Write-Host "  To persist: pass as script parameters (-DefaultUserName, etc.)" -ForegroundColor Yellow
+            Write-Out 'ok'   "Defaults updated for this session."
+            Write-Out 'warn' "To persist: pass as script parameters (-DefaultUserName, etc.)"
+            return $true
         }
         "15" {
+            Show-OpBanner @("host", $env:COMPUTERNAME)
             $KeyName = Read-SSHKeyName
             if (-not (Find-PrivateKeyInHost -KeyName $KeyName -ReturnResult $true)) {
-                Write-Host "  Key '$KeyName' not found locally. Use 'Generate & Install' to create it first." -ForegroundColor Red
+                Write-Out 'error' "Key '$KeyName' not found locally. Use 'Generate & Install' to create it first."
                 return
             }
             Install-SSHKeyOnRemote -KeyName $KeyName
         }
         "16" {
-            $RemoteHostAddress = Read-RemoteHostAddress -SubnetPrefix "$DefaultSubnetPrefix"
-            $RemoteUser        = Read-RemoteUser -DefaultUser "$DefaultUserName"
+            Show-OpBanner @("host", $env:COMPUTERNAME, "user", $DefaultUserName)
+            Invoke-RemotePrompt
+            $RemoteHostAddress = $script:_RemoteHost
+            $RemoteUser        = $script:_RemoteUser
             $target = Resolve-SSHTarget -RemoteHostAddress $RemoteHostAddress -RemoteUser $RemoteUser
-            Write-Host "  Fetching authorized_keys from $target..." -ForegroundColor DarkGray
+            Write-Out 'dim' "Fetching authorized_keys from $target..."
+            Write-SSHFence $target
             try {
                 $keys = ssh $target "cat ~/.ssh/authorized_keys 2>/dev/null"
+                Write-SSHFenceClose
                 if (-not $keys) {
-                    Write-Host "  No authorized_keys found on $target." -ForegroundColor DarkGray
+                    Write-Out 'dim' "No authorized_keys found on $target."
                 } else {
                     Write-Host "  `e[1;37mAuthorized keys on ${target}:`e[0m"
                     $i = 1
@@ -546,10 +599,18 @@ function Invoke-MenuChoice {
                     }
                 }
             } catch {
-                Write-Host "  Failed to fetch authorized_keys: $($_.Exception.Message)" -ForegroundColor Red
+                Write-SSHFenceClose
+                Write-Out 'error' "Failed to fetch authorized_keys: $($_.Exception.Message)"
             }
         }
-        "17" { Register-RemoteHostConfig }
+        "17" {
+            Show-OpBanner @("host", $env:COMPUTERNAME, "config", "$env:USERPROFILE\.ssh\config")
+            Register-RemoteHostConfig
+        }
+        "18" {
+            Show-OpBanner @("host", $env:COMPUTERNAME, "ssh dir", "$env:USERPROFILE\.ssh")
+            Import-ExternalSSHKey
+        }
         "12" { Remove-HostFromSSHConfig }
         "13" { Show-SSHConfigFile; return $true }
         "14" { Edit-SSHConfigFile; return $true }

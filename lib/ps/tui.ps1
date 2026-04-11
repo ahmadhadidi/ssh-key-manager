@@ -117,7 +117,7 @@ function Select-FromList {
                           } elseif ($filter) {
                               $filter
                           } else { $null }
-                if ($chosen -eq $null -and $StrictList) { break }
+                if ($null -eq $chosen -and $StrictList) { break }
                 [Console]::Write($clr + "`e[$th;1H`e[K")
                 if ($chosen) { [Console]::Write("`e[$promptRow;1H  `e[90m$Prompt`e[0m  `e[36m$chosen`e[0m`n`e[?25h") }
                 else         { [Console]::Write("`e[$promptRow;1H`e[?25h") }
@@ -135,6 +135,91 @@ function Select-FromList {
 
     [Console]::Write("`e[?25h")
     return $null
+}
+
+
+function Select-MultiFromList {
+    # Checkbox list: Space toggles, Enter confirms (returns [string[]], may be empty), Esc cancels.
+    param(
+        [string[]]$Items,
+        [string]$Prompt = "Select"
+    )
+    if (-not $Items -or $Items.Count -eq 0) { return @() }
+
+    $tw      = $Host.UI.RawUI.WindowSize.Width
+    $th      = $Host.UI.RawUI.WindowSize.Height
+    try { $startRow = [Console]::CursorTop + 3 } catch { $startRow = 8 }
+    $maxVis  = [Math]::Max(1, $th - $startRow - 2)
+    $sel     = 0
+    $viewOff = 0
+    $checked = [bool[]]::new($Items.Count)
+
+    [Console]::Write("`e[?25l")
+
+    while ($true) {
+        # Clamp viewport
+        if ($sel -lt $viewOff) { $viewOff = $sel }
+        elseif ($sel -ge $viewOff + $maxVis) { $viewOff = $sel - $maxVis + 1 }
+        if ($viewOff -lt 0) { $viewOff = 0 }
+
+        $promptRow = $startRow - 2
+        $f  = "`e[$promptRow;1H`e[K  `e[90m$Prompt`e[0m"
+        $f += "`e[$($startRow - 1);1H`e[K  `e[36m>`e[0m `e[90m(Space toggle, Enter confirm, Esc cancel)`e[0m"
+        for ($i = 0; $i -lt $maxVis; $i++) {
+            $idx = $viewOff + $i
+            $r   = $startRow + $i
+            $f  += "`e[$r;1H`e[K"
+            if ($idx -lt $Items.Count) {
+                $box = if ($checked[$idx]) { "`e[32m[`u{2713}]`e[0m" } else { "`e[90m[ ]`e[0m" }
+                if ($idx -eq $sel) {
+                    $f += "`e[48;5;6m`e[1;97m  $box  $($Items[$idx])`e[K`e[0m"
+                } else {
+                    $f += "  $box  `e[37m$($Items[$idx])`e[0m"
+                }
+            }
+        }
+        $up   = if ($viewOff -gt 0)                          { "^ " } else { "  " }
+        $dn   = if ($viewOff + $maxVis -lt $Items.Count)     { "v " } else { "  " }
+        $hint = "  Up/Dn  navigate     Space  toggle     Enter  confirm     Esc  cancel    $up$dn"
+        $f   += "`e[$th;1H`e[7m$hint$(" " * [Math]::Max(0, $tw - $hint.Length))`e[0m"
+        [Console]::Write($f)
+
+        try { $k = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") } catch { break }
+
+        $clr = ""
+        for ($ci = $promptRow; $ci -lt [Math]::Min($startRow + $maxVis + 1, $th); $ci++) {
+            $clr += "`e[$ci;1H`e[K"
+        }
+
+        switch ($k.VirtualKeyCode) {
+            38 {  # Up
+                if ($sel -gt 0) { $sel-- }
+                else { $sel = $Items.Count - 1 }
+            }
+            40 {  # Down
+                if ($sel -lt $Items.Count - 1) { $sel++ }
+                else { $sel = 0 }
+            }
+            32 {  # Space — toggle
+                $checked[$sel] = -not $checked[$sel]
+            }
+            13 {  # Enter — confirm
+                [Console]::Write($clr + "`e[$th;1H`e[K`e[$promptRow;1H`e[?25h")
+                $result = @()
+                for ($i = 0; $i -lt $Items.Count; $i++) {
+                    if ($checked[$i]) { $result += $Items[$i] }
+                }
+                return $result
+            }
+            27 {  # Esc — cancel
+                [Console]::Write($clr + "`e[$th;1H`e[K`e[$promptRow;1H`e[?25h")
+                throw [System.OperationCanceledException]::new("ESC")
+            }
+        }
+    }
+
+    [Console]::Write("`e[?25h")
+    return @()
 }
 
 
