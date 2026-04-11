@@ -58,7 +58,7 @@ function Show-MainMenu {
                 $termWidth  = $Host.UI.RawUI.WindowSize.Width
                 $termHeight = $Host.UI.RawUI.WindowSize.Height
 
-                $menuRule     = "-" * [Math]::Max(0, $termWidth - 4)
+                $menuRule     = ([char]0x2500).ToString() * [Math]::Max(0, $termWidth - 4)
                 $menuTitle    = "🌊 HDD SSH Keys Manager"
                 $menuTitlePad = " " * [Math]::Max(0, [int](($termWidth - 4 - ($menuTitle.Length + 1)) / 2))
 
@@ -102,7 +102,7 @@ function Show-MainMenu {
                         "item"   {
                             $itemRows[$fr.nIdx] = $row
                             if ($fr.nIdx -eq $sel) {
-                                $f += "`e[$row;1H`e[7m  $($fr.Label)`e[K`e[0m"
+                                $f += "`e[$row;1H`e[7m    $($fr.Label)`e[K`e[0m"
                             } else {
                                 $f += "`e[$row;1H`e[0m`e[37m    $(Format-MenuLabel $fr.Label $fr.Hotkey)`e[0m`e[K"
                             }
@@ -140,7 +140,7 @@ function Show-MainMenu {
                     $r = $itemRows[$prevSel]
                     [Console]::Write("`e[${r};1H`e[0m`e[37m    $(Format-MenuLabel $navItems[$prevSel].Label $navItems[$prevSel].Hotkey)`e[0m`e[K")
                     $r = $itemRows[$sel]
-                    [Console]::Write("`e[${r};1H`e[7m  $($navItems[$sel].Label)`e[K`e[0m")
+                    [Console]::Write("`e[${r};1H`e[7m    $($navItems[$sel].Label)`e[K`e[0m")
                     $prevSel = $sel
                 } else {
                     $needFull = $true
@@ -223,7 +223,7 @@ function _InvokeMenuAction {
         [int]$TermWidth,
         [switch]$IsF
     )
-    $rule    = "-" * [Math]::Max(0, $TermWidth - 4)
+    $rule    = ([char]0x2500).ToString() * [Math]::Max(0, $TermWidth - 4)
     $opPad   = " " * [Math]::Max(0, [int](($TermWidth - 4 - $Label.Length) / 2))
     $opTitle = "  " + $opPad + $Label
     $opFill  = " " * [Math]::Max(0, $TermWidth - $opTitle.Length)
@@ -485,7 +485,7 @@ function Invoke-MenuChoice {
             while ($confRun) {
                 $tw = $Host.UI.RawUI.WindowSize.Width
                 $th = $Host.UI.RawUI.WindowSize.Height
-                $rule  = "-" * [Math]::Max(0, $tw - 4)
+                $rule  = ([char]0x2500).ToString() * [Math]::Max(0, $tw - 4)
                 $title = "Conf: Global Defaults"
                 $tpad  = " " * [Math]::Max(0, [int](($tw - 4 - $title.Length) / 2))
                 $cf  = "`e[2J`e[H"

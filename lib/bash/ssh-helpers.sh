@@ -52,8 +52,8 @@ show_op_banner() {
         (( ${#pairs[$i]} > max_klen )) && max_klen=${#pairs[$i]}
     done
 
-    _OP_BANNER_ROWS=$(( ${#pairs[@]} / 2 + 4 ))   # border+pad+content+pad+border
-    _SFL_BANNER_ROWS=$_OP_BANNER_ROWS
+    _OP_BANNER_ROWS=5   # always: top + pad + content (all KVPs horizontal) + pad + bottom
+    _SFL_BANNER_ROWS=5
     _OP_BANNER_BUF=''
 
     _term_size
@@ -73,8 +73,8 @@ show_op_banner() {
     # Styles
     local _OC=$'\e[38;2;217;119;87m'  # #d97757 orange fg (border)
     local _FB=$'\e[48;2;48;26;19m'    # faint dark bg (content + padding)
-    local _FW=$'\e[97m'               # bright white fg
-    local _BLD=$'\e[1m'               # bold on
+    local _FW=$'\e[37m'               # normal white fg (values — dimmer than bold keys)
+    local _BLD=$'\e[1m'               # bold on (keys)
     local _NBD=$'\e[22m'              # bold off
     local _RS=$'\e[0m'
     local _MX; printf -v _MX '%*s' "$_mx" ''
@@ -87,39 +87,43 @@ show_op_banner() {
     # Inner blank: _iw spaces (fills faint-bg padding rows between │ chars)
     local _ipad; printf -v _ipad '%*s' "$_iw" ''
 
-    # Pre-build content rows (display width: 2+1+1+(max_klen+1)+2+len(val) = 7+max_klen+len(val))
-    local -a _crow=()
+    # Build horizontal content line — all KVPs side by side on one row.
+    # Each KVP:  "• KEY:  val"  separated by 4 spaces between pairs.
+    local _content_disp=2  # leading "  " indent (display width counter)
+    local _content_raw="  "
     for (( i=0; i<${#pairs[@]}; i+=2 )); do
         local _val="${pairs[$i+1]}"
         local _key_up; printf -v _key_up '%-*s' $(( max_klen + 1 )) "${pairs[$i]^^}:"
-        local _cdw=$(( 7 + max_klen + ${#_val} ))
-        local _pad_n=$(( _iw - _cdw ))
-        (( _pad_n < 0 )) && _pad_n=0
-        local _pad; printf -v _pad '%*s' "$_pad_n" ''
-        _crow+=( "  ${_BUL} ${_BLD}${_key_up}${_NBD}  ${_val}${_pad}" )
+        if (( i > 0 )); then
+            _content_raw+="    "           # 4-char separator between KVPs
+            (( _content_disp += 4 ))
+        fi
+        _content_raw+="${_BUL} ${_BLD}${_key_up}${_NBD}  ${_val}"
+        # display width per KVP: "• "(2) + padded_key(max_klen+1) + "  "(2) + val
+        (( _content_disp += 2 + (max_klen + 1) + 2 + ${#_val} ))
     done
+    local _pad_n=$(( _iw - _content_disp ))
+    (( _pad_n < 0 )) && _pad_n=0
+    local _pad; printf -v _pad '%*s' "$_pad_n" ''
+    _content_raw+="$_pad"
 
     # Compose reusable row strings
     local _top="${_MX}${_OC}${_TL}${_hrule}${_TR}${_RS}"
     local _bot="${_MX}${_OC}${_BL}${_hrule}${_BR}${_RS}"
     local _prow="${_MX}${_OC}${_VB}${_RS}${_FB}${_ipad}${_RS}${_OC}${_VB}${_RS}"
+    local _crow="${_MX}${_OC}${_VB}${_RS}${_FB}${_FW}${_content_raw}${_RS}${_OC}${_VB}${_RS}"
 
     if [[ -n ${_OP_BANNER_ROW:-} ]]; then
         local _t _r="$_OP_BANNER_ROW"
         printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_top";  _OP_BANNER_BUF+="$_t"; (( _r++ ))
         printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_prow"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
-        for (( i=0; i<${#_crow[@]}; i++ )); do
-            local _cr="${_MX}${_OC}${_VB}${_RS}${_FB}${_FW}${_crow[$i]}${_RS}${_OC}${_VB}${_RS}"
-            printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_cr"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
-        done
+        printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_crow"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
         printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_prow"; _OP_BANNER_BUF+="$_t"; (( _r++ ))
         printf -v _t '\e[%d;1H%s\e[K' "$_r" "$_bot";  _OP_BANNER_BUF+="$_t"
     else
         printf '%s\n' "$_top"
         printf '%s\n' "$_prow"
-        for (( i=0; i<${#_crow[@]}; i++ )); do
-            printf '%s\n' "${_MX}${_OC}${_VB}${_RS}${_FB}${_FW}${_crow[$i]}${_RS}${_OC}${_VB}${_RS}"
-        done
+        printf '%s\n' "$_crow"
         printf '%s\n' "$_prow"
         printf '%s\n' "$_bot"
     fi
