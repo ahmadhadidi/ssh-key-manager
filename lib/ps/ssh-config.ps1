@@ -159,6 +159,18 @@ function Get-IPAddressFromHostConfigEntry {
 }
 
 
+function Get-AliasForHostIP {
+    # Reverse-lookup: given an IP address, return the first Host alias whose
+    # HostName value matches. Returns $null if not found.
+    param([string]$IPAddress)
+    if (-not $IPAddress) { return $null }
+    foreach ($h in (Get-ConfiguredSSHHosts)) {
+        if ($h.HostName -eq $IPAddress) { return $h.Alias }
+    }
+    return $null
+}
+
+
 function Get-RemoteUserFromConfigEntry {
     param ([Parameter(Mandatory = $true)][string]$RemoteHostName)
     $sshConfig = Find-ConfigFileOnHost
