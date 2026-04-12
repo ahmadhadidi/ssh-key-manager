@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # scripts/update-line-numbers.sh
-# Scan all lib files for function definitions, then patch every `name`:NNN
-# reference in CLAUDE.md to reflect the current line number.
+# Scan all lib files, then patch CLAUDE.md in two passes:
+#   1. `name`:NNN  — function definition line numbers
+#   2. ~NNN        — file line-count estimates in module tables
+# Also warns about functions in lib/ with no CLAUDE.md entry.
 #
 # Usage:
 #   bash scripts/update-line-numbers.sh
@@ -33,24 +35,36 @@ done
 
 printf '  Indexed %d functions across lib/bash/ and lib/ps/\n' "${#MAP[@]}"
 
-# ── 2. Build a Perl script that rewrites `name`:NNN in place ──────────────────
+# ── 2. Build a Perl script that rewrites `name`:NNN and ~NNN in place ─────────
 perl_file=$(mktemp)
 
-# Header: strict + the lookup hash
 printf 'use strict; use warnings;\n' >> "$perl_file"
-printf 'my %%m = (\n'                >> "$perl_file"
+
+# Hash: function name → definition line number
+printf 'my %%m = (\n' >> "$perl_file"
 for fn in "${!MAP[@]}"; do
     printf "  '%s' => %d,\n" "$fn" "${MAP[$fn]}" >> "$perl_file"
 done
 printf ');\n' >> "$perl_file"
 
-# Body: slurp the file, substitute all name:NNN occurrences, write back.
-# Pattern uses \x60 (hex for backtick) so bash never sees a raw backtick here.
+# Hash: file basename → current line count (for ~NNN in module tables)
+printf 'my %%lc = (\n' >> "$perl_file"
+for f in lib/bash/*.sh lib/ps/*.ps1; do
+    [[ -f $f ]] || continue
+    base=$(basename "$f")
+    count=$(wc -l < "$f")
+    printf "  '%s' => %d,\n" "$base" "$count" >> "$perl_file"
+done
+printf ');\n' >> "$perl_file"
+
+# Body: slurp, apply both substitutions, write back.
+# \x60 = backtick (avoids bash lexer treating backticks as command substitution).
 printf '%s\n' \
     'local $/;' \
     'open(my $fh, "<", $ARGV[0]) or die "Cannot open $ARGV[0]: $!";' \
     'my $txt = <$fh>; close $fh;' \
     '$txt =~ s{\x60([^\x60]+)\x60:(\d+)}{ exists $m{$1} ? "\x60$1\x60:$m{$1}" : "\x60$1\x60:$2" }ge;' \
+    '$txt =~ s{\| \x60([^\x60]+)\x60 \| ~(\d+) \|}{ exists $lc{$1} ? "| \x60$1\x60 | ~$lc{$1} |" : "| \x60$1\x60 | ~$2 |" }ge;' \
     'open($fh, ">", $ARGV[0]) or die "Cannot write $ARGV[0]: $!";' \
     'print $fh $txt; close $fh;' \
     >> "$perl_file"
