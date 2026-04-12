@@ -32,7 +32,7 @@ if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "lib\ps"))) {
     $_SCRIPT_DIR = $PSScriptRoot
 }
 
-$__libs = @("tui", "ssh-helpers", "ssh-config", "prompts", "ssh-ops", "config-display", "menu")
+$__libs = @("tui", "ssh-helpers", "ssh-config", "prompts", "ssh-ops", "config-display", "menu", "menu-renderer")
 foreach ($__lib in $__libs) {
     $__local = if ($_SCRIPT_DIR) { Join-Path $_SCRIPT_DIR "lib\ps\$__lib.ps1" } else { "" }
     if ($__local -and (Test-Path $__local)) {
