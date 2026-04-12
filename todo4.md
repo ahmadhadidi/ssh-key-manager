@@ -96,4 +96,7 @@ ssh: connect to host 0.0.0.100 port 22: Unknown error
 ssh: connect to host 192.168.0.100 port 22: Connection refused
   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── SSH session closed ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   SSH Public Key installed successfully.
+  HEAD
   Remote hostname:
+  Remote hostname:
+  Name this Host in ~/.ssh/config:  192.168.0.100
