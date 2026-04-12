@@ -1,5 +1,5 @@
 # lib/config-display.sh — SSH config display and edit functions
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_CONFIG_DISPLAY_SH_LOADED:-}" ]] && return 0
 _CONFIG_DISPLAY_SH_LOADED=1
 # EXPORTS: show_ssh_config_file  edit_ssh_config_file

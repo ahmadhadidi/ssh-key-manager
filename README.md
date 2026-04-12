@@ -11,7 +11,7 @@ Managing SSH keys across multiple machines is repetitive and error-prone: genera
 ### Run directly from the cloud
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/ssh-key-manager.sh) \
+bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/hddssh.sh) \
   --user username_of_target_machine \
   --subnet 192.168.0 \
   --comment-suffix "-[my-machine]"
@@ -23,7 +23,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/
 git clone https://github.com/ahmadhadidi/ssh-key-manager.git
 cd ssh-key-manager
 
-bash ssh-key-manager.sh \
+bash hddssh.sh \
   --user username_of_target_machine \
   --subnet 192.168.0 \
   --comment-suffix "-[my-machine]"
@@ -45,10 +45,7 @@ bash ssh-key-manager.sh \
 ### Run directly from the cloud
 
 ```powershell
-irm "https://raw.githubusercontent.com/.../generate_key_test.ps1" | iex
-
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/generate_key_test.ps1"))) -DefaultUserName "myuser" -DefaultSubnetPrefix "192.168.0" -DefaultPassword "abc123"
-
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/hddssh.ps1"))) -DefaultUserName "myuser" -DefaultSubnetPrefix "192.168.0" -DefaultPassword "abc123"
 ```
 
 ### Run after git clone
@@ -57,6 +54,5 @@ irm "https://raw.githubusercontent.com/.../generate_key_test.ps1" | iex
 git clone https://github.com/ahmadhadidi/ssh-key-manager.git
 cd ssh-key-manager
 
-& ./generate_key_test.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]" -DefaultPassword "abc123"
+& ./hddssh.ps1 -DefaultUserName username_of_target_machine -DefaultSubnetPrefix 192.168.0 -DefaultCommentSuffix "-[my-machine]" -DefaultPassword "abc123"
 ```
-

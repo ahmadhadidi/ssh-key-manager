@@ -1,5 +1,5 @@
 # lib/tui.sh — Terminal helpers and TUI widgets
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_TUI_SH_LOADED:-}" ]] && return 0
 _TUI_SH_LOADED=1
 # EXPORTS: _dbg  _term_size  _regex_escape  _repeat  _max  _min

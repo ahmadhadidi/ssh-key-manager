@@ -1,5 +1,5 @@
 # lib/menu.sh — Menu dispatcher and main menu
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_MENU_SH_LOADED:-}" ]] && return 0
 _MENU_SH_LOADED=1
 # EXPORTS: invoke_menu_choice  show_main_menu  _invoke_choice
@@ -444,10 +444,10 @@ _run_conf_editor() {
         [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _bf+=" --subnet $(printf '%q' "$DEFAULT_SUBNET_PREFIX")" && _pf+=" -DefaultSubnetPrefix \"$DEFAULT_SUBNET_PREFIX\""
         [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _bf+=" --comment-suffix $(printf '%q' "$DEFAULT_COMMENT_SUFFIX")" && _pf+=" -DefaultCommentSuffix \"$DEFAULT_COMMENT_SUFFIX\""
         [[ -n $DEFAULT_PASSWORD       ]] && _bf+=" --password $(printf '%q' "$DEFAULT_PASSWORD")"    && _pf+=" -DefaultPassword \"$DEFAULT_PASSWORD\""
-        local _c1="bash <(curl -fsSL ${_raw_url}/ssh-key-manager.sh)${_bf}"
-        local _c2="bash ssh-key-manager.sh${_bf}"
-        local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/generate_key_test.ps1\")); & \$sb${_pf}"
-        local _c4="& ./generate_key_test.ps1${_pf}"
+        local _c1="bash <(curl -fsSL ${_raw_url}/hddssh.sh)${_bf}"
+        local _c2="bash hddssh.sh${_bf}"
+        local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/hddssh.ps1\")); & \$sb${_pf}"
+        local _c4="& ./hddssh.ps1${_pf}"
         # Truncate each command to terminal width (account for 4-space indent)
         local _tw=$(( TERM_W - 6 ))
         local _t1="$_c1"; (( ${#_t1} > _tw )) && _t1="${_t1:0:$(( _tw - 3 ))}..."
