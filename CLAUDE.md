@@ -33,7 +33,7 @@ There is no build step, test framework, or linter. Both scripts run directly wit
 ### Library load order
 
 ```
-tui → ssh-config → ssh-helpers → prompts → ssh-ops → config-display → menu → menu-renderer
+tui → ssh-config → ssh-helpers → prompts → ssh-ops → config-display → menu → menu-support → menu-renderer
 ```
 
 Each module has a guard variable (`_<MODULE>_SH_LOADED`) to prevent double-sourcing.
@@ -50,7 +50,8 @@ When modifying a module, these are the other files that call its functions:
 | `prompts.sh` | ssh-ops, config-display, menu | `read_ssh_key_name` (ssh-ops×2, menu×3); `find_private_key` (ssh-ops, menu×2); `resolve_ssh_target` (ssh-ops×2, menu×2); `confirm_user_choice` (ssh-ops×2, config-display, menu×2); `read_colored_input` (ssh-ops×3, config-display×2, menu×2) |
 | `ssh-ops.sh` | menu only | All 11 public functions called exclusively from `_menu_*` handlers in menu.sh |
 | `config-display.sh` | menu only | `show_ssh_config_file`, `edit_ssh_config_file`, `show_ssh_key_inventory`, `remove_host_from_ssh_config` called from `_menu_*` handlers in menu.sh |
-| `menu.sh` | menu-renderer only | `invoke_menu_choice` called from `_invoke_choice` in menu-renderer.sh; `_check_config_at_start`, `_do_create_config`, `_show_menu_help` called from `show_main_menu` in menu-renderer.sh |
+| `menu.sh` | menu-renderer only | `invoke_menu_choice` called from `_invoke_choice` in menu-renderer.sh; `_check_config_at_start`, `_do_create_config` called from `show_main_menu` in menu-renderer.sh |
+| `menu-support.sh` | menu-renderer only | `_run_conf_editor` called from `_menu_conf_defaults` in menu.sh; `_show_menu_help` called from `show_main_menu` in menu-renderer.sh |
 
 ### Module breakdown
 
@@ -62,7 +63,8 @@ When modifying a module, these are the other files that call its functions:
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
 | `config-display.sh` | ~480 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
-| `menu.sh` | ~620 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_show_menu_help`:539 |
+| `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_do_create_config`:402 |
+| `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
 | `menu-renderer.sh` | ~341 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
 
 ### Control flow
@@ -169,10 +171,13 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 - `_menu_list_authorized_keys`:362 — SSHes to target, fetches `authorized_keys`, displays numbered list
 - `_menu_add_config_block`:389 — delegates to `register_remote_host_config` (reads remote auth_keys, creates host config entry)
 - `_menu_import_key`:394 — delegates to `import_external_ssh_key` (local path / SCP / paste)
-- `_run_conf_editor`:400 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
-- `_do_create_config`:500 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
-- `_check_config_at_start`:510 — full-screen prompt on startup when config absent; offers to create it
-- `_show_menu_help`:539 — paginated help text describing every menu item
+- `_do_create_config`:402 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
+- `_check_config_at_start`:412 — full-screen prompt on startup when config absent; offers to create it
+
+### menu-support.sh
+
+- `_run_conf_editor`:12 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
+- `_show_menu_help`:111 — paginated help text describing every menu item
 
 ### menu-renderer.sh
 
