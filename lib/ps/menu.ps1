@@ -1,4 +1,5 @@
 # lib/ps/menu.ps1 — Show-MainMenu and Invoke-MenuChoice
+# EXPORTS: Show-MainMenu  _InvokeMenuAction  Invoke-MenuChoice
 
 function Show-MainMenu {
     $menuDef = @(

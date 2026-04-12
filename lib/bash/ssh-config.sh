@@ -2,6 +2,11 @@
 # Sourced by ssh-key-manager.sh — do not execute directly.
 [[ -n "${_SSH_CONFIG_SH_LOADED:-}" ]] && return 0
 _SSH_CONFIG_SH_LOADED=1
+# EXPORTS: get_configured_ssh_hosts  get_available_ssh_keys
+#          _get_host_block  _replace_host_block  _block_field
+#          get_identity_files_for_host  get_hosts_using_key
+#          get_alias_for_host_ip  get_ip_from_host_config
+#          get_user_from_host_config  get_identity_file_from_host_config
 
 # ─── SSH config parsing ───────────────────────────────────────────────────────
 

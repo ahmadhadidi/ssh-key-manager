@@ -2,6 +2,12 @@
 # Sourced by ssh-key-manager.sh — do not execute directly.
 [[ -n "${_SSH_OPS_SH_LOADED:-}" ]] && return 0
 _SSH_OPS_SH_LOADED=1
+# EXPORTS: deploy_ssh_key_to_remote  install_ssh_key_on_remote
+#          test_ssh_connection  remove_ssh_key_from_remote
+#          deploy_promoted_key  register_remote_host_config
+#          add_ssh_key_in_host  add_ssh_key_to_host_config
+#          remove_identity_file_from_config_block
+#          _add_key_to_hosts  import_external_ssh_key
 
 # ─── Remote ───────────────────────────────────────────────────────────────────
 

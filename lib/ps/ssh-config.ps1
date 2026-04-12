@@ -1,4 +1,10 @@
 # lib/ps/ssh-config.ps1 — SSH config parsing helpers
+# EXPORTS: Get-AvailableSSHKeys  Get-HostsUsingKey  Get-ConfiguredSSHHosts
+#          Get-IdentityFilesForHost  Get-IdentityFileFromHostConfigEntry
+#          Find-ConfigFileOnHost  Find-SSHKeyInHostConfig
+#          Find-PrivateKeyInHost  Find-PublicKeyInHost
+#          Get-IPAddressFromHostConfigEntry  Get-AliasForHostIP
+#          Get-RemoteUserFromConfigEntry
 
 function Get-AvailableSSHKeys {
     $sshDir  = "$env:USERPROFILE\.ssh"

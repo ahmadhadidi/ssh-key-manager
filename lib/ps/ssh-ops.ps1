@@ -1,4 +1,9 @@
 # lib/ps/ssh-ops.ps1 — SSH operations: deploy, install, test, remove, promote
+# EXPORTS: Resolve-SSHTarget  Install-SSHKeyOnRemote  Register-RemoteHostConfig
+#          Deploy-SSHKeyToRemote  Test-SSHConnection
+#          Remove-IdentityFileFromConfigBlock  Remove-SSHKeyFromRemote
+#          Deploy-PromotedKey  Add-KeyToHosts  Import-ExternalSSHKey
+#          Remove-IdentityFileFromConfigEntry  Invoke-SSHWithKeyThenPassword
 
 function Resolve-SSHTarget {
     # Given an IP/address and user, returns "user@alias" if a matching HostName

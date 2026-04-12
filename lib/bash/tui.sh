@@ -2,6 +2,10 @@
 # Sourced by ssh-key-manager.sh — do not execute directly.
 [[ -n "${_TUI_SH_LOADED:-}" ]] && return 0
 _TUI_SH_LOADED=1
+# EXPORTS: _dbg  _term_size  _regex_escape  _repeat  _max  _min
+#          _read_key  _read_key_nb  _read_key_raw
+#          wait_user_acknowledge  show_paged  format_menu_label
+#          select_multi_from_list  select_from_list
 
 # ─── Debug logging ────────────────────────────────────────────────────────────
 
