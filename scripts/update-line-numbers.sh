@@ -71,3 +71,26 @@ else
     printf '\n  \e[32mCLAUDE.md updated.\e[0m\n'
 fi
 rm -f "$tmp"
+
+# ── 4. Warn about functions in lib/ with no `name`:NNN entry in CLAUDE.md ────
+# Extract all documented function names from `name`:NNN patterns in CLAUDE.md.
+# Uses $'\x60' (hex for backtick) to avoid raw backticks in this script.
+declare -A DOCUMENTED
+while IFS= read -r fn; do
+    [[ -n "$fn" ]] && DOCUMENTED["$fn"]=1
+done < <(grep -oE $'\x60[^\x60]+\x60:[0-9]+' CLAUDE.md \
+         | sed $'s/\x60//g; s/:[0-9]*//')
+
+undoc=()
+for fn in "${!MAP[@]}"; do
+    [[ -z "${DOCUMENTED[$fn]+x}" ]] && undoc+=("$fn")
+done
+
+if [[ ${#undoc[@]} -gt 0 ]]; then
+    printf '\n  \e[33m⚠  %d function(s) in lib/ have no \x60name\x60:NNN entry in CLAUDE.md:\e[0m\n' \
+        "${#undoc[@]}"
+    printf '%s\n' "${undoc[@]}" | sort | while IFS= read -r fn; do
+        printf '     \e[90m%s\e[0m\n' "$fn"
+    done
+    printf '\n'
+fi
