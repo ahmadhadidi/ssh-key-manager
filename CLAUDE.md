@@ -152,13 +152,28 @@ Read-only views:
 ### menu.sh
 
 - `invoke_menu_choice`:17 — 22-line pure dispatcher; each case calls a `_menu_*` handler
-- `_menu_generate_and_install`:45 / `_menu_install_key`:51 / `_menu_test_connection`:61
-- `_menu_delete_remote_key`:118 / `_menu_promote_key`:201 / `_menu_generate_key`:206
-- `_menu_append_key_to_config`:213 / `_menu_delete_local_key`:242 / `_menu_remove_key_from_config`:296
-- `_menu_show_best_practices`:328 / `_menu_list_authorized_keys`:362
-- `_menu_add_config_block`:389 / `_menu_import_key`:394
-- `_run_conf_editor`:400 / `_do_create_config`:500 / `_check_config_at_start`:510
-- `_show_menu_help`:539
+- `_menu_generate_and_install`:45 — prompts key name, generates if missing, deploys to remote (`deploy_ssh_key_to_remote`)
+- `_menu_install_key`:51 — same but requires key to already exist locally; aborts with message if not found
+- `_menu_test_connection`:61 — picks key from host config or all local keys; supports "Test ALL" multi-key sweep
+- `_menu_delete_remote_key`:118 — fetches remote `authorized_keys`, cross-matches local `.pub` files, removes selected; offers to strip IdentityFile from config and delete local key pair
+- `_menu_promote_key`:201 — delegates to `deploy_promoted_key` (installs new key, removes old in one operation)
+- `_menu_generate_key`:206 — prompts key name + comment, generates ED25519 pair locally without deploying
+- `_menu_append_key_to_config`:213 — verifies key is accepted by remote via SSH test, then adds IdentityFile to host config block
+- `_menu_delete_local_key`:242 — cross-references key against configured hosts, optionally removes from remote(s), then deletes local key files
+- `_menu_remove_key_from_config`:296 — picks host then IdentityFile entry, removes that line from the config block
+- `_menu_show_best_practices`:328 — prints the 4-rule key-naming guide (LAN shared vs WAN individual); no interactive input
+- `_menu_list_keys`:338 — calls `show_ssh_key_inventory`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_conf_defaults`:343 — launches `_run_conf_editor` TUI; returns 1 to skip `wait_user_acknowledge`
+- `_menu_remove_host`:348 — delegates to `remove_host_from_ssh_config`
+- `_menu_view_config`:352 — calls `show_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_edit_config`:357 — calls `edit_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_list_authorized_keys`:362 — SSHes to target, fetches `authorized_keys`, displays numbered list
+- `_menu_add_config_block`:389 — delegates to `register_remote_host_config` (reads remote auth_keys, creates host config entry)
+- `_menu_import_key`:394 — delegates to `import_external_ssh_key` (local path / SCP / paste)
+- `_run_conf_editor`:400 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
+- `_do_create_config`:500 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
+- `_check_config_at_start`:510 — full-screen prompt on startup when config absent; offers to create it
+- `_show_menu_help`:539 — paginated help text describing every menu item
 
 ### menu-renderer.sh
 
