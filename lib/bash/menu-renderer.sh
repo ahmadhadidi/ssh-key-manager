@@ -69,7 +69,7 @@ show_main_menu() {
         "✨  Generate SSH Key (Without installation)"
         "🗝️  List SSH Keys"
         "➕  Append SSH Key to Hostname in Host Config"
-        "🗑️  Delete an SSH Key Locally"
+        "🗑️  Delete an SSH Key Locally [x]"
         "❌  Remove an SSH Key From Config"
         "📥  Import SSH Key from Another Machine"
         "Config File"
