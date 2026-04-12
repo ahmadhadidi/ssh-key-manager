@@ -1,4 +1,6 @@
 # lib/ps/tui.ps1 — TUI helpers: Wait-UserAcknowledge, Show-Paged, Select-FromList, Format-MenuLabel
+# EXPORTS: Wait-UserAcknowledge  Show-Paged  Select-FromList
+#          Select-MultiFromList  Format-MenuLabel
 
 function Wait-UserAcknowledge {
     $h = $Host.UI.RawUI.WindowSize.Height

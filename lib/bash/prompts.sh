@@ -2,6 +2,11 @@
 # Sourced by ssh-key-manager.sh — do not execute directly.
 [[ -n "${_PROMPTS_SH_LOADED:-}" ]] && return 0
 _PROMPTS_SH_LOADED=1
+# EXPORTS: read_colored_input  read_host_with_default
+#          read_remote_user  read_remote_host_address  read_remote_host_name
+#          read_ssh_key_name  read_ssh_key_comment  confirm_user_choice
+#          find_config_file  find_private_key  find_public_key
+#          get_public_key  resolve_ssh_target
 
 # ─── Input / prompt functions ─────────────────────────────────────────────────
 

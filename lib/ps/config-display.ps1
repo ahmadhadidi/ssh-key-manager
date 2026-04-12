@@ -1,4 +1,7 @@
 # lib/ps/config-display.ps1 — Show/edit/remove config, key inventory, key generation
+# EXPORTS: Add-SSHKeyInHost  Add-SSHKeyToHostConfig  Remove-HostFromSSHConfig
+#          Show-SSHConfigFile  Edit-SSHConfigFile  Show-SSHKeyInventory
+#          _ViewSSHKey  _DisplayKeyFile
 
 function Add-SSHKeyInHost {
     param (

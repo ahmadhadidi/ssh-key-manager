@@ -1,4 +1,7 @@
 # lib/ps/ssh-helpers.ps1 — SSH utility helpers shared across ssh-ops and menu
+# EXPORTS: Write-Out  Write-OutItem  Show-OpBanner
+#          Write-SSHFence  Write-SSHFenceClose
+#          Invoke-RemotePrompt  Write-IdentityFiles  Ensure-SSHDir  Write-KeyPair
 
 # ─── Output helpers ───────────────────────────────────────────────────────────
 

@@ -2,6 +2,10 @@
 # Sourced by ssh-key-manager.sh — do not execute directly.
 [[ -n "${_SSH_HELPERS_SH_LOADED:-}" ]] && return 0
 _SSH_HELPERS_SH_LOADED=1
+# EXPORTS: _out  _out_item  show_op_banner
+#          _tcp_check  _ssh_fence  _ssh_fence_close
+#          _setup_askpass  _destroy_askpass  _ensure_ssh_dir
+#          _write_key_pair  _print_identity_files  _prompt_remote
 
 # ─── Output helpers ───────────────────────────────────────────────────────────
 

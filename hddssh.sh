@@ -74,7 +74,7 @@ _source_lib() {
     fi
 }
 
-for _lib in tui ssh-config ssh-helpers prompts ssh-ops config-display menu; do
+for _lib in tui ssh-config ssh-helpers prompts ssh-ops config-display menu menu-renderer; do
     _source_lib "$_lib"
 done
 unset _lib _source_lib _candidate _SCRIPT_DIR _BASE_URL

@@ -1,4 +1,8 @@
 # lib/ps/prompts.ps1 — Input prompts, resolvers, validators
+# EXPORTS: Read-RemoteUser  Read-RemoteHostName  Read-RemoteHostAddress
+#          Read-SSHKeyName  Read-SSHKeyComment  Read-ColoredInput  Read-HostWithDefault
+#          Resolve-NullToDefault  Resolve-NullToAction  Confirm-UserChoice
+#          Test-ValueIsNull  Get-PublicKeyInHost  Show-Comment
 
 function Read-RemoteUser {
     param ([string]$DefaultUser = "")
