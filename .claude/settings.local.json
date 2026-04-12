@@ -15,7 +15,8 @@
       "Bash(bash -n /proj/ssh-key-manager/lib/bash/ssh-ops.sh)",
       "Bash(bash -n /proj/ssh-key-manager/lib/bash/menu.sh)",
       "Bash(ls:*)",
-      "Read(///192.168.0.100/all/dev/204-dev-ct/ssh-key-manager/lib/bash/**)"
+      "Read(///192.168.0.100/all/dev/204-dev-ct/ssh-key-manager/lib/bash/**)",
+      "Bash(wc:*)"
     ]
   }
 }

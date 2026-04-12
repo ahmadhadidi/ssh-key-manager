@@ -62,8 +62,8 @@ When modifying a module, these are the other files that call its functions:
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
 | `config-display.sh` | ~480 | Read-only config/inventory display | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
-| `menu.sh` | ~620 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:11, `_menu_generate_and_install`:39, `_show_menu_help`:509 |
-| `menu-renderer.sh` | ~340 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:52 |
+| `menu.sh` | ~620 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_show_menu_help`:539 |
+| `menu-renderer.sh` | ~340 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
 
 ### Control flow
 
@@ -151,19 +151,19 @@ Read-only views:
 
 ### menu.sh
 
-- `invoke_menu_choice`:11 — 22-line pure dispatcher; each case calls a `_menu_*` handler
-- `_menu_generate_and_install`:39 / `_menu_install_key`:45 / `_menu_test_connection`:55
-- `_menu_delete_remote_key`:112 / `_menu_promote_key`:195 / `_menu_generate_key`:200
-- `_menu_append_key_to_config`:207 / `_menu_delete_local_key`:236 / `_menu_remove_key_from_config`:290
-- `_menu_show_best_practices`:322 / `_menu_list_authorized_keys`:332
-- `_menu_add_config_block`:359 / `_menu_import_key`:364
-- `_run_conf_editor`:370 / `_do_create_config`:470 / `_check_config_at_start`:480
-- `_show_menu_help`:509
+- `invoke_menu_choice`:17 — 22-line pure dispatcher; each case calls a `_menu_*` handler
+- `_menu_generate_and_install`:45 / `_menu_install_key`:51 / `_menu_test_connection`:61
+- `_menu_delete_remote_key`:118 / `_menu_promote_key`:201 / `_menu_generate_key`:206
+- `_menu_append_key_to_config`:213 / `_menu_delete_local_key`:242 / `_menu_remove_key_from_config`:296
+- `_menu_show_best_practices`:328 / `_menu_list_authorized_keys`:362
+- `_menu_add_config_block`:389 / `_menu_import_key`:394
+- `_run_conf_editor`:400 / `_do_create_config`:500 / `_check_config_at_start`:510
+- `_show_menu_help`:539
 
 ### menu-renderer.sh
 
 - `_invoke_choice`:13 — clears screen, renders centered op title box, calls `invoke_menu_choice`, waits for ack. Sets `need_full=1` via bash dynamic scoping into `show_main_menu`'s local frame.
-- `show_main_menu`:52 — scrolling viewport, differential rendering, hotkey support, resize detection. Alternate screen buffer (`\e[?1049h/l`).
+- `show_main_menu`:53 — scrolling viewport, differential rendering, hotkey support, resize detection. Alternate screen buffer (`\e[?1049h/l`).
 - `_menu_cleanup` — defined inside `show_main_menu`; restores terminal state; guarded by `_MENU_CLEANED_UP` flag to prevent double-execution on Ctrl+C (INT trap → `exit` → EXIT trap)
 
 ## Key implementation notes
