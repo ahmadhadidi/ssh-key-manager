@@ -261,17 +261,22 @@ When modifying a PS module, these are the other files that call its functions:
 - `Get-IdentityFilesForHost`:51 — tries alias match first, falls back to HostName value match; returns raw path strings (does NOT expand `~` or `$HOME`, unlike `Get-IdentityFileFromHostConfigEntry`)
 - `Get-IdentityFileFromHostConfigEntry`:73 — expands `$HOME` → `$env:USERPROFILE`; other getters return raw strings
 - `Find-ConfigFileOnHost`:88 — returns config path if it exists, prints warning and returns `$false` if not
+- `Find-SSHKeyInHostConfig`:98 — prints whether `$KeyName` is present in host block; without `-ReturnResult` side-effects only; with `-ReturnResult` returns `$true`/`$false` silently
 - `Find-PrivateKeyInHost`:126 / `Find-PublicKeyInHost`:139 — without `-ReturnResult`: silent (no output); with `-ReturnResult`: returns `$true`/`$false` without printing. Use `-ReturnResult` when you need the boolean and want no side-effect output.
+- `Get-IPAddressFromHostConfigEntry`:152 / `Get-RemoteUserFromConfigEntry`:180 — extract `HostName` / `User` field from a named Host block; print warning and return `$null` if block or field absent
 - `Get-AliasForHostIP`:168 — reverse-lookup: given IP, returns first matching Host alias; returns `$null` if not found; used by `Invoke-RemotePrompt` to recover alias after manual IP entry
 
 ### prompts.ps1
 
+- `Read-RemoteUser`:7 / `Read-RemoteHostName`:14 — thin wrappers around `Read-HostWithDefault` / `Select-FromList`; fall back to `Read-ColoredInput` on Esc
 - `Read-RemoteHostAddress`:34 — shows configured-host combo-box; on selection sets `$script:_LastSelectedAlias` and returns the `HostName` value; on manual entry clears `_LastSelectedAlias` and returns typed text; subnet shorthand: 1–3 digit input → `"$SubnetPrefix.$digit"`
-- `Read-SSHKeyName`:75 — shows existing-key combo-box; falls back to `Read-ColoredInput`; calls `Resolve-NullToAction` which recurses on empty input (loop until non-empty)
+- `Read-SSHKeyName`:75 / `Read-SSHKeyComment`:86 — key picker (combo-box → free text) and comment input; `Read-SSHKeyName` recurses via `Resolve-NullToAction` until non-empty
 - `Read-ColoredInput`:92 — uses `Read-Host` internally; no Esc cancel, no Ctrl+W; simpler than bash counterpart; suitable for paths and free-text where cancel is not needed
 - `Read-HostWithDefault`:102 — raw `ReadKey` loop with pre-filled buffer; Backspace edits, Enter confirms, Esc throws `[System.OperationCanceledException]`
+- `Resolve-NullToDefault`:133 / `Resolve-NullToAction`:142 / `Test-ValueIsNull`:184 — null/empty guards; `Resolve-NullToAction` re-invokes a callback scriptblock when value is blank (used for required-field retry loops)
 - `Confirm-UserChoice`:157 `Message Action DefaultAnswer` — prompts with `[Y/n]`/`[y/N]`/`[y/n]` based on `$DefaultAnswer`; recurses on invalid input; calls `$Action` scriptblock on yes
 - `Get-PublicKeyInHost`:190 — reads `.pub` file content; prints it to screen and returns raw string; callers must handle `$null` when key not found
+- `Show-Comment`:203 — `Write-Host -NoNewline` wrapper; used for inline label output before a prompt
 
 ### ssh-ops.ps1
 
