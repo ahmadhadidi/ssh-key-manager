@@ -57,7 +57,7 @@ show_op_banner() {
     done
 
     _OP_BANNER_ROWS=5   # always: top + pad + content (all KVPs horizontal) + pad + bottom
-    _SFL_BANNER_ROWS=5
+    _SFL_BANNER_ROWS=8
     _OP_BANNER_BUF=''
 
     _term_size
