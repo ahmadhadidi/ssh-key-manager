@@ -142,7 +142,6 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 
 ### config-display.sh
 
-Read-only views:
 - `show_ssh_config_file`:12 — paginated SSH config viewer with inline editor launch
 - `edit_ssh_config_file`:122
 - `remove_host_from_ssh_config`:146 — removes a Host block after confirmation
