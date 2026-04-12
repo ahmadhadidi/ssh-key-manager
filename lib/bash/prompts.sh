@@ -1,5 +1,5 @@
 # lib/prompts.sh — Input/prompt functions and finders
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_PROMPTS_SH_LOADED:-}" ]] && return 0
 _PROMPTS_SH_LOADED=1
 # EXPORTS: read_colored_input  read_host_with_default

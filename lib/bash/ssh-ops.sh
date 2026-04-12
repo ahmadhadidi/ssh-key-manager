@@ -1,5 +1,5 @@
 # lib/ssh-ops.sh — SSH key operations
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_SSH_OPS_SH_LOADED:-}" ]] && return 0
 _SSH_OPS_SH_LOADED=1
 # EXPORTS: deploy_ssh_key_to_remote  install_ssh_key_on_remote

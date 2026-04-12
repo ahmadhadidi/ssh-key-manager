@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# ssh-key-manager.sh — SSH Key Manager TUI
+# hddssh.sh — SSH Key Manager TUI
 #
 # Usage:
-#   bash ssh-key-manager.sh [OPTIONS]
-#   bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/ssh-key-manager.sh) [OPTIONS]
+#   bash hddssh.sh [OPTIONS]
+#   bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/hddssh.sh) [OPTIONS]
 #
 # Options:
 #   --user NAME           Default remote username        (default: default_non_root_username)

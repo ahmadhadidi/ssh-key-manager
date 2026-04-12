@@ -1,5 +1,5 @@
 # lib/ssh-helpers.sh — SSH utility helpers shared across ssh-ops and menu
-# Sourced by ssh-key-manager.sh — do not execute directly.
+# Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_SSH_HELPERS_SH_LOADED:-}" ]] && return 0
 _SSH_HELPERS_SH_LOADED=1
 # EXPORTS: _out  _out_item  show_op_banner

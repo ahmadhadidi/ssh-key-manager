@@ -518,10 +518,10 @@ function Invoke-MenuChoice {
                 if ($pVal) { $bf += " --password `"$pVal`"";       $pf += " -DefaultPassword `"$pVal`"" }
 
                 $maxCw = $tw - 6
-                $c1 = "bash <(curl -fsSL $rawUrl/ssh-key-manager.sh)$bf"
-                $c2 = "bash ssh-key-manager.sh$bf"
-                $c3 = "`$sb=[scriptblock]::Create((irm `"$rawUrl/generate_key_test.ps1`")); & `$sb$pf"
-                $c4 = "& ./generate_key_test.ps1$pf"
+                $c1 = "bash <(curl -fsSL $rawUrl/hddssh.sh)$bf"
+                $c2 = "bash hddssh.sh$bf"
+                $c3 = "`$sb=[scriptblock]::Create((irm `"$rawUrl/hddssh.ps1`")); & `$sb$pf"
+                $c4 = "& ./hddssh.ps1$pf"
                 if ($c1.Length -gt $maxCw) { $c1 = $c1.Substring(0, $maxCw - 3) + "..." }
                 if ($c2.Length -gt $maxCw) { $c2 = $c2.Substring(0, $maxCw - 3) + "..." }
                 if ($c3.Length -gt $maxCw) { $c3 = $c3.Substring(0, $maxCw - 3) + "..." }
