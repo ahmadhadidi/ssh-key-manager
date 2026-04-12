@@ -147,7 +147,7 @@ _ssh_fence() {
     _term_size
     local inner_w=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
     local label=""
-    [[ -n $target ]] && label=" SSH Session ${target} "
+    [[ -n $target ]] && label=" ⏩ SSH Session ${target} "
     if [[ -n $label ]]; then
         local llen=${#label}
         local dtotal=$(( inner_w - llen ))
