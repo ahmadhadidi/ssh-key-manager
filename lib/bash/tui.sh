@@ -186,8 +186,13 @@ format_menu_label() {
         return
     fi
     local lo="${hotkey,,}" up="${hotkey^^}"
-    local _e=$'\e'
-    printf '%s' "$label" | sed "s/[$lo$up]/${_e}[1;4m\&${_e}[0;97m/1"
+    # Pure bash regex — no subprocess, no BSD/GNU sed incompatibility.
+    # [^${lo}${up}]* matches greedily up to the first hotkey char (case-insensitive).
+    if [[ "$label" =~ ^([^${lo}${up}]*)([$lo$up])(.*)$ ]]; then
+        printf '%s\e[1;4m%s\e[0;97m%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+    else
+        printf '%s' "$label"
+    fi
 }
 
 # Multi-select checklist widget.
