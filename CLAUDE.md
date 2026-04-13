@@ -57,7 +57,7 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~482 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:108, `select_from_list`:313, `select_multi_from_list`:199, `show_paged`:160 |
+| `tui.sh` | ~480 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:311, `select_multi_from_list`:197, `show_paged`:157 |
 | `ssh-config.sh` | ~151 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:44, `_replace_host_block`:138, `get_alias_for_host_ip`:104 |
 | `ssh-helpers.sh` | ~250 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:246, `_setup_askpass`:179 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
@@ -77,12 +77,12 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_regex_escape`:24, `_repeat`:29, `_max`:35, `_min`:36
-- `_read_key`:41 / `_read_key_nb`:73 / `_read_key_raw`:108 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:150 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:160 — Paginator for long output.
-- `format_menu_label`:185 — Hotkey character highlighting.
-- `select_multi_from_list`:199 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:313 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_read_key`:41 / `_read_key_nb`:75 / `_read_key_raw`:105 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:147 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:157 — Paginator for long output.
+- `format_menu_label`:182 — Hotkey character highlighting.
+- `select_multi_from_list`:197 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:311 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -188,13 +188,14 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ## Key implementation notes
 
 - **Remote lib loading uses temp files, not nested process substitution.** `source <(curl ...)` nested inside `bash <(curl ...)` fails on macOS — the outer process substitution holds a `/dev/fd` FD, and opening more FDs for inner substitutions causes curl to get a closed pipe (`Failure writing output to destination`). Fix: `_source_lib` downloads each lib to a `mktemp` file, sources it, then deletes it.
+- **`format_menu_label` must use a bash variable for ESC, not `\x1b` in sed.** BSD sed (macOS default) does not interpret `\x1b` in replacement strings — only GNU sed does. Using `\x1b` on macOS causes the replacement to be silently dropped, making all non-selected menu labels render as blank. Fix: `local _e=$'\e'` then reference `${_e}` in the sed replacement string.
 - **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
 - **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
 - **Passphrase-protected keys.** Never use `-o BatchMode=yes` when testing keys — it blocks passphrase prompts. Use `-o PreferredAuthentications=publickey` to restrict to key auth without silencing prompts.
 - **`_LAST_SELECTED_ALIAS` subshell loss.** Any global set inside `$()` is discarded. Use `get_alias_for_host_ip` as a reverse-lookup after the subshell returns, or use `_prompt_remote` which handles this correctly.
 - **Ctrl+C guard.** The INT/TERM/TSTP traps only set the exit code; cleanup lives exclusively in the EXIT trap. The `_MENU_CLEANED_UP=1` flag prevents a second cleanup run.
 - **`authorized_keys` newline.** `printf '%s'` (not `printf '%s\n'`) when writing the public key — the `.pub` file already ends with `\n`.
-- **`_read_key_raw` vs `_read_key`.** `_read_key_raw` skips the `stty` save/restore (2 subprocess forks). Use it only when the caller already holds raw mode — i.e., inside `select_from_list` and `select_multi_from_list` render loops. `_read_key` manages its own mode and is safe to call anywhere else.
+- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else.
 - **`select_from_list` writes to `/dev/tty`, result in `_SELECT_RESULT`.** All TUI rendering goes to `/dev/tty` (fallback: `/proc/self/fd/2`) so the widget works correctly inside `$(...)` subshells. Never capture the return value with `$(select_from_list ...)` — it will be empty. Read `_SELECT_RESULT` and check `_SELECT_CANCELLED` after the call returns.
 - **`_HOST_BLOCK` global is overwritten on every `_get_host_block` call.** Consume `_HOST_BLOCK` immediately after calling `_get_host_block`; any subsequent call (including those inside helpers like `_block_field` callers) will clobber it.
 - **`show_op_banner` dual mode.** Default (stream) prints directly to stdout. Buffer mode: set `_OP_BANNER_ROW` to the starting row before calling — output goes into `_OP_BANNER_BUF` for the caller to append to its frame. Always sets `_SFL_BANNER_ROWS=5` so `select_from_list`/`select_multi_from_list` offset their start row below the banner.
