@@ -57,15 +57,15 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~485 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:316, `select_multi_from_list`:202, `show_paged`:157 |
-| `ssh-config.sh` | ~151 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:44, `_replace_host_block`:138, `get_alias_for_host_ip`:104 |
+| `tui.sh` | ~490 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:319, `select_multi_from_list`:205, `show_paged`:157 |
+| `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~250 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:246, `_setup_askpass`:179 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
-| `config-display.sh` | ~480 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
+| `config-display.sh` | ~490 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_do_create_config`:402 |
 | `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
-| `menu-renderer.sh` | ~341 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
+| `menu-renderer.sh` | ~345 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
 
 ### Control flow
 
@@ -81,8 +81,8 @@ When modifying a module, these are the other files that call its functions:
 - `wait_user_acknowledge`:147 — "Press any key" gate (also in menu.sh dispatcher)
 - `show_paged`:157 — Paginator for long output.
 - `format_menu_label`:182 — Hotkey character highlighting.
-- `select_multi_from_list`:202 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:316 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `select_multi_from_list`:205 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:319 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -91,11 +91,11 @@ When modifying a module, these are the other files that call its functions:
 Reads `~/.ssh/config` using `perl`, `awk`, `grep`:
 - `get_configured_ssh_hosts`:14 — emits `alias|hostname|user` tuples
 - `get_available_ssh_keys`:28 — lists private keys in `~/.ssh`
-- `_get_host_block`:44 / `_replace_host_block`:138 — multiline Host block read/write
-- `_block_field`:96 — extract a single field from a Host block
-- `get_identity_files_for_host`:55 / `get_hosts_using_key`:82 — cross-reference keys and hosts
-- `get_alias_for_host_ip`:104 — reverse-lookup Host alias from a HostName IP
-- `get_ip_from_host_config`:113, `get_user_from_host_config`:119, `get_identity_file_from_host_config`:125
+- `_get_host_block`:49 / `_replace_host_block`:143 — multiline Host block read/write
+- `_block_field`:101 — extract a single field from a Host block
+- `get_identity_files_for_host`:60 / `get_hosts_using_key`:87 — cross-reference keys and hosts
+- `get_alias_for_host_ip`:109 — reverse-lookup Host alias from a HostName IP
+- `get_ip_from_host_config`:118, `get_user_from_host_config`:124, `get_identity_file_from_host_config`:130
 
 ### ssh-helpers.sh
 
@@ -148,7 +148,7 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 - `edit_ssh_config_file`:122
 - `remove_host_from_ssh_config`:146 — removes a Host block after confirmation
 - `show_ssh_key_inventory`:193 — lists local keys, their fingerprints, and which hosts reference them
-- `_view_ssh_key`:376 / `_display_key_file`:416
+- `_view_ssh_key`:386 / `_display_key_file`:426
 
 ### menu.sh
 

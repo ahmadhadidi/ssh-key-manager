@@ -234,7 +234,7 @@ _menu_append_key_to_config() {   # choice 7
             "$keyname" "$host_display"
         local proceed
         proceed=$(read_host_with_default "Add to config anyway? (y/N):" "N") || proceed="N"
-        [[ ${proceed,,} =~ ^y ]] || return 0
+        [[ "$proceed" =~ ^[yY] ]] || return 0
     fi
     add_ssh_key_to_host_config "$keyname" "$host_name" "$host_addr" "$remote_user"
 }
@@ -427,7 +427,7 @@ _check_config_at_start() {
     IFS= read -r ans 2>/dev/null || ans=''
     printf '\e[?25l'
 
-    if [[ -z $ans || ${ans,,} == y* ]]; then
+    if [[ -z $ans || "$ans" == [yY]* ]]; then
         _do_create_config
         printf '\n  \e[90mPress any key to continue...\e[0m'
         _read_key
