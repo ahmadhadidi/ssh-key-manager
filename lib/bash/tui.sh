@@ -70,13 +70,11 @@ _read_key() {
 
 # Non-blocking read: waits up to ~50 ms. Returns 0 if key read, 1 on timeout.
 # Sets global KEY on success.
+# Caller must already hold raw mode (-echo -icanon min 0 time 0) — no stty
+# save/restore here to avoid 2 subprocess forks per poll tick in the menu loop.
 _read_key_nb() {
     local k s1 s2 s3 s4
-    local _st
-    _st=$(stty -g 2>/dev/null) || true
-    stty -echo -icanon min 0 time 0 2>/dev/null || true
     IFS= read -r -n1 -t 0.05 k 2>/dev/null || {
-        stty "$_st" 2>/dev/null || true
         KEY=''
         return 1
     }
@@ -97,7 +95,6 @@ _read_key_nb() {
         fi
         k="${k}${s1}${s2}${s3}${s4}"
     fi
-    stty "$_st" 2>/dev/null || true
     KEY="$k"
     return 0
 }
@@ -189,7 +186,8 @@ format_menu_label() {
         return
     fi
     local lo="${hotkey,,}" up="${hotkey^^}"
-    printf '%s' "$label" | sed "s/[$lo$up]/\x1b[1;4m&\x1b[0;97m/1"
+    local _e=$'\e'
+    printf '%s' "$label" | sed "s/[$lo$up]/${_e}[1;4m\&${_e}[0;97m/1"
 }
 
 # Multi-select checklist widget.
