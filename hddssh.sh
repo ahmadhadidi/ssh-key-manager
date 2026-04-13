@@ -66,11 +66,19 @@ _source_lib() {
         # shellcheck source=/dev/null
         source "$local_path"
     else
-        # shellcheck source=/dev/null
-        source <(curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh") || {
+        # Use a temp file to avoid nested process substitution FD conflicts
+        # (nested source <(curl ...) inside bash <(curl ...) fails on macOS)
+        local tmp
+        tmp="$(mktemp /tmp/ssh-key-manager-XXXXXX.sh)"
+        if curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh" -o "$tmp"; then
+            # shellcheck source=/dev/null
+            source "$tmp"
+            rm -f "$tmp"
+        else
+            rm -f "$tmp"
             printf 'Error: failed to load lib/bash/%s.sh from %s\n' "$name" "$_BASE_URL" >&2
             exit 1
-        }
+        fi
     fi
 }
 

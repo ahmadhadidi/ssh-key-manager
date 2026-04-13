@@ -187,6 +187,7 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 
 ## Key implementation notes
 
+- **Remote lib loading uses temp files, not nested process substitution.** `source <(curl ...)` nested inside `bash <(curl ...)` fails on macOS — the outer process substitution holds a `/dev/fd` FD, and opening more FDs for inner substitutions causes curl to get a closed pipe (`Failure writing output to destination`). Fix: `_source_lib` downloads each lib to a `mktemp` file, sources it, then deletes it.
 - **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
 - **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
 - **Passphrase-protected keys.** Never use `-o BatchMode=yes` when testing keys — it blocks passphrase prompts. Use `-o PreferredAuthentications=publickey` to restrict to key auth without silencing prompts.
