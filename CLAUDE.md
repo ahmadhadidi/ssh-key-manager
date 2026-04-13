@@ -190,6 +190,35 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 - **Remote lib loading uses temp files, not nested process substitution.** `source <(curl ...)` nested inside `bash <(curl ...)` fails on macOS — the outer process substitution holds a `/dev/fd` FD, and opening more FDs for inner substitutions causes curl to get a closed pipe (`Failure writing output to destination`). Fix: `_source_lib` downloads each lib to a `mktemp` file, sources it, then deletes it.
 - **`format_menu_label` uses pure bash regex, not `sed`.** BSD sed (macOS) does not support `\x1b` in replacements, and embedding a raw ESC byte in the sed replacement string is unreliable across platforms. The function uses `[[ =~ ]]` with `BASH_REMATCH` — `^([^lo_up]*)(char)(.*)$` finds the first hotkey occurrence — then `printf '\e[1;4m...\e[0;97m'` wraps it. No subprocess, no platform differences.
 - **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
+
+## macOS / bash 3.2 compatibility rules
+
+macOS ships with bash 3.2 (GPL v2 licensing). The codebase must stay compatible. Every bash 4+ construct that sneaks in will silently break on macOS — usually with no error, just wrong behavior.
+
+**Banned bash 4+ syntax — never use these:**
+
+| Banned | Replace with |
+|---|---|
+| `${var,,}` / `${var^^}` | `tr 'A-Z' 'a-z' <<< "$var"` / `tr`; or `[yY]` glob / `[[ =~ [yY] ]]` for y/n checks |
+| `local -A` / `declare -A` (associative arrays) | Parallel indexed arrays (`local -a keys=() vals=()`); or direct file checks; or `sort -u` pipeline for set-union |
+| `${var@Q}` (quoting operator) | Avoid; use printf `%q` or manual escaping |
+
+**Specific patterns established in this codebase:**
+
+- **Case-insensitive comparisons** — use `shopt -s nocasematch; [[ "$a" == "$b" ]]; shopt -u nocasematch` (available bash 3.1+), or expand both cases explicitly (`[yY]`, `y|Y|yes|Yes|YES`).
+- **Hotkey uppercasing for menu dispatch** — `k_up=$(tr 'a-z' 'A-Z' <<< "$k")` once before the loop; compare against the stored uppercase hotkey directly.
+- **Associative maps with string keys** — use two parallel `local -a` arrays (`_umap_keys` / `_umap_vals`) with O(n) linear search. Key counts in this app are always < 20 so this is fast enough.
+- **Key inventory set-union** — replace `"${!assoc[@]}"` iteration with a `{ list_source_a; list_source_b; } | sort -u` pipeline fed into a `while read` loop.
+
+**Non-blocking terminal reads — the `_read_key_nb` contract:**
+
+bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-blocking reads. Use stty VTIME instead:
+
+- `stty -echo -icanon min 0 time 1` — kernel returns 0 bytes after 100 ms with no input; bash `read` sees a 0-byte read as EOF and returns exit code 1. This is the correct "timeout, no key" signal.
+- `_read_key_nb` drops `-t` from the initial `read` call entirely; timeout is owned by the kernel.
+- After reading an ESC byte, briefly switch to `stty min 0 time 0` (truly non-blocking) to drain the remaining escape-sequence bytes from the buffer without waiting 100 ms per byte; then restore `min 0 time 1`.
+- Do NOT use `min 0 time 0` as the main loop stty setting — it makes the fd look permanently readable to `select()`, which breaks bash's own `-t` implementation and causes the poll loop to spin or freeze.
+- `min 1 time 0` (block until 1 char) is correct for `_read_key` and `_read_key_raw` (used in blocking contexts), but wrong for the non-blocking poll loop.
 - **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
 - **Passphrase-protected keys.** Never use `-o BatchMode=yes` when testing keys — it blocks passphrase prompts. Use `-o PreferredAuthentications=publickey` to restrict to key auth without silencing prompts.
 - **`_LAST_SELECTED_ALIAS` subshell loss.** Any global set inside `$()` is discarded. Use `get_alias_for_host_ip` as a reverse-lookup after the subshell returns, or use `_prompt_remote` which handles this correctly.
