@@ -57,7 +57,7 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~480 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:311, `select_multi_from_list`:197, `show_paged`:157 |
+| `tui.sh` | ~485 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:316, `select_multi_from_list`:202, `show_paged`:157 |
 | `ssh-config.sh` | ~151 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:44, `_replace_host_block`:138, `get_alias_for_host_ip`:104 |
 | `ssh-helpers.sh` | ~250 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:246, `_setup_askpass`:179 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
@@ -81,8 +81,8 @@ When modifying a module, these are the other files that call its functions:
 - `wait_user_acknowledge`:147 — "Press any key" gate (also in menu.sh dispatcher)
 - `show_paged`:157 — Paginator for long output.
 - `format_menu_label`:182 — Hotkey character highlighting.
-- `select_multi_from_list`:197 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:311 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `select_multi_from_list`:202 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:316 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -188,7 +188,7 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ## Key implementation notes
 
 - **Remote lib loading uses temp files, not nested process substitution.** `source <(curl ...)` nested inside `bash <(curl ...)` fails on macOS — the outer process substitution holds a `/dev/fd` FD, and opening more FDs for inner substitutions causes curl to get a closed pipe (`Failure writing output to destination`). Fix: `_source_lib` downloads each lib to a `mktemp` file, sources it, then deletes it.
-- **`format_menu_label` must use a bash variable for ESC, not `\x1b` in sed.** BSD sed (macOS default) does not interpret `\x1b` in replacement strings — only GNU sed does. Using `\x1b` on macOS causes the replacement to be silently dropped, making all non-selected menu labels render as blank. Fix: `local _e=$'\e'` then reference `${_e}` in the sed replacement string.
+- **`format_menu_label` uses pure bash regex, not `sed`.** BSD sed (macOS) does not support `\x1b` in replacements, and embedding a raw ESC byte in the sed replacement string is unreliable across platforms. The function uses `[[ =~ ]]` with `BASH_REMATCH` — `^([^lo_up]*)(char)(.*)$` finds the first hotkey occurrence — then `printf '\e[1;4m...\e[0;97m'` wraps it. No subprocess, no platform differences.
 - **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
 - **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
 - **Passphrase-protected keys.** Never use `-o BatchMode=yes` when testing keys — it blocks passphrase prompts. Use `-o PreferredAuthentications=publickey` to restrict to key auth without silencing prompts.
