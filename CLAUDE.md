@@ -57,7 +57,7 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~490 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:105, `select_from_list`:319, `select_multi_from_list`:205, `show_paged`:157 |
+| `tui.sh` | ~496 | Terminal primitives, TUI widgets | `_read_key`:41, `_read_key_raw`:111, `select_from_list`:325, `select_multi_from_list`:211, `show_paged`:163 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~250 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:246, `_setup_askpass`:179 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
@@ -77,12 +77,12 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_regex_escape`:24, `_repeat`:29, `_max`:35, `_min`:36
-- `_read_key`:41 / `_read_key_nb`:75 / `_read_key_raw`:105 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:147 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:157 — Paginator for long output.
-- `format_menu_label`:182 — Hotkey character highlighting.
-- `select_multi_from_list`:205 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:319 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_read_key`:41 / `_read_key_nb`:75 / `_read_key_raw`:111 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:153 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:163 — Paginator for long output.
+- `format_menu_label`:188 — Hotkey character highlighting.
+- `select_multi_from_list`:211 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:325 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 

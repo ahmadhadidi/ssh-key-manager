@@ -68,31 +68,37 @@ _read_key() {
     KEY="$k"
 }
 
-# Non-blocking read: waits up to ~50 ms. Returns 0 if key read, 1 on timeout.
-# Sets global KEY on success.
-# Caller must already hold raw mode (-echo -icanon min 0 time 0) — no stty
-# save/restore here to avoid 2 subprocess forks per poll tick in the menu loop.
+# Non-blocking read: relies on stty VTIME (min 0 time 1 = 100 ms kernel timeout)
+# set by show_main_menu. Returns 0 if key read, 1 on timeout.
+# Does NOT use bash's -t flag — unreliable on bash 3.2 / macOS.
+# Caller must already hold raw mode (-echo -icanon min 0 time 1).
 _read_key_nb() {
     local k s1 s2 s3 s4
-    IFS= read -r -n1 -t 0.05 k 2>/dev/null || {
+    # No -t: timeout comes from stty VTIME=1 (100ms). A 0-byte kernel return
+    # is seen as EOF by bash's read builtin, which returns exit code 1.
+    IFS= read -r -n1 k 2>/dev/null || {
         KEY=''
         return 1
     }
-    # Successful read with empty $k = Enter key (newline was consumed by read).
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        # Switch to truly non-blocking (VTIME=0) for ESC continuation bytes.
+        # Arrow/F-key bytes are already in the buffer; standalone ESC gets
+        # empty s1/s2 immediately instead of waiting 100 ms each.
+        stty min 0 time 0 2>/dev/null || true
+        IFS= read -r -n1 s1 2>/dev/null || s1=''
+        IFS= read -r -n1 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            IFS= read -r -n1 s3 2>/dev/null || s3=''
             if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+                IFS= read -r -n1 s4 2>/dev/null || s4=''
             else
                 s4=''
             fi
         else
             s3=''; s4=''
         fi
+        stty min 0 time 1 2>/dev/null || true
         k="${k}${s1}${s2}${s3}${s4}"
     fi
     KEY="$k"

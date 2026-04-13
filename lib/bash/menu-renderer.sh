@@ -121,7 +121,7 @@ show_main_menu() {
     # Then enter raw/noecho immediately so the event loop never echoes escape sequences.
     _STTY_SAVED=$(stty -g 2>/dev/null) || true
     printf '\e[?1049h\e[?25l'
-    stty -echo -icanon min 1 time 0 2>/dev/null || true
+    stty -echo -icanon min 0 time 1 2>/dev/null || true
 
     _MENU_CLEANED_UP=0
     _menu_cleanup() {
@@ -294,7 +294,7 @@ show_main_menu() {
                 stty sane 2>/dev/null || true
                 printf '\e[?25h'
                 _show_menu_help
-                stty -echo -icanon min 1 time 0 2>/dev/null || true
+                stty -echo -icanon min 0 time 1 2>/dev/null || true
                 need_full=1
                 ;;
             "$KEY_F2_A"|"$KEY_F2_B")
@@ -306,7 +306,7 @@ show_main_menu() {
                     printf '\n  \e[90mPress any key to continue...\e[0m'
                     _read_key
                     printf '\e[?25l'
-                    stty -echo -icanon min 1 time 0 2>/dev/null || true
+                    stty -echo -icanon min 0 time 1 2>/dev/null || true
                     need_full=1
                 fi
                 ;;
