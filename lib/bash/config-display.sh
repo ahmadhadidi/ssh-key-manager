@@ -177,7 +177,7 @@ remove_host_from_ssh_config() {
 
     local confirm
     confirm=$(read_colored_input "Remove this block? [y/N]" yellow)
-    if [[ ! ${confirm,,} =~ ^(y|yes)$ ]]; then
+    if [[ ! "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
         printf '  \e[33mCancelled.\e[0m\n'
         return
     fi
@@ -202,34 +202,42 @@ show_ssh_key_inventory() {
     fi
 
     # ── Build key metadata ──────────────────────────────────────────────────
-    local -A has_pub=() has_priv=()
-    local f
-    for f in "$SSH_DIR"/*.pub; do
-        [[ -f $f ]] && has_pub["$(basename "${f%.pub}")"]="1"
-    done
-    while IFS= read -r k; do has_priv["$k"]="1"; done < <(get_available_ssh_keys)
+    # Collect unique key names from .pub files and private key files (bash 3.2:
+    # no local -A; build sorted unique list directly instead of associative sets).
+    local -a sorted_keys=()
+    local f k
+    while IFS= read -r k; do sorted_keys+=("$k"); done < <(
+        {
+            for f in "$SSH_DIR"/*.pub; do
+                [[ -f "$f" ]] && basename "${f%.pub}"
+            done
+            get_available_ssh_keys
+        } | sort -u
+    )
+    local key_count=${#sorted_keys[@]}
 
-    local -A all_keys=()
-    local k
-    for k in "${!has_pub[@]}" "${!has_priv[@]}"; do all_keys["$k"]="1"; done
-
-    if (( ${#all_keys[@]} == 0 )); then
+    if (( key_count == 0 )); then
         printf '  \e[33mNo key files found in %s\e[0m\n' "$SSH_DIR"
         return
     fi
 
-    local -A usage_map=()
+    # Build usage map as parallel arrays (bash 3.2: no local -A).
+    local -a _umap_keys=() _umap_vals=()
     if [[ -f "$SSH_CONFIG" ]]; then
-        while IFS='|' read -r alias _ _; do
-            _get_host_block "$alias"
-            local idf
-            while IFS= read -r idf; do
-                local kname; kname=$(basename "$idf")
-                if [[ -n ${usage_map[$kname]+x} ]]; then
-                    usage_map["$kname"]+=",$alias"
-                else
-                    usage_map["$kname"]="$alias"
-                fi
+        local _alias _idf _kname _ui _found
+        while IFS='|' read -r _alias _ _; do
+            _get_host_block "$_alias"
+            while IFS= read -r _idf; do
+                _kname=$(basename "$_idf")
+                _found=0
+                for (( _ui=0; _ui<${#_umap_keys[@]}; _ui++ )); do
+                    if [[ "${_umap_keys[$_ui]}" == "$_kname" ]]; then
+                        _umap_vals[$_ui]+=",${_alias}"
+                        _found=1
+                        break
+                    fi
+                done
+                (( _found )) || { _umap_keys+=("$_kname"); _umap_vals+=("$_alias"); }
             done < <(printf '%s\n' "$_HOST_BLOCK" | \
                 grep -E '^\s*IdentityFile\s+' | \
                 sed -E 's/^\s*IdentityFile\s+//; s/^"(.*)"$/\1/' | \
@@ -237,16 +245,15 @@ show_ssh_key_inventory() {
         done < <(get_configured_ssh_hosts)
     fi
 
-    local -a sorted_keys=()
-    while IFS= read -r k; do sorted_keys+=("$k"); done < <(printf '%s\n' "${!all_keys[@]}" | sort)
-    local key_count=${#sorted_keys[@]}
-
     # ── Column widths ───────────────────────────────────────────────────────
     local w_num=${#key_count}; (( w_num < 1 )) && w_num=1
-    local w_key=3 w_use=5
+    local w_key=3 w_use=5 _ui
     for k in "${sorted_keys[@]}"; do
         (( ${#k} > w_key )) && w_key=${#k}
-        local u="${usage_map[$k]:-}"
+        local u=""
+        for (( _ui=0; _ui<${#_umap_keys[@]}; _ui++ )); do
+            [[ "${_umap_keys[$_ui]}" == "$k" ]] && u="${_umap_vals[$_ui]}" && break
+        done
         (( ${#u} > w_use )) && w_use=${#u}
     done
 
@@ -306,16 +313,19 @@ show_ssh_key_inventory() {
             for (( idx=off; idx<off+content_rows && idx<key_count; idx++ )); do
                 k="${sorted_keys[$idx]}"
                 local pub_c prv_c
-                [[ -n ${has_pub[$k]+x} ]]  && pub_c="$_CY" || pub_c="$_CN"
-                [[ -n ${has_priv[$k]+x} ]] && prv_c="$_CY" || prv_c="$_CN"
-                local usage="${usage_map[$k]:-}"
+                [[ -f "$SSH_DIR/$k.pub" ]] && pub_c="$_CY" || pub_c="$_CN"
+                [[ -f "$SSH_DIR/$k"     ]] && prv_c="$_CY" || prv_c="$_CN"
+                local usage=""
+                for (( _ui=0; _ui<${#_umap_keys[@]}; _ui++ )); do
+                    [[ "${_umap_keys[$_ui]}" == "$k" ]] && usage="${_umap_vals[$_ui]}" && break
+                done
                 local num_str; printf -v num_str '%*d' "$w_num" $(( idx + 1 ))
 
                 if (( idx == sel )); then
                     # Use plain Y/N — embedded \e[0m in pub_c/prv_c would reset the highlight bg.
                     local pub_s prv_s
-                    [[ -n ${has_pub[$k]+x} ]]  && pub_s="  Y  " || pub_s="  N  "
-                    [[ -n ${has_priv[$k]+x} ]] && prv_s="  Y  " || prv_s="  N  "
+                    [[ -f "$SSH_DIR/$k.pub" ]] && pub_s="  Y  " || pub_s="  N  "
+                    [[ -f "$SSH_DIR/$k"     ]] && prv_s="  Y  " || prv_s="  N  "
                     printf -v _t '\e[%d;1H\e[48;5;6m\e[1;97m  \xe2\x94\x82 %s \xe2\x94\x82 %-*s \xe2\x94\x82%s\xe2\x94\x82%s\xe2\x94\x82 %-*s \xe2\x94\x82\e[K\e[0m' \
                         "$row" "$num_str" "$w_key" "$k" "$pub_s" "$prv_s" "$w_use" "$usage"
                 else

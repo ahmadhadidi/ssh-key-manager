@@ -14,7 +14,7 @@ _PROMPTS_SH_LOADED=1
 read_colored_input() {
     local prompt="${1:-Input}" color="${2:-cyan}"
     local code
-    case "${color,,}" in
+    case "$color" in
         cyan)    code=36 ;;
         yellow)  code=33 ;;
         green)   code=32 ;;
@@ -265,8 +265,8 @@ confirm_user_choice() {
     local message="$1" default="${2:-n}"
     local action_fn="$3"
     local suffix
-    if [[ ${default,,} == 'y' ]]; then suffix="[Y/n]"
-    elif [[ ${default,,} == 'n' ]]; then suffix="[y/N]"
+    if [[ "$default" == [yY] ]]; then suffix="[Y/n]"
+    elif [[ "$default" == [nN] ]]; then suffix="[y/N]"
     else suffix="[y/n]"
     fi
 
@@ -274,12 +274,12 @@ confirm_user_choice() {
     response=$(read_colored_input "$message $suffix" cyan)
     [[ -z $response ]] && response="$default"
 
-    case "${response,,}" in
-        y|yes)
+    case "$response" in
+        y|Y|yes|Yes|YES)
             "$action_fn"
             return 0
             ;;
-        n|no)
+        n|N|no|No|NO)
             printf '  \e[33mAction cancelled.\e[0m\n'
             return 1
             ;;

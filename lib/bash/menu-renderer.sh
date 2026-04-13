@@ -115,7 +115,7 @@ show_main_menu() {
 
     local sel=0 prev_sel=-1 need_full=1 running=1
     local term_w=0 term_h=0 view_off=0
-    local -A item_rows=()
+    local -a item_rows  # integer-keyed; indexed array works on bash 3.2
 
     # Enter alternate screen, save terminal state globally for reliable cleanup.
     # Then enter raw/noecho immediately so the event loop never echoes escape sequences.
@@ -317,10 +317,14 @@ show_main_menu() {
                 running=0 ;;
             *)
                 if [[ ${#k} -eq 1 ]]; then
-                    local hki
+                    # Convert pressed key to uppercase once for case-insensitive match.
+                    # All hotkeys are defined as uppercase letters, so comparing k_up
+                    # against nav_hotkey avoids bash 4+ ${var^^} operator.
+                    local k_up hki
+                    k_up=$(tr 'a-z' 'A-Z' <<< "$k")
                     for (( hki=0; hki<nav_count; hki++ )); do
                         if [[ -n ${nav_hotkey[$hki]} && \
-                              "${nav_hotkey[$hki],,}" == "${k,,}" ]]; then
+                              "${nav_hotkey[$hki]}" == "$k_up" ]]; then
                             local hk_choice="${nav_choice[$hki]}"
                             _dbg "Hotkey '$k' -> choice='$hk_choice'"
                             if [[ $hk_choice == "q" ]]; then

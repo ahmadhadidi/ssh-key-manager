@@ -185,7 +185,10 @@ format_menu_label() {
         printf '%s' "$label"
         return
     fi
-    local lo="${hotkey,,}" up="${hotkey^^}"
+    # tr is portable to bash 3.2; ${var,,}/${var^^} require bash 4+.
+    local lo up
+    lo=$(tr 'A-Z' 'a-z' <<< "$hotkey")
+    up=$(tr 'a-z' 'A-Z' <<< "$hotkey")
     # Pure bash regex — no subprocess, no BSD/GNU sed incompatibility.
     # [^${lo}${up}]* matches greedily up to the first hotkey char (case-insensitive).
     if [[ "$label" =~ ^([^${lo}${up}]*)([$lo$up])(.*)$ ]]; then
@@ -369,7 +372,9 @@ select_from_list() {
         filtered=()
         local it
         for it in "${items[@]}"; do
-            [[ -z $filter || "${it,,}" == *"${filter,,}"* ]] && filtered+=("$it")
+            shopt -s nocasematch
+            [[ -z $filter || "$it" == *"$filter"* ]] && filtered+=("$it")
+            shopt -u nocasematch
         done
         local fcount=${#filtered[@]}
 

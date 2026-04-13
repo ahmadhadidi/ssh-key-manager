@@ -15,22 +15,6 @@
 set -uo pipefail
 export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
-# ─── Bash version check ───────────────────────────────────────────────────────
-# Requires bash 4+ for: associative arrays (local -A), ${var,,}/${var^^},
-# read -t with fractional seconds, and other 4.x features.
-# macOS ships bash 3.2 — users must install bash 4+ via Homebrew.
-if (( BASH_VERSINFO[0] < 4 )); then
-    printf '\e[1;31mError:\e[0m bash 4+ is required (found %s).\n' "$BASH_VERSION" >&2
-    printf '\n' >&2
-    printf 'macOS ships with bash 3.2 due to licensing. Install a newer version:\n' >&2
-    printf '\n' >&2
-    printf '  \e[1mbrew install bash\e[0m\n' >&2
-    printf '\n' >&2
-    printf 'Then run with the full path:\n' >&2
-    printf '  \e[1m/opt/homebrew/bin/bash <(curl -fsSL ...)\e[0m   # Apple Silicon\n' >&2
-    printf '  \e[1m/usr/local/bin/bash    <(curl -fsSL ...)\e[0m   # Intel Mac\n' >&2
-    exit 1
-fi
 
 # ─── Defaults (overridable via CLI) ──────────────────────────────────────────
 DEFAULT_USER="default_non_root_username"

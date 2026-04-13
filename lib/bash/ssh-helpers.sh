@@ -97,7 +97,7 @@ show_op_banner() {
     local _content_raw="  "
     for (( i=0; i<${#pairs[@]}; i+=2 )); do
         local _val="${pairs[$i+1]}"
-        local _key_up; printf -v _key_up '%-*s' $(( max_klen + 1 )) "${pairs[$i]^^}:"
+        local _key_up; printf -v _key_up '%-*s' $(( max_klen + 1 )) "$(tr 'a-z' 'A-Z' <<< "${pairs[$i]}"):"
         if (( i > 0 )); then
             _content_raw+="    "           # 4-char separator between KVPs
             (( _content_disp += 4 ))
@@ -216,7 +216,7 @@ _write_key_pair() {
     if [[ -f $dest_priv ]]; then
         local overwrite
         overwrite=$(read_colored_input "  '$(basename "$dest_priv")' already exists. Overwrite? [y/N]" yellow)
-        [[ ! ${overwrite,,} =~ ^y ]] && _out warn 'Aborted.' && return 1
+        [[ ! "$overwrite" =~ ^[yY] ]] && _out warn 'Aborted.' && return 1
     fi
     if (( copy )); then
         cp "$priv_data" "$dest_priv" && chmod 600 "$dest_priv"

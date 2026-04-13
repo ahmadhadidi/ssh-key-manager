@@ -35,7 +35,12 @@ get_available_ssh_keys() {
         [[ $name == *.pub ]] && continue
         local skip=0
         local ex
-        for ex in $exclude; do [[ ${name,,} == "$ex" ]] && skip=1 && break; done
+        for ex in $exclude; do
+            shopt -s nocasematch
+            [[ "$name" == "$ex" ]] && skip=1
+            shopt -u nocasematch
+            (( skip )) && break
+        done
         (( skip )) || printf '%s\n' "$name"
     done | sort
 }
