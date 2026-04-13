@@ -21,7 +21,7 @@ _invoke_choice() {
     local _ipad; printf -v _ipad '%*s' "$_iw" ''
     local _llen=${#label}
     local _lpad=$(( (_iw - _llen) / 2 )); (( _lpad < 0 )) && _lpad=0
-    local _rpad=$(( _iw - _llen - _lpad )); (( _rpad < 0 )) && _rpad=0
+    local _rpad=$(( _iw - 0 - _llen - _lpad )); (( _rpad < 0 )) && _rpad=0
     local _lspc _rspc; printf -v _lspc '%*s' "$_lpad" ''; printf -v _rspc '%*s' "$_rpad" ''
     printf '\e[2J\e[H\e[?25h\n'
     printf '  \e[96m%s%s%s\e[0m\n' "$_TL" "$_hrule" "$_TR"
