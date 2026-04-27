@@ -42,14 +42,14 @@ show_ssh_config_file() {
         fi
     done < "$SSH_CONFIG"
 
-    _OP_BANNER_ROW=5
+    _OP_BANNER_ROW=8
     show_op_banner "config" "$SSH_CONFIG"
     local _cfg_banner="$_OP_BANNER_BUF" _banner_rows=$_OP_BANNER_ROWS
     unset _OP_BANNER_ROW
 
     local total=${#out[@]}
     _term_size
-    local content_rows=$(( TERM_H - 5 - _banner_rows - 1 ))
+    local content_rows=$(( TERM_H - 8 - _banner_rows - 1 ))
     (( content_rows < 1 )) && content_rows=1
     local off=0 need_redraw=1
 
@@ -62,17 +62,13 @@ show_ssh_config_file() {
         (( off > max_off )) && off=$max_off
 
         if (( need_redraw )); then
-            local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
-            local _label="👁️  View SSH Config"
-            local _tpad; _tpad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#_label}) / 2 > 0 ? (TERM_W - 4 - ${#_label}) / 2 : 0 ))")
-            local f
-            printf -v _t '\e[2J\e[H';                                                      f="$_t"
-            printf -v _t '\e[2;1H  \e[96m%s\e[0m\e[K'                "$rule";             f+="$_t"
-            printf -v _t '\e[3;1H\e[48;5;23m\e[1;97m  %s%s\e[K\e[0m' "$_tpad" "$_label"; f+="$_t"
-            printf -v _t '\e[4;1H  \e[96m%s\e[0m\e[K'                "$rule";             f+="$_t"
+            _OP_HDR_ROW=1; _draw_op_header "👁️  View SSH Config"; unset _OP_HDR_ROW
+            local f _t
+            printf -v _t '\e[2J\e[H'; f="$_t"
+            f+="$_OP_HDR_BUF"
             f+="$_cfg_banner"
 
-            local row=$(( 5 + _banner_rows )) i
+            local row=$(( 8 + _banner_rows )) i
             for (( i=off; i<off+content_rows && i<total; i++ )); do
                 printf -v _t '\e[%d;1H%s\e[K' "$row" "${out[$i]}"; f+="$_t"
                 (( row++ ))
@@ -105,12 +101,13 @@ show_ssh_config_file() {
             q|Q|"$KEY_ESC") break ;;
         esac
 
-        local nw nh
-        nw=$(tput cols 2>/dev/null || echo 80)
-        nh=$(tput lines 2>/dev/null || echo 24)
+        local nw nh _sz
+        _sz=$(stty size 2>/dev/null)
+        if [[ -n $_sz ]]; then nh=${_sz%% *}; nw=${_sz##* }
+        else nw=$(tput cols 2>/dev/null || echo 80); nh=$(tput lines 2>/dev/null || echo 24); fi
         if (( nw != TERM_W || nh != TERM_H )); then
             TERM_W=$nw; TERM_H=$nh
-            content_rows=$(( TERM_H - 5 - _banner_rows - 1 ))
+            content_rows=$(( TERM_H - 8 - _banner_rows - 1 ))
             (( content_rows < 1 )) && content_rows=1
             need_redraw=1
         fi
@@ -191,7 +188,7 @@ remove_host_from_ssh_config() {
 }
 
 show_ssh_key_inventory() {
-    _OP_BANNER_ROW=5
+    _OP_BANNER_ROW=8
     show_op_banner "ssh dir" "$SSH_DIR"
     local _inv_banner="$_OP_BANNER_BUF" _banner_rows=$_OP_BANNER_ROWS
     unset _OP_BANNER_ROW
@@ -285,7 +282,7 @@ show_ssh_key_inventory() {
     while true; do
         if (( need_redraw )); then
             _term_size
-            local hdr_rows=$(( 7 + _banner_rows ))
+            local hdr_rows=$(( 10 + _banner_rows ))
             local content_rows=$(( TERM_H - hdr_rows - 2 ))  # -2 for hint bar + border row
             (( content_rows < 1 )) && content_rows=1
 
@@ -295,21 +292,16 @@ show_ssh_key_inventory() {
             fi
             (( off < 0 )) && off=0
 
-            local rule; rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
-            local _label="🗝️  List SSH Keys"
-            local _tpad; _tpad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#_label}) / 2 > 0 ? (TERM_W - 4 - ${#_label}) / 2 : 0 ))")
-            local title_str="  ${_tpad}${_label}"
+            _OP_HDR_ROW=1; _draw_op_header "🗝️  List SSH Keys"; unset _OP_HDR_ROW
             local g _t
-            printf -v _t '\e[2J\e[H';                                               g="$_t"
-            printf -v _t '\e[2;1H  \e[96m%s\e[0m\e[K'       "$rule";               g+="$_t"
-            printf -v _t '\e[3;1H\e[48;5;23m\e[1;97m%s\e[K\e[0m' "$title_str";     g+="$_t"
-            printf -v _t '\e[4;1H  \e[96m%s\e[0m\e[K'       "$rule";               g+="$_t"
+            printf -v _t '\e[2J\e[H'; g="$_t"
+            g+="$_OP_HDR_BUF"
             g+="$_inv_banner"
-            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 5 + _banner_rows )) "$tbl_top"; g+="$_t"
-            printf -v _t '\e[%d;1H\e[1;37m%s\e[0m\e[K'  $(( 6 + _banner_rows )) "$tbl_hdr"; g+="$_t"
-            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 7 + _banner_rows )) "$tbl_sep"; g+="$_t"
+            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 8 + _banner_rows )) "$tbl_top"; g+="$_t"
+            printf -v _t '\e[%d;1H\e[1;37m%s\e[0m\e[K'  $(( 9 + _banner_rows )) "$tbl_hdr"; g+="$_t"
+            printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 10 + _banner_rows )) "$tbl_sep"; g+="$_t"
 
-            local row=$(( 8 + _banner_rows )) idx
+            local row=$(( 11 + _banner_rows )) idx
             for (( idx=off; idx<off+content_rows && idx<key_count; idx++ )); do
                 k="${sorted_keys[$idx]}"
                 local pub_c prv_c

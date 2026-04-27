@@ -57,15 +57,15 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~503 | Terminal primitives, TUI widgets | `_read_key`:48, `_read_key_raw`:118, `select_from_list`:332, `select_multi_from_list`:218, `show_paged`:170 |
+| `tui.sh` | ~527 | Terminal primitives, TUI widgets | `_read_key`:72, `_read_key_raw`:142, `select_from_list`:356, `select_multi_from_list`:242, `show_paged`:194 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
-| `ssh-helpers.sh` | ~250 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:246, `_setup_askpass`:179 |
+| `ssh-helpers.sh` | ~298 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
-| `config-display.sh` | ~490 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
+| `config-display.sh` | ~482 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:190, `remove_host_from_ssh_config`:143 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_do_create_config`:402 |
 | `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
-| `menu-renderer.sh` | ~351 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
+| `menu-renderer.sh` | ~336 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
 
 ### Control flow
 
@@ -76,13 +76,13 @@ When modifying a module, these are the other files that call its functions:
 
 ### tui.sh
 
-- `_dbg`:12, `_term_size`:19, `_regex_escape`:31, `_repeat`:36, `_max`:42, `_min`:43
-- `_read_key`:48 / `_read_key_nb`:82 / `_read_key_raw`:118 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:160 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:170 — Paginator for long output.
-- `format_menu_label`:195 — Hotkey character highlighting.
-- `select_multi_from_list`:218 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:332 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_dbg`:12, `_term_size`:19, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
+- `_read_key`:72 / `_read_key_nb`:106 / `_read_key_raw`:142 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:184 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:194 — Paginator for long output.
+- `format_menu_label`:219 — Hotkey character highlighting.
+- `select_multi_from_list`:242 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:356 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -108,13 +108,13 @@ Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after 
 - `show_op_banner`:52
 
 **SSH/filesystem helpers:**
-- `_tcp_check`:139 `HOST` — TCP port-22 reachability check
-- `_ssh_fence`:145 `TARGET` / `_ssh_fence_close`:164 — decorative rule printed around SSH sessions
-- `_setup_askpass`:179 / `_destroy_askpass`:195 — temporary `SSH_ASKPASS` script for padded prompts
-- `_ensure_ssh_dir`:203 — `mkdir -p ~/.ssh && chmod 700`
-- `_write_key_pair`:214 `DEST_PRIV DEST_PUB DATA DATA [copy_mode]` — write or copy a key pair with permission enforcement
-- `_print_identity_files`:235 `ID_LOOKUP` — prints IdentityFile entries for a host (dim style)
-- `_prompt_remote`:246 — prompts for host + user, sets `_REMOTE_HOST`, `_REMOTE_USER`, `_REMOTE_ALIAS`
+- `_tcp_check`:187 `HOST` — TCP port-22 reachability check
+- `_ssh_fence`:193 `TARGET` / `_ssh_fence_close`:212 — decorative rule printed around SSH sessions
+- `_setup_askpass`:227 / `_destroy_askpass`:243 — temporary `SSH_ASKPASS` script for padded prompts
+- `_ensure_ssh_dir`:251 — `mkdir -p ~/.ssh && chmod 700`
+- `_write_key_pair`:262 `DEST_PRIV DEST_PUB DATA DATA [copy_mode]` — write or copy a key pair with permission enforcement
+- `_print_identity_files`:283 `ID_LOOKUP` — prints IdentityFile entries for a host (dim style)
+- `_prompt_remote`:294 — prompts for host + user, sets `_REMOTE_HOST`, `_REMOTE_USER`, `_REMOTE_ALIAS`
 
 ### prompts.sh
 
@@ -145,10 +145,10 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ### config-display.sh
 
 - `show_ssh_config_file`:12 — paginated SSH config viewer with inline editor launch
-- `edit_ssh_config_file`:122
-- `remove_host_from_ssh_config`:146 — removes a Host block after confirmation
-- `show_ssh_key_inventory`:193 — lists local keys, their fingerprints, and which hosts reference them
-- `_view_ssh_key`:386 / `_display_key_file`:426
+- `edit_ssh_config_file`:119
+- `remove_host_from_ssh_config`:143 — removes a Host block after confirmation
+- `show_ssh_key_inventory`:190 — lists local keys, their fingerprints, and which hosts reference them
+- `_view_ssh_key`:378 / `_display_key_file`:418
 
 ### menu.sh
 
@@ -182,7 +182,7 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ### menu-renderer.sh
 
 - `_invoke_choice`:13 — clears screen, renders centered op title box, calls `invoke_menu_choice`, waits for ack. Sets `need_full=1` via bash dynamic scoping into `show_main_menu`'s local frame.
-- `show_main_menu`:53 — scrolling viewport, differential rendering, hotkey support, resize detection. Alternate screen buffer (`\e[?1049h/l`).
+- `show_main_menu`:38 — scrolling viewport, differential rendering, hotkey support, resize detection. Alternate screen buffer (`\e[?1049h/l`).
 - `_menu_cleanup` — defined inside `show_main_menu`; restores terminal state; guarded by `_MENU_CLEANED_UP` flag to prevent double-execution on Ctrl+C (INT trap → `exit` → EXIT trap)
 
 ## Key implementation notes

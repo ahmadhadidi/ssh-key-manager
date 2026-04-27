@@ -13,22 +13,7 @@ _MENU_RENDERER_SH_LOADED=1
 _invoke_choice() {
     local choice="$1" label="$2"
     _dbg "_invoke_choice: choice='$choice' label='$label'"
-    _term_size
-    local _bw=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
-    local _iw=$(( _bw - 2 ))
-    local _TL=$'\xe2\x94\x8c' _TR=$'\xe2\x94\x90' _BL=$'\xe2\x94\x94' _BR=$'\xe2\x94\x98' _VB=$'\xe2\x94\x82'
-    local _hrule; printf -v _hrule '%*s' "$_iw" ''; _hrule="${_hrule// /─}"
-    local _ipad; printf -v _ipad '%*s' "$_iw" ''
-    local _llen=${#label}
-    local _lpad=$(( (_iw - _llen) / 2 )); (( _lpad < 0 )) && _lpad=0
-    local _rpad=$(( _iw - 0 - _llen - _lpad )); (( _rpad < 0 )) && _rpad=0
-    local _lspc _rspc; printf -v _lspc '%*s' "$_lpad" ''; printf -v _rspc '%*s' "$_rpad" ''
-    printf '\e[2J\e[H\e[?25h\n'
-    printf '  \e[96m%s%s%s\e[0m\n' "$_TL" "$_hrule" "$_TR"
-    printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_ipad" "$_VB"
-    printf '  \e[96m%s\e[0m\e[48;5;23m\e[1;97m%s%s%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_lspc" "$label" "$_rspc" "$_VB"
-    printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$_ipad" "$_VB"
-    printf '  \e[96m%s%s%s\e[0m\n\n' "$_BL" "$_hrule" "$_BR"
+    _draw_op_header "$label"
 
     # Restore cooked terminal mode for operations that use normal read
     local _stty_saved_inner

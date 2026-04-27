@@ -28,6 +28,30 @@ _term_size() {
     fi
 }
 
+# Return the terminal display-column width of a string.
+# bash ${#str} counts Unicode code points, not display columns:
+#   - Wide chars (emoji ≥ U+10000, some BMP symbols): 2 cols, bash counts 1 → add 1 each
+#   - Variation selectors (U+FE0F/FE0E) and ZWJ (U+200D): 0 cols, bash counts 1 → subtract 1 each
+# The two effects cancel for emoji+VS pairs (🗑️, 👁️, etc.) — those already produce
+# correct centering. Only bare wide chars need correction.
+_visual_width() {
+    local str="$1" n s adj t sym
+    n=${#str}
+    # Strip zero-width code points; each removed char = 1 bash unit but 0 display cols.
+    local _vs16=$'\xef\xb8\x8f' _vs15=$'\xef\xb8\x8e' _zwj=$'\xe2\x80\x8d'
+    s="${str//$_vs16/}"; s="${s//$_vs15/}"; s="${s//$_zwj/}"
+    adj=$(( ${#s} - n ))   # negative count of zero-width chars removed
+    # 4-byte UTF-8 lead bytes (0xF0-0xF4) identify non-BMP wide emoji; each adds 1 col.
+    local w4
+    w4=$(printf '%s' "$s" | LC_ALL=C tr -cd '\360\361\362\363\364' | wc -c)
+    adj=$(( adj + w4 ))
+    # Wide BMP symbols used in these menus: ✨ (U+2728) ➕ (U+2795) ❌ (U+274C).
+    for sym in '✨' '➕' '❌'; do
+        t="${s//$sym/}"; adj=$(( adj + ${#s} - ${#t} )); s="$t"
+    done
+    printf '%d' $(( n + adj ))
+}
+
 _regex_escape() {
     printf '%s' "$1" | sed 's/[.^$*+?{}|\\()\[\]]/\\&/g'
 }
