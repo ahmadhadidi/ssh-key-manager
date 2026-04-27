@@ -76,7 +76,7 @@ When modifying a module, these are the other files that call its functions:
 
 ### tui.sh
 
-- `_dbg`:12, `_term_size`:19, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
+- `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
 - `_read_key`:72 / `_read_key_nb`:106 / `_read_key_raw`:142 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
 - `wait_user_acknowledge`:184 — "Press any key" gate (also in menu.sh dispatcher)
 - `show_paged`:194 — Paginator for long output.
@@ -106,6 +106,7 @@ Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after 
   Styles: `ok` (green), `warn` (yellow), `error` (red), `info` (cyan), `dim` (gray), `heading` (bright-cyan), `plain` (bright-white).
 - `_out_item`:35 `FORMAT [ARGS...]` — green `+` prefix, plain text.
 - `show_op_banner`:52
+- `_draw_op_header`:147 `label` — teal box header (stream mode: clears screen, prints rows 2-6 box + row 7 blank; buffer mode: set `_OP_HDR_ROW` before calling, reads result from `_OP_HDR_BUF`). Uses `_visual_width` for correct centering. Always sets `_OP_HDR_HEIGHT=7`.
 
 **SSH/filesystem helpers:**
 - `_tcp_check`:187 `HOST` — TCP port-22 reachability check
@@ -229,6 +230,8 @@ bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-
 - **`select_from_list` writes to `/dev/tty`, result in `_SELECT_RESULT`.** All TUI rendering goes to `/dev/tty` (fallback: `/proc/self/fd/2`) so the widget works correctly inside `$(...)` subshells. Never capture the return value with `$(select_from_list ...)` — it will be empty. Read `_SELECT_RESULT` and check `_SELECT_CANCELLED` after the call returns.
 - **`_HOST_BLOCK` global is overwritten on every `_get_host_block` call.** Consume `_HOST_BLOCK` immediately after calling `_get_host_block`; any subsequent call (including those inside helpers like `_block_field` callers) will clobber it.
 - **`show_op_banner` dual mode.** Default (stream) prints directly to stdout. Buffer mode: set `_OP_BANNER_ROW` to the starting row before calling — output goes into `_OP_BANNER_BUF` for the caller to append to its frame. Always sets `_SFL_BANNER_ROWS=5` so `select_from_list`/`select_multi_from_list` offset their start row below the banner.
+- **`_draw_op_header` dual mode.** Same pattern as `show_op_banner`. Stream mode (default): clears screen and prints the teal box directly — used by `_invoke_choice`. Buffer mode: set `_OP_HDR_ROW=1` before calling — writes absolute-positioned ANSI to `_OP_HDR_BUF` at rows 2-7 — used by `show_ssh_config_file` and `show_ssh_key_inventory` inside their render loops. Always sets `_OP_HDR_HEIGHT=7`. `_OP_BANNER_ROW` for those screens must be 8 (box occupies rows 2-7).
+- **`_visual_width` emoji correction.** `${#str}` counts Unicode code points, not terminal columns. Non-BMP emoji (4-byte UTF-8, e.g. 🔌🔑📤) = 1 bash char but 2 display cols → add 1. Variation selectors U+FE0F/FE0E = 1 bash char but 0 display cols → subtract 1. These cancel for emoji+VS pairs (🗑️👁️✏️) — no correction needed. Wide BMP symbols ✨➕❌ also need +1. Detection: 4-byte lead bytes via `LC_ALL=C tr`; BMP wide chars by string substitution loop.
 - **`_replace_host_block` silent failure.** Uses `perl` with `python3` fallback. If neither is present it returns 1 and the config block is not updated — callers must handle this or changes are silently lost.
 - **`select_from_list` strict mode (`-s`).** Enter is a no-op unless exactly one filtered item remains. Without `-s`, Enter with a non-empty filter string creates a new item from the typed text — intentional for key-name and host-name inputs.
 - **`_write_key_pair` public key normalization.** In non-copy mode it writes `"${pub_data%$'\n'}"` then appends `\n` — strips any trailing newline from the passed string and adds exactly one back, so `.pub` files always end with exactly one newline regardless of source.
