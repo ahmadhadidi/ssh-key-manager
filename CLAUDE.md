@@ -57,7 +57,7 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~527 | Terminal primitives, TUI widgets | `_read_key`:72, `_read_key_raw`:142, `select_from_list`:356, `select_multi_from_list`:242, `show_paged`:194 |
+| `tui.sh` | ~535 | Terminal primitives, TUI widgets | `_read_key`:72, `_read_key_raw`:146, `select_from_list`:364, `select_multi_from_list`:250, `show_paged`:202 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~298 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
 | `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
@@ -77,12 +77,12 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
-- `_read_key`:72 / `_read_key_nb`:106 / `_read_key_raw`:142 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:184 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:194 — Paginator for long output.
-- `format_menu_label`:219 — Hotkey character highlighting.
-- `select_multi_from_list`:242 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:356 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_read_key`:72 / `_read_key_nb`:110 / `_read_key_raw`:146 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:192 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:202 — Paginator for long output.
+- `format_menu_label`:227 — Hotkey character highlighting.
+- `select_multi_from_list`:250 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:364 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -226,7 +226,7 @@ bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-
 - **Ctrl+C guard.** The INT/TERM/TSTP traps only set the exit code; cleanup lives exclusively in the EXIT trap. The `_MENU_CLEANED_UP=1` flag prevents a second cleanup run.
 - **Terminal resize.** `trap 'need_full=1' WINCH` in `show_main_menu` triggers a full redraw on the next loop iteration. The poll-based resize detection alone is insufficient — if a key arrives during a resize, the poll branch is skipped and only a differential update runs, leaving static elements (rules, title, hint bar) unredrawn.
 - **`authorized_keys` newline.** `printf '%s'` (not `printf '%s\n'`) when writing the public key — the `.pub` file already ends with `\n`.
-- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else.
+- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else. All three use `stty min 0 time 0` (not `read -t`) to drain ESC continuation bytes — `read -t` is unreliable on macOS bash 3.2 and causes arrow keys to be misread as bare ESC, triggering unintended exits from submenus.
 - **`select_from_list` writes to `/dev/tty`, result in `_SELECT_RESULT`.** All TUI rendering goes to `/dev/tty` (fallback: `/proc/self/fd/2`) so the widget works correctly inside `$(...)` subshells. Never capture the return value with `$(select_from_list ...)` — it will be empty. Read `_SELECT_RESULT` and check `_SELECT_CANCELLED` after the call returns.
 - **`_HOST_BLOCK` global is overwritten on every `_get_host_block` call.** Consume `_HOST_BLOCK` immediately after calling `_get_host_block`; any subsequent call (including those inside helpers like `_block_field` callers) will clobber it.
 - **`show_op_banner` dual mode.** Default (stream) prints directly to stdout. Buffer mode: set `_OP_BANNER_ROW` to the starting row before calling — output goes into `_OP_BANNER_BUF` for the caller to append to its frame. Always sets `_SFL_BANNER_ROWS=5` so `select_from_list`/`select_multi_from_list` offset their start row below the banner.

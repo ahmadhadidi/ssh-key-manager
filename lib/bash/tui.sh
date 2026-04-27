@@ -79,14 +79,18 @@ _read_key() {
     # An empty result after a successful read means Enter was pressed.
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        # bash -t is unreliable on macOS bash 3.2; use stty min 0 time 0 instead.
+        # Arrow/F-key bytes are already in the buffer; standalone ESC gets empty
+        # s1/s2 immediately. Stty is fully restored at the end of this function.
+        stty min 0 time 0 2>/dev/null || true
+        IFS= read -r -n1 s1 2>/dev/null || s1=''
+        IFS= read -r -n1 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
             # Numeric modifier — may be a 1-digit (\x1b[5~) or 2-digit (\x1b[21~) code
-            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            IFS= read -r -n1 s3 2>/dev/null || s3=''
             if [[ ${s3:-} =~ ^[0-9]$ ]]; then
                 # Two-digit code: read the trailing terminator (~)
-                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+                IFS= read -r -n1 s4 2>/dev/null || s4=''
             else
                 s4=''
             fi
@@ -144,14 +148,18 @@ _read_key_raw() {
     IFS= read -r -n1 k 2>/dev/null || k=''
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+        # Same fix as _read_key: stty min 0 time 0 instead of bash -t (unreliable on macOS).
+        # Caller holds min 1 time 0; restore it after draining the ESC sequence.
+        stty min 0 time 0 2>/dev/null || true
+        IFS= read -r -n1 s1 2>/dev/null || s1=''
+        IFS= read -r -n1 s2 2>/dev/null || s2=''
         if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+            IFS= read -r -n1 s3 2>/dev/null || s3=''
             if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+                IFS= read -r -n1 s4 2>/dev/null || s4=''
             else s4=''; fi
         else s3=''; s4=''; fi
+        stty min 1 time 0 2>/dev/null || true
         k="${k}${s1}${s2}${s3}${s4}"
     fi
     KEY="$k"
