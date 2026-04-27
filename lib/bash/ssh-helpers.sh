@@ -133,6 +133,54 @@ show_op_banner() {
     fi
 }
 
+# Draw the teal operation title box at the top of the screen.
+# Uses _visual_width for correct centering of emoji labels.
+#
+# Stream mode (default, _OP_HDR_ROW unset):
+#   Clears the screen, prints the 5-row box (rows 2-6) + blank (row 7), leaves
+#   cursor on row 8 ready for operation output. Also shows the cursor (\e[?25h).
+# Buffer mode (_OP_HDR_ROW set to any value):
+#   Writes absolute-positioned ANSI into _OP_HDR_BUF using rows 2-7.
+#   Caller appends _OP_HDR_BUF to its frame buffer after \e[2J\e[H.
+#
+# Always sets _OP_HDR_HEIGHT=7 (rows 2-6 = box, row 7 = blank).
+_draw_op_header() {
+    local label="$1"
+    _term_size
+    local box_w=$(( TERM_W - 4 > 0 ? TERM_W - 4 : 10 ))
+    local inner_w=$(( box_w - 2 ))
+    local _TL=$'\xe2\x94\x8c' _TR=$'\xe2\x94\x90' _BL=$'\xe2\x94\x94' _BR=$'\xe2\x94\x98' _VB=$'\xe2\x94\x82'
+    local h_rule inner_pad
+    printf -v h_rule   '%*s' "$inner_w" ''; h_rule="${h_rule// /─}"
+    printf -v inner_pad '%*s' "$inner_w" ''
+    local lbl_len; lbl_len=$(_visual_width "$label")
+    local lpad=$(( (inner_w - lbl_len) / 2 )); (( lpad < 0 )) && lpad=0
+    local rpad=$(( inner_w - lbl_len - lpad )); (( rpad < 0 )) && rpad=0
+    local lspc rspc
+    printf -v lspc '%*s' "$lpad" ''
+    printf -v rspc '%*s' "$rpad" ''
+    _OP_HDR_HEIGHT=7
+    _OP_HDR_BUF=''
+    if [[ -z ${_OP_HDR_ROW+x} ]]; then
+        # Stream mode: clear screen, show cursor, print box directly.
+        printf '\e[2J\e[H\e[?25h\n'
+        printf '  \e[96m%s%s%s\e[0m\n'                                     "$_TL" "$h_rule" "$_TR"
+        printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n'         "$_VB" "$inner_pad" "$_VB"
+        printf '  \e[96m%s\e[0m\e[48;5;23m\e[1;97m%s%s%s\e[0m\e[96m%s\e[0m\n' "$_VB" "$lspc" "$label" "$rspc" "$_VB"
+        printf '  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\n'         "$_VB" "$inner_pad" "$_VB"
+        printf '  \e[96m%s%s%s\e[0m\n\n'                                   "$_BL" "$h_rule" "$_BR"
+    else
+        # Buffer mode: write absolute-positioned ANSI into _OP_HDR_BUF (rows 2-7).
+        local _t
+        printf -v _t '\e[2;1H  \e[96m%s%s%s\e[0m\e[K'                                         "$_TL" "$h_rule" "$_TR";            _OP_HDR_BUF+="$_t"
+        printf -v _t '\e[3;1H  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\e[K'             "$_VB" "$inner_pad" "$_VB";          _OP_HDR_BUF+="$_t"
+        printf -v _t '\e[4;1H  \e[96m%s\e[0m\e[48;5;23m\e[1;97m%s%s%s\e[0m\e[96m%s\e[0m\e[K' "$_VB" "$lspc" "$label" "$rspc" "$_VB"; _OP_HDR_BUF+="$_t"
+        printf -v _t '\e[5;1H  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\e[K'             "$_VB" "$inner_pad" "$_VB";          _OP_HDR_BUF+="$_t"
+        printf -v _t '\e[6;1H  \e[96m%s%s%s\e[0m\e[K'                                         "$_BL" "$h_rule" "$_BR";             _OP_HDR_BUF+="$_t"
+        printf -v _t '\e[7;1H\e[K';                                                                                                  _OP_HDR_BUF+="$_t"
+    fi
+}
+
 # ─── Connection helpers ───────────────────────────────────────────────────────
 
 # TCP port-22 pre-check. Returns 0 if reachable.
