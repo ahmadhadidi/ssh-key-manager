@@ -139,6 +139,7 @@ show_main_menu() {
     trap '_menu_cleanup' EXIT
     trap 'exit 130' INT
     trap 'exit 0'   TERM TSTP
+    trap 'need_full=1' WINCH
 
     # ── Startup config file check ────────────────────────────────────────────
     if [[ ! -f "$SSH_CONFIG" ]]; then
@@ -346,5 +347,5 @@ show_main_menu() {
     done
 
     _menu_cleanup
-    trap - EXIT INT TERM TSTP
+    trap - EXIT INT TERM TSTP WINCH
 }

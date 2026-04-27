@@ -65,7 +65,7 @@ When modifying a module, these are the other files that call its functions:
 | `config-display.sh` | ~490 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:193, `remove_host_from_ssh_config`:146 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_do_create_config`:402 |
 | `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
-| `menu-renderer.sh` | ~350 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
+| `menu-renderer.sh` | ~351 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:53 |
 
 ### Control flow
 
