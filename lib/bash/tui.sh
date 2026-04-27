@@ -17,8 +17,15 @@ _dbg() {
 # ─── Terminal helpers ─────────────────────────────────────────────────────────
 
 _term_size() {
-    TERM_W=$(tput cols  2>/dev/null || echo 80)
-    TERM_H=$(tput lines 2>/dev/null || echo 24)
+    local _sz
+    _sz=$(stty size 2>/dev/null)
+    if [[ -n $_sz ]]; then
+        TERM_H=${_sz%% *}
+        TERM_W=${_sz##* }
+    else
+        TERM_W=$(tput cols  2>/dev/null || echo 80)
+        TERM_H=$(tput lines 2>/dev/null || echo 24)
+    fi
 }
 
 _regex_escape() {

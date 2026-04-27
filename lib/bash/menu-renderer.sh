@@ -253,9 +253,14 @@ show_main_menu() {
             if _read_key_nb; then
                 got_key=1
             else
-                local nw nh
-                nw=$(tput cols 2>/dev/null || echo 80)
-                nh=$(tput lines 2>/dev/null || echo 24)
+                local nw nh _sz
+                _sz=$(stty size 2>/dev/null)
+                if [[ -n $_sz ]]; then
+                    nh=${_sz%% *}; nw=${_sz##* }
+                else
+                    nw=$(tput cols  2>/dev/null || echo 80)
+                    nh=$(tput lines 2>/dev/null || echo 24)
+                fi
                 if (( nw != term_w || nh != term_h )); then
                     term_w=$nw; term_h=$nh
                     need_full=1
