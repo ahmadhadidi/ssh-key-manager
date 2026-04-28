@@ -46,20 +46,20 @@ show_main_menu() {
         "🔑  Generate & Install SSH Key on A Remote Machine"
         "📤  Install SSH Key on A Remote Machine"
         "🔌  Test SSH Connection"
-        "🗑  Delete SSH Key From A Remote Machine"
+        "🗑   Delete SSH Key From A Remote Machine"
         "🔄  Promote Key on A Remote Machine"
         "📋  List Authorized Keys on Remote Host"
         "🔗  Add Config Block for Existing Remote Key"
         "Local"
         "✨  Generate SSH Key (Without installation)"
-        "🗝  List SSH Keys"
+        "🗝   List SSH Keys"
         "➕  Append SSH Key to Hostname in Host Config"
-        "🗑  Delete an SSH Key Locally [x]"
+        "🗑   Delete an SSH Key Locally [x]"
         "❌  Remove an SSH Key From Config"
         "📥  Import SSH Key from Another Machine"
         "Config File"
-        "🏚  Remove Host from SSH Config"
-        "👁  View SSH Config"
+        "🏚   Remove Host from SSH Config"
+        "👁   View SSH Config"
         "📝  Edit SSH Config"
         "🚪  Exit"
     )
@@ -138,12 +138,21 @@ show_main_menu() {
             _term_size
             term_w=$TERM_W; term_h=$TERM_H
 
-            local rule; rule=$(_repeat '─' "$(( term_w - 4 > 0 ? term_w - 4 : 0 ))")
+            local box_w=$(( term_w - 4 > 0 ? term_w - 4 : 10 ))
+            local inner_w=$(( box_w - 2 ))
+            local _TL=$'\xe2\x94\x8c' _TR=$'\xe2\x94\x90' _BL=$'\xe2\x94\x94' _BR=$'\xe2\x94\x98' _VB=$'\xe2\x94\x82'
+            local h_rule inner_pad
+            printf -v h_rule   '%*s' "$inner_w" ''; h_rule="${h_rule// /─}"
+            printf -v inner_pad '%*s' "$inner_w" ''
             local menu_title="🌊 HDD SSH Keys Manager"
-            local title_pad; title_pad=$(_repeat ' ' "$(( (term_w - 4 - ${#menu_title} - 1) / 2 > 0 ? (term_w - 4 - ${#menu_title} - 1) / 2 : 0 ))")
-            local title_content="  ${title_pad}${menu_title}"
+            local lbl_len; lbl_len=$(_visual_width "$menu_title")
+            local lpad=$(( (inner_w - lbl_len) / 2 )); (( lpad < 0 )) && lpad=0
+            local rpad=$(( inner_w - lbl_len - lpad )); (( rpad < 0 )) && rpad=0
+            local lspc rspc
+            printf -v lspc '%*s' "$lpad" ''
+            printf -v rspc '%*s' "$rpad" ''
 
-            local content_start=5
+            local content_start=8
             # Reserve 2 rows: hint bar (bottom) + second bar (F-keys or config warning)
             local content_end=$(( term_h - 2 ))
             local content_rows=$(( content_end - content_start + 1 ))
@@ -166,9 +175,12 @@ show_main_menu() {
 
             local f
             f="$(printf '\e[2J\e[H')"
-            f+="$(printf '\e[2;1H  \e[96m%s\e[0m\e[K' "$rule")"
-            f+="$(printf '\e[3;1H\e[48;5;23m\e[1;97m%s\e[K\e[0m' "$title_content")"
-            f+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[K' "$rule")"
+            f+="$(printf '\e[2;1H  \e[96m%s%s%s\e[0m\e[K'                                          "$_TL" "$h_rule" "$_TR")"
+            f+="$(printf '\e[3;1H  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\e[K'              "$_VB" "$inner_pad" "$_VB")"
+            f+="$(printf '\e[4;1H  \e[96m%s\e[0m\e[48;5;23m\e[1;97m%s%s%s\e[0m\e[96m%s\e[0m\e[K'  "$_VB" "$lspc" "$menu_title" "$rspc" "$_VB")"
+            f+="$(printf '\e[5;1H  \e[96m%s\e[0m\e[48;5;23m%s\e[0m\e[96m%s\e[0m\e[K'              "$_VB" "$inner_pad" "$_VB")"
+            f+="$(printf '\e[6;1H  \e[96m%s%s%s\e[0m\e[K'                                          "$_BL" "$h_rule" "$_BR")"
+            f+="$(printf '\e[7;1H\e[K')"
 
             item_rows=()
             local row=$content_start

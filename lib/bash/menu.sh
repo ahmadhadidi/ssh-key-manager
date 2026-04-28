@@ -59,7 +59,7 @@ _menu_install_key() {            # choice 15 — key must already exist locally
 
 _menu_test_connection() {        # choice 2
     show_op_banner "host" "$(hostname)" "user" "$DEFAULT_USER"
-    _prompt_remote || return 0
+    _prompt_remote || return 1
     local host="$_REMOTE_HOST" user="$_REMOTE_USER" sel_alias="$_REMOTE_ALIAS"
 
     # Primary: IdentityFile entries from the config block for this host.
@@ -93,6 +93,7 @@ _menu_test_connection() {        # choice 2
     else
         local all_label="-- Test ALL (${#key_paths[@]} keys)"
         select_from_list -p "Select key to test:" "$all_label" "${key_labels[@]}"
+        (( _SELECT_CANCELLED )) && return 1
         if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
             local sel="$_SELECT_RESULT"
             if [[ $sel == "-- Test ALL"* ]]; then
