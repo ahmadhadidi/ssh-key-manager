@@ -42,11 +42,7 @@ show_ssh_config_file() {
         fi
     done < "$SSH_CONFIG"
 
-    _OP_BANNER_ROW=8
-    show_op_banner "config" "$SSH_CONFIG"
-    local _cfg_banner="$_OP_BANNER_BUF" _banner_rows=$_OP_BANNER_ROWS
-    unset _OP_BANNER_ROW
-
+    local _banner_rows=5  # show_op_banner always outputs 5 rows
     local total=${#out[@]}
     _term_size
     local content_rows=$(( TERM_H - 8 - _banner_rows - 1 ))
@@ -62,11 +58,12 @@ show_ssh_config_file() {
         (( off > max_off )) && off=$max_off
 
         if (( need_redraw )); then
-            _OP_HDR_ROW=1; _draw_op_header "👁️  View SSH Config"; unset _OP_HDR_ROW
+            _OP_HDR_ROW=1; _draw_op_header "👁  View SSH Config"; unset _OP_HDR_ROW
+            _OP_BANNER_ROW=8; show_op_banner "config" "$SSH_CONFIG"; unset _OP_BANNER_ROW
             local f _t
             printf -v _t '\e[2J\e[H'; f="$_t"
             f+="$_OP_HDR_BUF"
-            f+="$_cfg_banner"
+            f+="$_OP_BANNER_BUF"
 
             local row=$(( 8 + _banner_rows )) i
             for (( i=off; i<off+content_rows && i<total; i++ )); do
@@ -188,10 +185,7 @@ remove_host_from_ssh_config() {
 }
 
 show_ssh_key_inventory() {
-    _OP_BANNER_ROW=8
-    show_op_banner "ssh dir" "$SSH_DIR"
-    local _inv_banner="$_OP_BANNER_BUF" _banner_rows=$_OP_BANNER_ROWS
-    unset _OP_BANNER_ROW
+    local _banner_rows=5  # show_op_banner always outputs 5 rows
 
     if [[ ! -d "$SSH_DIR" ]]; then
         printf '  \e[31m.ssh directory not found at %s\e[0m\n' "$SSH_DIR"
@@ -292,11 +286,12 @@ show_ssh_key_inventory() {
             fi
             (( off < 0 )) && off=0
 
-            _OP_HDR_ROW=1; _draw_op_header "🗝️  List SSH Keys"; unset _OP_HDR_ROW
+            _OP_HDR_ROW=1; _draw_op_header "🗝  List SSH Keys"; unset _OP_HDR_ROW
+            _OP_BANNER_ROW=8; show_op_banner "ssh dir" "$SSH_DIR"; unset _OP_BANNER_ROW
             local g _t
             printf -v _t '\e[2J\e[H'; g="$_t"
             g+="$_OP_HDR_BUF"
-            g+="$_inv_banner"
+            g+="$_OP_BANNER_BUF"
             printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 8 + _banner_rows )) "$tbl_top"; g+="$_t"
             printf -v _t '\e[%d;1H\e[1;37m%s\e[0m\e[K'  $(( 9 + _banner_rows )) "$tbl_hdr"; g+="$_t"
             printf -v _t '\e[%d;1H\e[97m%s\e[0m\e[K'    $(( 10 + _banner_rows )) "$tbl_sep"; g+="$_t"
@@ -380,7 +375,7 @@ _view_ssh_key() {
 
     _term_size
     local _rule; _rule=$(_repeat '─' "$(( TERM_W - 4 > 0 ? TERM_W - 4 : 0 ))")
-    local _label="🗝️  List SSH Keys"
+    local _label="🗝  List SSH Keys"
     local _tpad; _tpad=$(_repeat ' ' "$(( (TERM_W - 4 - ${#_label}) / 2 > 0 ? (TERM_W - 4 - ${#_label}) / 2 : 0 ))")
     printf '\e[2;1H  \e[96m%s\e[0m\e[K'            "$_rule"
     printf '\e[3;1H\e[48;5;23m\e[1;97m  %s%s\e[K\e[0m' "$_tpad" "$_label"

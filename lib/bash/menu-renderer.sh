@@ -46,21 +46,21 @@ show_main_menu() {
         "🔑  Generate & Install SSH Key on A Remote Machine"
         "📤  Install SSH Key on A Remote Machine"
         "🔌  Test SSH Connection"
-        "🗑️  Delete SSH Key From A Remote Machine"
+        "🗑  Delete SSH Key From A Remote Machine"
         "🔄  Promote Key on A Remote Machine"
         "📋  List Authorized Keys on Remote Host"
         "🔗  Add Config Block for Existing Remote Key"
         "Local"
         "✨  Generate SSH Key (Without installation)"
-        "🗝️  List SSH Keys"
+        "🗝  List SSH Keys"
         "➕  Append SSH Key to Hostname in Host Config"
-        "🗑️  Delete an SSH Key Locally [x]"
+        "🗑  Delete an SSH Key Locally [x]"
         "❌  Remove an SSH Key From Config"
         "📥  Import SSH Key from Another Machine"
         "Config File"
-        "🏚️  Remove Host from SSH Config"
-        "👁️  View SSH Config"
-        "✏️  Edit SSH Config"
+        "🏚  Remove Host from SSH Config"
+        "👁  View SSH Config"
+        "📝  Edit SSH Config"
         "🚪  Exit"
     )
     local -a m_choice=(
@@ -144,8 +144,8 @@ show_main_menu() {
             local title_content="  ${title_pad}${menu_title}"
 
             local content_start=5
-            # Reserve 1 row for hint bar; add 1 more if config warning bar is shown
-            local content_end=$(( _CONFIG_MISSING ? term_h - 2 : term_h - 1 ))
+            # Reserve 2 rows: hint bar (bottom) + second bar (F-keys or config warning)
+            local content_end=$(( term_h - 2 ))
             local content_rows=$(( content_end - content_start + 1 ))
             (( content_rows < 1 )) && content_rows=1
 
@@ -202,11 +202,15 @@ show_main_menu() {
             (( view_off + content_rows < flat_count )) && \
                 f+="$(printf '\e[%d;%dH\e[90mv\e[0m' "$content_end" "$(( term_w - 1 ))")"
 
-            # Optional red warning bar when SSH config file is absent
+            # Second bar: red config warning when absent, else dim F-key shortcuts
             if (( _CONFIG_MISSING )); then
                 local wmsg="  ⚠  SSH config missing — press F2 to create it"
                 local wpad; wpad=$(_repeat ' ' "$(( term_w - ${#wmsg} > 0 ? term_w - ${#wmsg} : 0 ))")
                 f+="$(printf '\e[%d;1H\e[41m\e[1;97m%s%s\e[0m' "$(( term_h - 1 ))" "$wmsg" "$wpad")"
+            else
+                local fmsg="  F1 Best Practices   F2 SSH Config   F5 Conf Defaults   ? Help"
+                local fpad; fpad=$(_repeat ' ' "$(( term_w - ${#fmsg} > 0 ? term_w - ${#fmsg} : 0 ))")
+                f+="$(printf '\e[%d;1H\e[2m%s%s\e[0m' "$(( term_h - 1 ))" "$fmsg" "$fpad")"
             fi
 
             # Single-row hint bar
@@ -299,6 +303,8 @@ show_main_menu() {
                     printf '\e[?25l'
                     stty -echo -icanon min 0 time 1 2>/dev/null || true
                     need_full=1
+                else
+                    _invoke_choice "13" "👁  View SSH Config"
                 fi
                 ;;
             "$KEY_F5")

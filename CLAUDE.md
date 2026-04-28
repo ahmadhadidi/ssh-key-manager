@@ -60,12 +60,12 @@ When modifying a module, these are the other files that call its functions:
 | `tui.sh` | ~535 | Terminal primitives, TUI widgets | `_read_key`:72, `_read_key_raw`:146, `select_from_list`:364, `select_multi_from_list`:250, `show_paged`:202 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~298 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
-| `prompts.sh` | ~346 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:149, `confirm_user_choice`:264 |
+| `prompts.sh` | ~354 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:154, `confirm_user_choice`:272 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
-| `config-display.sh` | ~482 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:190, `remove_host_from_ssh_config`:143 |
-| `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:45, `_do_create_config`:402 |
+| `config-display.sh` | ~477 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:187, `remove_host_from_ssh_config`:140 |
+| `menu.sh` | ~436 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:401 |
 | `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
-| `menu-renderer.sh` | ~336 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
+| `menu-renderer.sh` | ~342 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
 
 ### Control flow
 
@@ -120,12 +120,12 @@ Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after 
 ### prompts.sh
 
 - `read_colored_input`:14 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
-- `read_host_with_default`:96 `PROMPT DEFAULT` — pre-filled editable input
-- `read_remote_host_address`:149 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
-- `read_remote_user`:144 / `read_remote_host_name`:210 / `read_ssh_key_name`:235 / `read_ssh_key_comment`:258
-- `confirm_user_choice`:264 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
-- `find_config_file`:295 / `find_private_key`:304 / `find_public_key`:309 / `get_public_key`:314
-- `resolve_ssh_target`:329
+- `read_host_with_default`:101 `PROMPT DEFAULT` — pre-filled editable input
+- `read_remote_host_address`:154 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
+- `read_remote_user`:149 / `read_remote_host_name`:218 / `read_ssh_key_name`:243 / `read_ssh_key_comment`:266
+- `confirm_user_choice`:272 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
+- `find_config_file`:303 / `find_private_key`:312 / `find_public_key`:317 / `get_public_key`:322
+- `resolve_ssh_target`:337
 
 ### ssh-ops.sh
 
@@ -146,34 +146,34 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ### config-display.sh
 
 - `show_ssh_config_file`:12 — paginated SSH config viewer with inline editor launch
-- `edit_ssh_config_file`:119
-- `remove_host_from_ssh_config`:143 — removes a Host block after confirmation
-- `show_ssh_key_inventory`:190 — lists local keys, their fingerprints, and which hosts reference them
-- `_view_ssh_key`:378 / `_display_key_file`:418
+- `edit_ssh_config_file`:116
+- `remove_host_from_ssh_config`:140 — removes a Host block after confirmation
+- `show_ssh_key_inventory`:187 — lists local keys, their fingerprints, and which hosts reference them
+- `_view_ssh_key`:373 / `_display_key_file`:413
 
 ### menu.sh
 
 - `invoke_menu_choice`:17 — 22-line pure dispatcher; each case calls a `_menu_*` handler
-- `_menu_generate_and_install`:45 — prompts key name, generates if missing, deploys to remote (`deploy_ssh_key_to_remote`)
-- `_menu_install_key`:51 — same but requires key to already exist locally; aborts with message if not found
-- `_menu_test_connection`:61 — picks key from host config or all local keys; supports "Test ALL" multi-key sweep
-- `_menu_delete_remote_key`:118 — fetches remote `authorized_keys`, cross-matches local `.pub` files, removes selected; offers to strip IdentityFile from config and delete local key pair
-- `_menu_promote_key`:201 — delegates to `deploy_promoted_key` (installs new key, removes old in one operation)
-- `_menu_generate_key`:206 — prompts key name + comment, generates ED25519 pair locally without deploying
-- `_menu_append_key_to_config`:213 — verifies key is accepted by remote via SSH test, then adds IdentityFile to host config block
-- `_menu_delete_local_key`:242 — cross-references key against configured hosts, optionally removes from remote(s), then deletes local key files
-- `_menu_remove_key_from_config`:296 — picks host then IdentityFile entry, removes that line from the config block
-- `_menu_show_best_practices`:328 — prints the 4-rule key-naming guide (LAN shared vs WAN individual); no interactive input
-- `_menu_list_keys`:338 — calls `show_ssh_key_inventory`; returns 1 to skip `wait_user_acknowledge`
-- `_menu_conf_defaults`:343 — launches `_run_conf_editor` TUI; returns 1 to skip `wait_user_acknowledge`
-- `_menu_remove_host`:348 — delegates to `remove_host_from_ssh_config`
-- `_menu_view_config`:352 — calls `show_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
-- `_menu_edit_config`:357 — calls `edit_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
-- `_menu_list_authorized_keys`:362 — SSHes to target, fetches `authorized_keys`, displays numbered list
-- `_menu_add_config_block`:389 — delegates to `register_remote_host_config` (reads remote auth_keys, creates host config entry)
-- `_menu_import_key`:394 — delegates to `import_external_ssh_key` (local path / SCP / paste)
-- `_do_create_config`:402 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
-- `_check_config_at_start`:412 — full-screen prompt on startup when config absent; offers to create it
+- `_menu_generate_and_install`:44 — prompts key name, generates if missing, deploys to remote (`deploy_ssh_key_to_remote`)
+- `_menu_install_key`:50 — same but requires key to already exist locally; aborts with message if not found
+- `_menu_test_connection`:60 — picks key from host config or all local keys; supports "Test ALL" multi-key sweep
+- `_menu_delete_remote_key`:117 — fetches remote `authorized_keys`, cross-matches local `.pub` files, removes selected; offers to strip IdentityFile from config and delete local key pair
+- `_menu_promote_key`:200 — delegates to `deploy_promoted_key` (installs new key, removes old in one operation)
+- `_menu_generate_key`:205 — prompts key name + comment, generates ED25519 pair locally without deploying
+- `_menu_append_key_to_config`:212 — verifies key is accepted by remote via SSH test, then adds IdentityFile to host config block
+- `_menu_delete_local_key`:241 — cross-references key against configured hosts, optionally removes from remote(s), then deletes local key files
+- `_menu_remove_key_from_config`:295 — picks host then IdentityFile entry, removes that line from the config block
+- `_menu_show_best_practices`:327 — prints the 4-rule key-naming guide (LAN shared vs WAN individual); no interactive input
+- `_menu_list_keys`:337 — calls `show_ssh_key_inventory`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_conf_defaults`:342 — launches `_run_conf_editor` TUI; returns 1 to skip `wait_user_acknowledge`
+- `_menu_remove_host`:347 — delegates to `remove_host_from_ssh_config`
+- `_menu_view_config`:351 — calls `show_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_edit_config`:356 — calls `edit_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_list_authorized_keys`:361 — SSHes to target, fetches `authorized_keys`, displays numbered list
+- `_menu_add_config_block`:388 — delegates to `register_remote_host_config` (reads remote auth_keys, creates host config entry)
+- `_menu_import_key`:393 — delegates to `import_external_ssh_key` (local path / SCP / paste)
+- `_do_create_config`:401 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
+- `_check_config_at_start`:411 — full-screen prompt on startup when config absent; offers to create it
 
 ### menu-support.sh
 

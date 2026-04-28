@@ -37,7 +37,6 @@ invoke_menu_choice() {
         17) _menu_add_config_block ;;
         18) _menu_import_key ;;
     esac
-    return 0
 }
 
 # ─── Menu case handlers ───────────────────────────────────────────────────────

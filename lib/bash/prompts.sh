@@ -25,6 +25,7 @@ read_colored_input() {
     printf '\e[%dm%s \e[0m\e[?25h' "$code" "$prompt" >&2
 
     _SELECT_CANCELLED=0
+    _RCI_RESULT=""
     local buf=""
     # Hold raw mode for the entire input session so ESC is never echoed.
     local _rci_st
@@ -38,14 +39,17 @@ read_colored_input() {
         IFS= read -r -n1 k 2>/dev/null || k=''
         [[ -z $k ]] && k=$'\n'
         if [[ $k == $'\x1b' ]]; then
-            IFS= read -r -n1 -t 0.05 s1 2>/dev/null || s1=''
-            IFS= read -r -n1 -t 0.05 s2 2>/dev/null || s2=''
+            # Use stty min 0 time 0 (not read -t) — reliable on macOS bash 3.2.
+            stty min 0 time 0 2>/dev/null || true
+            IFS= read -r -n1 s1 2>/dev/null || s1=''
+            IFS= read -r -n1 s2 2>/dev/null || s2=''
             if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 -t 0.05 s3 2>/dev/null || s3=''
+                IFS= read -r -n1 s3 2>/dev/null || s3=''
                 if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                    IFS= read -r -n1 -t 0.05 s4 2>/dev/null || s4=''
+                    IFS= read -r -n1 s4 2>/dev/null || s4=''
                 else s4=''; fi
             else s3=''; s4=''; fi
+            stty -echo -icanon min 1 time 0 2>/dev/null || true
             k="${k}${s1}${s2}${s3}${s4}"
         fi
 
@@ -53,6 +57,7 @@ read_colored_input() {
             $'\r'|$'\n')
                 printf '\n\e[?25l' >&2
                 stty "$_rci_st" 2>/dev/null || true
+                _RCI_RESULT="$buf"
                 printf '%s' "$buf"
                 return 0
                 ;;
@@ -184,11 +189,14 @@ read_remote_host_address() {
         fi
     fi
 
-    local addr
-    addr=$(read_colored_input \
-        "  Enter remote IP / hostname (or last 1-3 digits for ${subnet}.xx)" cyan)
+    # Call read_colored_input directly (not via $()) to avoid nested subshells.
+    # Result is in _RCI_RESULT; stdout of read_colored_input is discarded.
+    _RCI_RESULT=""
+    read_colored_input \
+        "  Enter remote IP / hostname (or last 1-3 digits for ${subnet}.xx):" cyan >/dev/null
+    local addr="$_RCI_RESULT"
     if [[ -z $addr ]]; then
-        printf '  \e[31m No input provided.\e[0m\n' >&2
+        (( _SELECT_CANCELLED )) || printf '  \e[31m No input provided.\e[0m\n' >&2
         printf ''
         return 1
     fi
