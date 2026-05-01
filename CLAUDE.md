@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A terminal-based SSH key manager with an interactive TUI (Text User Interface). It automates ED25519 key generation, deployment to remote machines, SSH config management, connection testing, and key rotation/cleanup.
 
 Two parallel implementations exist:
-- `hddssh.sh` — Linux/macOS (Bash 4+), entry point (~47 lines); logic lives in `lib/bash/`
+- `hddssh.sh` — macOS (bash 3.2), entry point (~47 lines); logic lives in `lib/bash/`
 - `hddssh.ps1` — Windows (PowerShell 5+), entry point (~47 lines); logic lives in `lib/ps/`
 
 ## Running
@@ -193,11 +193,11 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 - **`format_menu_label` uses pure bash regex, not `sed`.** BSD sed (macOS) does not support `\x1b` in replacements, and embedding a raw ESC byte in the sed replacement string is unreliable across platforms. The function uses `[[ =~ ]]` with `BASH_REMATCH` — `^([^lo_up]*)(char)(.*)$` finds the first hotkey occurrence — then `printf '\e[1;4m...\e[0;97m'` wraps it. No subprocess, no platform differences.
 - **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
 
-## macOS / bash 3.2 compatibility rules
+## bash 3.2 rules (macOS system shell — only supported version)
 
-macOS ships with bash 3.2 (GPL v2 licensing). The codebase must stay compatible. Every bash 4+ construct that sneaks in will silently break on macOS — usually with no error, just wrong behavior.
+The bash implementation targets bash 3.2 exclusively (macOS system shell, GPL v2). Do not use any bash 4+ construct — they silently break on 3.2, usually with no error, just wrong behavior.
 
-**Banned bash 4+ syntax — never use these:**
+**Banned — never use these:**
 
 | Banned | Replace with |
 |---|---|
@@ -215,7 +215,7 @@ macOS ships with bash 3.2 (GPL v2 licensing). The codebase must stay compatible.
 
 **Non-blocking terminal reads — the `_read_key_nb` contract:**
 
-bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-blocking reads. Use stty VTIME instead:
+bash 3.2 does not reliably implement `read -t 0.05` for poll-style non-blocking reads. Use stty VTIME instead:
 
 - `stty -echo -icanon min 0 time 1` — kernel returns 0 bytes after 100 ms with no input; bash `read` sees a 0-byte read as EOF and returns exit code 1. This is the correct "timeout, no key" signal.
 - `_read_key_nb` drops `-t` from the initial `read` call entirely; timeout is owned by the kernel.
