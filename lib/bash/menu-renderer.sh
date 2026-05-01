@@ -46,21 +46,21 @@ show_main_menu() {
         "🔑  Generate & Install SSH Key on A Remote Machine"
         "📤  Install SSH Key on A Remote Machine"
         "🔌  Test SSH Connection"
-        "🗑   Delete SSH Key From A Remote Machine"
+        "🗑   Delete Remote SSH Key"
         "🔄  Promote Key on A Remote Machine"
         "📋  List Authorized Keys on Remote Host"
         "🔗  Add Config Block for Existing Remote Key"
         "Local"
-        "✨  Generate SSH Key (Without installation)"
-        "🗝   List SSH Keys"
-        "➕  Append SSH Key to Hostname in Host Config"
-        "🗑   Delete an SSH Key Locally [x]"
-        "❌  Remove an SSH Key From Config"
-        "📥  Import SSH Key from Another Machine"
+        "✨  Generate Local SSH Key"
+        "🗝   List Keys Locally"
+        "➕  Append Hostname: Add SSH Key to Host Config"
+        "🗑   Delete Local SSH Key"
+        "❌  Remove Config: Unlink SSH Key from Host"
+        "📥  Import Key from Another Machine"
         "Config File"
         "🏚   Remove Host from SSH Config"
-        "👁   View SSH Config"
-        "📝  Edit SSH Config"
+        "👁   View Config"
+        "📝  Edit Config"
         "🚪  Exit"
     )
     local -a m_choice=(
@@ -322,8 +322,11 @@ show_main_menu() {
             "$KEY_F5")
                 _invoke_choice "11" "Conf: Global Defaults"
                 ;;
-            q|Q)
+            q|Q|"$KEY_ESC")
                 running=0 ;;
+            's'|'S')
+                _invoke_choice "13" "SSH Config"
+                ;;
             *)
                 if [[ ${#k} -eq 1 ]]; then
                     # Convert pressed key to uppercase once for case-insensitive match.

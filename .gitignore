@@ -7,3 +7,7 @@ __pycache__/
 tests/.pytest_cache/
 tests/__pycache__/
 *.bak
+.DS_Store
+._.DS_Store
+._todo1.md
+todo1.md.save

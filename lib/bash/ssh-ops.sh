@@ -400,7 +400,7 @@ import_external_ssh_key() {
         "Local file path" \
         "Remote machine (SCP)" \
         "Paste key content"
-    (( _SELECT_CANCELLED )) && return 0
+    (( _SELECT_CANCELLED )) && return 1
     local choice="$_SELECT_RESULT"
 
     local priv_src pub_src key_name

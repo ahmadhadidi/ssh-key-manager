@@ -292,7 +292,15 @@ _print_identity_files() {
 # Sets globals: _REMOTE_HOST  _REMOTE_USER  _REMOTE_ALIAS
 # Returns 1 if the user cancels either prompt.
 _prompt_remote() {
-    _REMOTE_HOST=$(read_remote_host_address "$DEFAULT_SUBNET_PREFIX") || return 1
-    _REMOTE_ALIAS=$(get_alias_for_host_ip "$_REMOTE_HOST")
+    # Redirect stdout to a temp file instead of using $() so that
+    # _LAST_SELECTED_ALIAS (set inside read_remote_host_address when the user
+    # picks an existing alias) is not lost in a subshell. Without this, two hosts
+    # sharing the same IP cause get_alias_for_host_ip to return the wrong alias.
+    local _rha_out
+    _rha_out=$(mktemp) || return 1
+    read_remote_host_address "$DEFAULT_SUBNET_PREFIX" > "$_rha_out" || { rm -f "$_rha_out"; return 1; }
+    _REMOTE_HOST=$(<"$_rha_out")
+    rm -f "$_rha_out"
+    _REMOTE_ALIAS="${_LAST_SELECTED_ALIAS:-$(get_alias_for_host_ip "$_REMOTE_HOST")}"
     _REMOTE_USER=$(read_remote_user "$DEFAULT_USER") || return 1
 }

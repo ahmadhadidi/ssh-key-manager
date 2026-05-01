@@ -22,7 +22,20 @@
       "Bash(bash:*)",
       "Bash(echo \"exit: $?\")",
       "Bash(make check:*)",
-      "Bash(make update-docs:*)"
+      "Bash(make update-docs:*)",
+      "Bash(python3 -m pytest --collect-only)",
+      "Bash(python3 *)",
+      "Bash(grep -n \"ESC\\\\|\\\\\\\\\\\\\\\\e\\\\|\\\\\\\\\\\\\\\\x1b\\\\|27\\\\|_read_key\\\\|cancel\\\\|return 1\\\\|\\\\$'\\\\e'\" lib/bash/menu-renderer.sh)",
+      "Bash(grep -n \"ESC\\\\|\\\\\\\\\\\\\\\\e\\\\|\\\\$'\\\\\\\\\\\\e'\\\\|_SELECT_CANCELLED\\\\|cancelled\\\\|cancel\" lib/bash/menu.sh)",
+      "Bash(ping -c 2 192.168.0.213)",
+      "Bash(sshpass *)",
+      "Bash(apt-get install *)",
+      "Bash(sudo apt-get *)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=keyboard-interactive,password testuser@192.168.0.213 'whoami && cat ~/.ssh/authorized_keys 2>/dev/null || echo EMPTY')",
+      "Bash(ssh -v)",
+      "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes testuser@192.168.0.213 exit)",
+      "Bash(ssh *)",
+      "Bash(grep *)"
     ]
   }
 }

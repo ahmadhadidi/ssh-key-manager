@@ -2,6 +2,17 @@
 # Sourced by hddssh.sh — do not execute directly.
 [[ -n "${_PROMPTS_SH_LOADED:-}" ]] && return 0
 _PROMPTS_SH_LOADED=1
+
+# Use a foolproof way to get the absolute path of the directory containing this script
+_PROMPTS_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Source TUI dependency using the absolute path
+if [[ -f "${_PROMPTS_DIR}/tui.sh" ]]; then
+    source "${_PROMPTS_DIR}/tui.sh"
+else
+    echo "CRITICAL: Could not find ${_PROMPTS_DIR}/tui.sh" >&2
+fi
+
 # EXPORTS: read_colored_input  read_host_with_default
 #          read_remote_user  read_remote_host_address  read_remote_host_name
 #          read_ssh_key_name  read_ssh_key_comment  confirm_user_choice
@@ -39,16 +50,20 @@ read_colored_input() {
         IFS= read -r -n1 k 2>/dev/null || k=''
         [[ -z $k ]] && k=$'\n'
         if [[ $k == $'\x1b' ]]; then
-            # Use stty min 0 time 0 (not read -t) — reliable on macOS bash 3.2.
-            stty min 0 time 0 2>/dev/null || true
+            # Use stty min 0 time 1 (100ms kernel timeout) — reliable on macOS bash 3.2.
+            # time 0 (VTIME=0) can block bash 3.2 on a 0-byte return; time 1 avoids this.
+            # Skip s2 when s1 is empty — saves 100ms for the common standalone-ESC case.
+            stty min 0 time 1 2>/dev/null || true
             IFS= read -r -n1 s1 2>/dev/null || s1=''
-            IFS= read -r -n1 s2 2>/dev/null || s2=''
-            if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 s3 2>/dev/null || s3=''
-                if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                    IFS= read -r -n1 s4 2>/dev/null || s4=''
-                else s4=''; fi
-            else s3=''; s4=''; fi
+            if [[ -n $s1 ]]; then
+                IFS= read -r -n1 s2 2>/dev/null || s2=''
+                if [[ ${s2:-} =~ ^[0-9]$ ]]; then
+                    IFS= read -r -n1 s3 2>/dev/null || s3=''
+                    if [[ ${s3:-} =~ ^[0-9]$ ]]; then
+                        IFS= read -r -n1 s4 2>/dev/null || s4=''
+                    else s4=''; fi
+                else s3=''; s4=''; fi
+            else s2=''; s3=''; s4=''; fi
             stty -echo -icanon min 1 time 0 2>/dev/null || true
             k="${k}${s1}${s2}${s3}${s4}"
         fi
@@ -66,8 +81,8 @@ read_colored_input() {
                 printf '\n\e[?25l' >&2
                 stty "$_rci_st" 2>/dev/null || true
                 _SELECT_CANCELLED=1
-                printf ''
-                return 1
+                _RCI_RESULT=""
+                return 1  # <--- CRITICAL: Exit the function immediately
                 ;;
             $'\x7f'|$'\x08')
                 if (( ${#buf} > 0 )); then
@@ -115,10 +130,9 @@ read_host_with_default() {
                 return 0
                 ;;
             "$KEY_ESC")
-                printf '\e[?25l' >&2
+                printf '\e[?25l\n' >&2
                 _SELECT_CANCELLED=1
-                printf ''
-                return 1
+                return 1  # <--- CRITICAL: Exit the function immediately
                 ;;
             "$KEY_BACKSPACE"|"$KEY_BACKSPACE2")
                 if (( ${#buf} > 0 )); then
@@ -168,7 +182,8 @@ read_remote_host_address() {
 
     if (( ${#host_entries[@]} > 0 )); then
         select_from_list -p "Select remote host  (Esc = enter manually)" "${host_entries[@]}"
-        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+        (( _SELECT_CANCELLED )) && return 1
+        if [[ -n $_SELECT_RESULT ]]; then
             local sel="$_SELECT_RESULT"
             local alias="${sel%%  (*}"
             alias="${alias%"${alias##*[! ]}"}"
@@ -222,45 +237,67 @@ read_remote_host_name() {
         aliases+=("$alias")
     done < <(get_configured_ssh_hosts)
 
+    # 1. Try the selection list first
     if (( ${#aliases[@]} > 0 )); then
         select_from_list -p "Select host alias  (Esc = enter manually)" "${aliases[@]}"
-        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+        (( _SELECT_CANCELLED )) && return 1
+        if [[ -n $_SELECT_RESULT ]]; then
             printf '%s' "$_SELECT_RESULT"
             return 0
         fi
     fi
 
-    local name
-    name=$(read_colored_input "  Enter the host alias / hostname" cyan)
-    if [[ -z $name ]]; then
+    # 2. Manual entry fallback (if list was empty or had no selection)
+    _RCI_RESULT=""
+    # Call directly to ensure _SELECT_CANCELLED isn't lost in a subshell
+    read_colored_input "  Enter the host alias / hostname" cyan >/dev/null
+    
+    # 3. Check if they pressed ESC during manual entry
+    if (( _SELECT_CANCELLED )); then 
+        return 1 
+    fi
+    
+    # 4. Validate and Return
+    if [[ -z "$_RCI_RESULT" ]]; then
         printf '  \e[31mHostname is required.\e[0m\n' >&2
-        printf ''
         return 1
     fi
-    printf '%s' "$name"
+    
+    printf '%s' "$_RCI_RESULT"
 }
 
 read_ssh_key_name() {
     local -a keys=()
     while IFS= read -r k; do keys+=("$k"); done < <(get_available_ssh_keys)
 
+    # 1. Try the selection list
     if (( ${#keys[@]} > 0 )); then
         select_from_list -p "Select SSH key" "${keys[@]}"
-        if (( _SELECT_CANCELLED == 0 )) && [[ -n $_SELECT_RESULT ]]; then
+        (( _SELECT_CANCELLED )) && return 1
+        if [[ -n $_SELECT_RESULT ]]; then
             printf '%s' "$_SELECT_RESULT"
             return 0
         fi
     fi
 
-    local name
-    name=$(read_colored_input "  Enter SSH key name" cyan)
-    if [[ -z $name ]]; then
-        (( _SELECT_CANCELLED )) && return 1
+    # 2. Manual entry with validation loop
+    while true; do
+        _RCI_RESULT=""
+        read_colored_input "  Enter SSH key name" cyan >/dev/null
+        
+        # 3. Check if ESC was pressed - exit immediately
+        if (( _SELECT_CANCELLED )); then
+            return 1
+        fi
+
+        # 4. Validate non-empty
+        if [[ -n "$_RCI_RESULT" ]]; then
+            printf '%s' "$_RCI_RESULT"
+            return 0
+        fi
+
         printf '  \e[31mKey name is required.\e[0m\n' >&2
-        read_ssh_key_name
-        return $?
-    fi
-    printf '%s' "$name"
+    done
 }
 
 read_ssh_key_comment() {

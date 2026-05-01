@@ -145,10 +145,12 @@ remove_host_from_ssh_config() {
     local host_name=""
     if (( ${#aliases[@]} > 0 )); then
         select_from_list -p "Select host to remove" "${aliases[@]}"
-        (( _SELECT_CANCELLED == 0 )) && host_name="$_SELECT_RESULT"
+        (( _SELECT_CANCELLED )) && return 1
+        host_name="$_SELECT_RESULT"
     fi
     if [[ -z $host_name ]]; then
         host_name=$(read_colored_input "  Enter the Host alias to remove" cyan)
+        (( _SELECT_CANCELLED )) && return 1
     fi
     if [[ -z $host_name ]]; then
         printf '  \e[31mHost alias is required.\e[0m\n'

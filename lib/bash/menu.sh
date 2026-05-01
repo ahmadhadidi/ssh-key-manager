@@ -43,13 +43,13 @@ invoke_menu_choice() {
 
 _menu_generate_and_install() {   # choice 1
     show_op_banner "host" "$(hostname)"
-    local keyname; keyname=$(read_ssh_key_name) || return 0
+    local keyname; keyname=$(read_ssh_key_name) || return 1
     deploy_ssh_key_to_remote "$keyname"
 }
 
 _menu_install_key() {            # choice 15 — key must already exist locally
     show_op_banner "host" "$(hostname)"
-    local keyname; keyname=$(read_ssh_key_name) || return 0
+    local keyname; keyname=$(read_ssh_key_name) || return 1
     if ! find_private_key "$keyname"; then
         printf '  \e[31mKey '\''%s'\'' not found locally. Use '\''Generate & Install'\'' to create it first.\e[0m\n' "$keyname"
         return 0
@@ -117,7 +117,7 @@ _menu_test_connection() {        # choice 2
 
 _menu_delete_remote_key() {      # choice 3
     show_op_banner "host" "$(hostname)"
-    _prompt_remote || return 0
+    _prompt_remote || return 1
     local host="$_REMOTE_HOST" user="$_REMOTE_USER" sel_alias="$_REMOTE_ALIAS"
     local target; target=$(resolve_ssh_target "$host" "$user")
     _print_identity_files "${sel_alias:-$host}"
@@ -205,15 +205,15 @@ _menu_promote_key() {            # choice 4
 
 _menu_generate_key() {           # choice 5
     show_op_banner "host" "$(hostname)"
-    local keyname; keyname=$(read_ssh_key_name) || return 0
-    local comment; comment=$(read_ssh_key_comment "${keyname}${DEFAULT_COMMENT_SUFFIX}") || return 0
+    local keyname; keyname=$(read_ssh_key_name) || return 1
+    local comment; comment=$(read_ssh_key_comment "${keyname}${DEFAULT_COMMENT_SUFFIX}") || return 1
     add_ssh_key_in_host "$keyname" "$comment"
 }
 
 _menu_append_key_to_config() {   # choice 7
     show_op_banner "config" "$SSH_CONFIG"
-    local keyname; keyname=$(read_ssh_key_name) || return 0
-    _prompt_remote || return 0
+    local keyname; keyname=$(read_ssh_key_name) || return 1
+    _prompt_remote || return 1
     local host_addr="$_REMOTE_HOST" remote_user="$_REMOTE_USER"
     local host_name="${_REMOTE_ALIAS:-$_REMOTE_HOST}"
     local host_display="$host_name"
@@ -241,7 +241,7 @@ _menu_append_key_to_config() {   # choice 7
 
 _menu_delete_local_key() {       # choice 8
     show_op_banner "ssh dir" "$SSH_DIR"
-    local keyname; keyname=$(read_ssh_key_name) || return 0
+    local keyname; keyname=$(read_ssh_key_name) || return 1
     [[ -z $keyname ]] && return 0
 
     local -a key_hosts=() key_host_labels=()
@@ -302,7 +302,7 @@ _menu_remove_key_from_config() { # choice 9
         return 0
     fi
     select_from_list -s -p "Select host:" "${all_hosts[@]}"
-    (( _SELECT_CANCELLED )) && return 0
+    (( _SELECT_CANCELLED )) && return 1
     local host_name="$_SELECT_RESULT"
     [[ -z $host_name ]] && return 0
 
@@ -320,7 +320,7 @@ _menu_remove_key_from_config() { # choice 9
         return 0
     fi
     select_from_list -p "Select key to remove from '$host_name':" "${key_names[@]}"
-    (( _SELECT_CANCELLED )) && return 0
+    (( _SELECT_CANCELLED )) && return 1
     [[ -z $_SELECT_RESULT ]] && return 0
     remove_identity_file_from_config_block "$_SELECT_RESULT" "$host_name"
 }
@@ -361,7 +361,7 @@ _menu_edit_config() {            # choice 14
 
 _menu_list_authorized_keys() {   # choice 16
     show_op_banner "host" "$(hostname)" "user" "$DEFAULT_USER"
-    _prompt_remote || return 0
+    _prompt_remote || return 1
     local host="$_REMOTE_HOST" user="$_REMOTE_USER"
     local target; target=$(resolve_ssh_target "$host" "$user")
     printf '  \e[90mFetching authorized_keys from %s...\e[0m\n' "$target"
