@@ -77,6 +77,7 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
+- `_esc_drain`:75 — drains ESC-sequence continuation bytes after the leading `\x1b` has been read; sets `_ESC_TAIL`. Uses `stty min 0 time 1` (100 ms VTIME). Accepts an optional stty restore spec.
 - `_read_key`:98 / `_read_key_nb`:120 / `_read_key_raw`:141 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
 - `wait_user_acknowledge`:177 — "Press any key" gate (also in menu.sh dispatcher)
 - `show_paged`:187 — Paginator for long output.
