@@ -4,7 +4,22 @@
 #             prompts.sh (read_colored_input)
 [[ -n "${_MENU_SUPPORT_SH_LOADED:-}" ]] && return 0
 _MENU_SUPPORT_SH_LOADED=1
-# EXPORTS: _run_conf_editor  _show_menu_help
+# EXPORTS: _run_conf_editor  _show_menu_help  _sq
+
+# ─── Shell-quoting helper ─────────────────────────────────────────────────────
+
+# Wrap a value in single quotes, escaping embedded single quotes as '\''.
+# Bash 3.2-compatible (uses ${v:0:1} / ${v:1} substring expansion only).
+_sq() {
+    local _v="$1" _out='' _ch
+    while [[ ${#_v} -gt 0 ]]; do
+        _ch="${_v:0:1}"
+        _v="${_v:1}"
+        if [[ "$_ch" == "'" ]]; then _out="${_out}'\\''"
+        else _out="${_out}${_ch}"; fi
+    done
+    printf "'%s'" "$_out"
+}
 
 # ─── Conf defaults editor ─────────────────────────────────────────────────────
 
@@ -52,10 +67,10 @@ _run_conf_editor() {
         # ── Persist commands (4 methods) ─────────────────────────────────────
         local _raw_url="https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main"
         local _bf="" _pf=""   # bash flags, powershell flags
-        [[ -n $DEFAULT_USER           ]] && _bf+=" --user $(printf '%q' "$DEFAULT_USER")"            && _pf+=" -DefaultUserName \"$DEFAULT_USER\""
-        [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _bf+=" --subnet $(printf '%q' "$DEFAULT_SUBNET_PREFIX")" && _pf+=" -DefaultSubnetPrefix \"$DEFAULT_SUBNET_PREFIX\""
-        [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _bf+=" --comment-suffix $(printf '%q' "$DEFAULT_COMMENT_SUFFIX")" && _pf+=" -DefaultCommentSuffix \"$DEFAULT_COMMENT_SUFFIX\""
-        [[ -n $DEFAULT_PASSWORD       ]] && _bf+=" --password $(printf '%q' "$DEFAULT_PASSWORD")"    && _pf+=" -DefaultPassword \"$DEFAULT_PASSWORD\""
+        [[ -n $DEFAULT_USER           ]] && _bf+=" --user $(_sq "$DEFAULT_USER")"            && _pf+=" -DefaultUserName \"$DEFAULT_USER\""
+        [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _bf+=" --subnet $(_sq "$DEFAULT_SUBNET_PREFIX")" && _pf+=" -DefaultSubnetPrefix \"$DEFAULT_SUBNET_PREFIX\""
+        [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _bf+=" --comment-suffix $(_sq "$DEFAULT_COMMENT_SUFFIX")" && _pf+=" -DefaultCommentSuffix \"$DEFAULT_COMMENT_SUFFIX\""
+        [[ -n $DEFAULT_PASSWORD       ]] && _bf+=" --password $(_sq "$DEFAULT_PASSWORD")"    && _pf+=" -DefaultPassword \"$DEFAULT_PASSWORD\""
         local _c1="bash <(curl -fsSL ${_raw_url}/hddssh.sh)${_bf}"
         local _c2="bash hddssh.sh${_bf}"
         local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/hddssh.ps1\")); & \$sb${_pf}"

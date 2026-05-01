@@ -66,11 +66,37 @@ _repeat() {
 _max() { (( $1 >= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 _min() { (( $1 <= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 
+# Drain escape-sequence continuation bytes after the leading \x1b has been read.
+# Sets global _ESC_TAIL to the remaining bytes (e.g. "[B" for DOWN, "[21~" for F10).
+# Uses stty min 0 time 1 (100 ms kernel timeout) — compatible with bash 3.2 on macOS.
+# Skip s2 when s1 is empty to avoid a second 100 ms wait on standalone ESC.
+# restore_stty: stty flags to re-apply after drain (omit for _read_key, which
+#   restores its full saved state via $_st at the end of the function).
+_esc_drain() {
+    local _restore_stty=${1:-}
+    local s1 s2 s3 s4
+    # stty min 0 time 0 (VTIME=0) causes bash 3.2 to block indefinitely when the
+    # kernel returns 0 bytes. Use time 1 (100ms) — same mechanism as the poll loop.
+    stty min 0 time 1 2>/dev/null || true
+    IFS= read -r -n1 s1 2>/dev/null || s1=''
+    if [[ -n $s1 ]]; then
+        IFS= read -r -n1 s2 2>/dev/null || s2=''
+        if [[ ${s2} =~ ^[0-9]$ ]]; then
+            IFS= read -r -n1 s3 2>/dev/null || s3=''
+            if [[ ${s3} =~ ^[0-9]$ ]]; then
+                IFS= read -r -n1 s4 2>/dev/null || s4=''
+            else s4=''; fi
+        else s3=''; s4=''; fi
+    else s2=''; s3=''; s4=''; fi
+    [[ -n $_restore_stty ]] && stty $_restore_stty 2>/dev/null || true
+    _ESC_TAIL="${s1}${s2}${s3}${s4}"
+}
+
 # Read one keypress (blocking). Sets global KEY.
 # Handles arrow keys and multi-byte escape sequences including 2-digit F-keys
 # (e.g. F5 = \x1b[15~, F10 = \x1b[21~).
 _read_key() {
-    local k s1 s2 s3 s4
+    local k
     local _st
     _st=$(stty -g 2>/dev/null) || true
     stty -echo -icanon min 1 time 0 2>/dev/null || true
@@ -79,25 +105,9 @@ _read_key() {
     # An empty result after a successful read means Enter was pressed.
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        # bash -t is unreliable on macOS bash 3.2; use stty min 0 time 0 instead.
-        # Arrow/F-key bytes are already in the buffer; standalone ESC gets empty
-        # s1/s2 immediately. Stty is fully restored at the end of this function.
-        stty min 0 time 0 2>/dev/null || true
-        IFS= read -r -n1 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 s2 2>/dev/null || s2=''
-        if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            # Numeric modifier — may be a 1-digit (\x1b[5~) or 2-digit (\x1b[21~) code
-            IFS= read -r -n1 s3 2>/dev/null || s3=''
-            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                # Two-digit code: read the trailing terminator (~)
-                IFS= read -r -n1 s4 2>/dev/null || s4=''
-            else
-                s4=''
-            fi
-        else
-            s3=''; s4=''
-        fi
-        k="${k}${s1}${s2}${s3}${s4}"
+        # No restore arg: stty "$_st" at end of this function restores everything.
+        _esc_drain ""
+        k="${k}${_ESC_TAIL}"
     fi
     stty "$_st" 2>/dev/null || true
     KEY="$k"
@@ -105,10 +115,10 @@ _read_key() {
 
 # Non-blocking read: relies on stty VTIME (min 0 time 1 = 100 ms kernel timeout)
 # set by show_main_menu. Returns 0 if key read, 1 on timeout.
-# Does NOT use bash's -t flag — unreliable on bash 3.2 / macOS.
+# Does NOT use bash's -t flag for the initial read — unreliable on bash 3.2 / macOS.
 # Caller must already hold raw mode (-echo -icanon min 0 time 1).
 _read_key_nb() {
-    local k s1 s2 s3 s4
+    local k
     # No -t: timeout comes from stty VTIME=1 (100ms). A 0-byte kernel return
     # is seen as EOF by bash's read builtin, which returns exit code 1.
     IFS= read -r -n1 k 2>/dev/null || {
@@ -117,24 +127,9 @@ _read_key_nb() {
     }
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        # Switch to truly non-blocking (VTIME=0) for ESC continuation bytes.
-        # Arrow/F-key bytes are already in the buffer; standalone ESC gets
-        # empty s1/s2 immediately instead of waiting 100 ms each.
-        stty min 0 time 0 2>/dev/null || true
-        IFS= read -r -n1 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 s2 2>/dev/null || s2=''
-        if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 s3 2>/dev/null || s3=''
-            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 s4 2>/dev/null || s4=''
-            else
-                s4=''
-            fi
-        else
-            s3=''; s4=''
-        fi
-        stty min 0 time 1 2>/dev/null || true
-        k="${k}${s1}${s2}${s3}${s4}"
+        # Restore to poll-loop mode after drain (bash 3/4 path changes stty).
+        _esc_drain "min 0 time 1"
+        k="${k}${_ESC_TAIL}"
     fi
     KEY="$k"
     return 0
@@ -144,23 +139,13 @@ _read_key_nb() {
 # Caller must already hold raw mode (-echo -icanon min 1 time 0).
 # Eliminates 2 subprocess forks per keypress in tight interactive loops.
 _read_key_raw() {
-    local k s1 s2 s3 s4
+    local k
     IFS= read -r -n1 k 2>/dev/null || k=''
     [[ -z $k ]] && k=$'\n'
     if [[ $k == $'\x1b' ]]; then
-        # Same fix as _read_key: stty min 0 time 0 instead of bash -t (unreliable on macOS).
-        # Caller holds min 1 time 0; restore it after draining the ESC sequence.
-        stty min 0 time 0 2>/dev/null || true
-        IFS= read -r -n1 s1 2>/dev/null || s1=''
-        IFS= read -r -n1 s2 2>/dev/null || s2=''
-        if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 s3 2>/dev/null || s3=''
-            if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 s4 2>/dev/null || s4=''
-            else s4=''; fi
-        else s3=''; s4=''; fi
-        stty min 1 time 0 2>/dev/null || true
-        k="${k}${s1}${s2}${s3}${s4}"
+        # Restore caller's mode after drain (bash 3/4 path changes stty).
+        _esc_drain "min 1 time 0"
+        k="${k}${_ESC_TAIL}"
     fi
     KEY="$k"
 }

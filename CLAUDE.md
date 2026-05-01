@@ -57,15 +57,15 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~535 | Terminal primitives, TUI widgets | `_read_key`:72, `_read_key_raw`:146, `select_from_list`:364, `select_multi_from_list`:250, `show_paged`:202 |
+| `tui.sh` | ~520 | Terminal primitives, TUI widgets | `_read_key`:98, `_read_key_raw`:141, `select_from_list`:349, `select_multi_from_list`:235, `show_paged`:187 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
-| `ssh-helpers.sh` | ~298 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
-| `prompts.sh` | ~354 | Input prompts and host/key finders | `read_colored_input`:14, `read_remote_host_address`:154, `confirm_user_choice`:272 |
+| `ssh-helpers.sh` | ~306 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
+| `prompts.sh` | ~391 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:168, `confirm_user_choice`:309 |
 | `ssh-ops.sh` | ~511 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:85, `add_ssh_key_in_host`:253, `import_external_ssh_key`:398 |
-| `config-display.sh` | ~477 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:187, `remove_host_from_ssh_config`:140 |
+| `config-display.sh` | ~479 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:189, `remove_host_from_ssh_config`:140 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:402 |
-| `menu-support.sh` | ~192 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:12, `_show_menu_help`:111 |
-| `menu-renderer.sh` | ~354 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
+| `menu-support.sh` | ~207 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:27, `_show_menu_help`:126 |
+| `menu-renderer.sh` | ~357 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
 
 ### Control flow
 
@@ -77,12 +77,12 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
-- `_read_key`:72 / `_read_key_nb`:110 / `_read_key_raw`:146 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:192 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:202 — Paginator for long output.
-- `format_menu_label`:227 — Hotkey character highlighting.
-- `select_multi_from_list`:250 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:364 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_read_key`:98 / `_read_key_nb`:120 / `_read_key_raw`:141 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:177 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:187 — Paginator for long output.
+- `format_menu_label`:212 — Hotkey character highlighting.
+- `select_multi_from_list`:235 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:349 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -119,13 +119,13 @@ Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after 
 
 ### prompts.sh
 
-- `read_colored_input`:14 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
-- `read_host_with_default`:101 `PROMPT DEFAULT` — pre-filled editable input
-- `read_remote_host_address`:154 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
-- `read_remote_user`:149 / `read_remote_host_name`:218 / `read_ssh_key_name`:243 / `read_ssh_key_comment`:266
-- `confirm_user_choice`:272 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
-- `find_config_file`:303 / `find_private_key`:312 / `find_public_key`:317 / `get_public_key`:322
-- `resolve_ssh_target`:337
+- `read_colored_input`:25 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
+- `read_host_with_default`:116 `PROMPT DEFAULT` — pre-filled editable input
+- `read_remote_host_address`:168 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
+- `read_remote_user`:163 / `read_remote_host_name`:233 / `read_ssh_key_name`:269 / `read_ssh_key_comment`:303
+- `confirm_user_choice`:309 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
+- `find_config_file`:340 / `find_private_key`:349 / `find_public_key`:354 / `get_public_key`:359
+- `resolve_ssh_target`:374
 
 ### ssh-ops.sh
 
@@ -148,8 +148,8 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 - `show_ssh_config_file`:12 — paginated SSH config viewer with inline editor launch
 - `edit_ssh_config_file`:116
 - `remove_host_from_ssh_config`:140 — removes a Host block after confirmation
-- `show_ssh_key_inventory`:187 — lists local keys, their fingerprints, and which hosts reference them
-- `_view_ssh_key`:373 / `_display_key_file`:413
+- `show_ssh_key_inventory`:189 — lists local keys, their fingerprints, and which hosts reference them
+- `_view_ssh_key`:375 / `_display_key_file`:415
 
 ### menu.sh
 
@@ -177,8 +177,9 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 
 ### menu-support.sh
 
-- `_run_conf_editor`:12 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
-- `_show_menu_help`:111 — paginated help text describing every menu item
+- `_sq`:13 — single-quote a value for shell command strings (bash 3.2-safe); escapes embedded `'` as `'\''`
+- `_run_conf_editor`:27 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
+- `_show_menu_help`:126 — paginated help text describing every menu item
 
 ### menu-renderer.sh
 
@@ -202,7 +203,8 @@ macOS ships with bash 3.2 (GPL v2 licensing). The codebase must stay compatible.
 |---|---|
 | `${var,,}` / `${var^^}` | `tr 'A-Z' 'a-z' <<< "$var"` / `tr`; or `[yY]` glob / `[[ =~ [yY] ]]` for y/n checks |
 | `local -A` / `declare -A` (associative arrays) | Parallel indexed arrays (`local -a keys=() vals=()`); or direct file checks; or `sort -u` pipeline for set-union |
-| `${var@Q}` (quoting operator) | Avoid; use printf `%q` or manual escaping |
+| `${var@Q}` (quoting operator) | Avoid; use `_sq` (single-quote wrapper in `menu-support.sh`) or manual escaping |
+| `printf '%q'` (bash builtin `%q`) | Use `_sq "$value"` — wraps in single quotes, escapes embedded `'` as `'\''` |
 
 **Specific patterns established in this codebase:**
 
@@ -217,7 +219,7 @@ bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-
 
 - `stty -echo -icanon min 0 time 1` — kernel returns 0 bytes after 100 ms with no input; bash `read` sees a 0-byte read as EOF and returns exit code 1. This is the correct "timeout, no key" signal.
 - `_read_key_nb` drops `-t` from the initial `read` call entirely; timeout is owned by the kernel.
-- After reading an ESC byte, briefly switch to `stty min 0 time 0` (truly non-blocking) to drain the remaining escape-sequence bytes from the buffer without waiting 100 ms per byte; then restore `min 0 time 1`.
+- After reading an ESC byte, drain remaining escape-sequence bytes using `_esc_drain`. Uses `stty min 0 time 1` + `read -n1` (100ms VTIME kernel timeout — same mechanism as the main poll loop). Do NOT use `time 0` (VTIME=0): a 0-byte return from read() without a timer causes bash 3.2 to block rather than exit. Skip s2 when s1 is empty to avoid a second 100ms wait on standalone-ESC. `_esc_drain` accepts a stty restore spec so callers can reset their mode after the drain.
 - Do NOT use `min 0 time 0` as the main loop stty setting — it makes the fd look permanently readable to `select()`, which breaks bash's own `-t` implementation and causes the poll loop to spin or freeze.
 - `min 1 time 0` (block until 1 char) is correct for `_read_key` and `_read_key_raw` (used in blocking contexts), but wrong for the non-blocking poll loop.
 - **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
@@ -226,7 +228,8 @@ bash 3.2 on macOS does not reliably implement `read -t 0.05` for poll-style non-
 - **Ctrl+C guard.** The INT/TERM/TSTP traps only set the exit code; cleanup lives exclusively in the EXIT trap. The `_MENU_CLEANED_UP=1` flag prevents a second cleanup run.
 - **Terminal resize.** `trap 'need_full=1' WINCH` in `show_main_menu` triggers a full redraw on the next loop iteration. The poll-based resize detection alone is insufficient — if a key arrives during a resize, the poll branch is skipped and only a differential update runs, leaving static elements (rules, title, hint bar) unredrawn.
 - **`authorized_keys` newline.** `printf '%s'` (not `printf '%s\n'`) when writing the public key — the `.pub` file already ends with `\n`.
-- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else. All three use `stty min 0 time 0` (not `read -t`) to drain ESC continuation bytes — `read -t` is unreliable on macOS bash 3.2 and causes arrow keys to be misread as bare ESC, triggering unintended exits from submenus.
+- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else. All three call `_esc_drain` to handle ESC continuation bytes.
+- **Pexpect test ESC timing.** If a test sends ESC and immediately sends the next key (within the ~100 ms `_esc_drain` window), that key can be consumed by the drain read. Mitigation: `time.sleep(0.15)` after each "back at main menu" expect in the test loop.
 - **`select_from_list` writes to `/dev/tty`, result in `_SELECT_RESULT`.** All TUI rendering goes to `/dev/tty` (fallback: `/proc/self/fd/2`) so the widget works correctly inside `$(...)` subshells. Never capture the return value with `$(select_from_list ...)` — it will be empty. Read `_SELECT_RESULT` and check `_SELECT_CANCELLED` after the call returns.
 - **`_HOST_BLOCK` global is overwritten on every `_get_host_block` call.** Consume `_HOST_BLOCK` immediately after calling `_get_host_block`; any subsequent call (including those inside helpers like `_block_field` callers) will clobber it.
 - **`show_op_banner` dual mode.** Default (stream) prints directly to stdout. Buffer mode: set `_OP_BANNER_ROW` to the starting row before calling — output goes into `_OP_BANNER_BUF` for the caller to append to its frame. Always sets `_SFL_BANNER_ROWS=5` so `select_from_list`/`select_multi_from_list` offset their start row below the banner.
