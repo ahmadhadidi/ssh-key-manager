@@ -35,7 +35,23 @@
       "Bash(ssh -v)",
       "Bash(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes testuser@192.168.0.213 exit)",
       "Bash(ssh *)",
-      "Bash(grep *)"
+      "Bash(grep *)",
+      "Bash(/bin/bash --version)",
+      "Bash(gcc --version)",
+      "Bash(make --version)",
+      "Bash(curl -fsSL --max-time 30 -o /tmp/bash-3.2.57.tar.gz https://ftp.gnu.org/gnu/bash/bash-3.2.57.tar.gz)",
+      "Read(//tmp/**)",
+      "Bash(tar xzf *)",
+      "Bash(mkdir -p /proj/bash32)",
+      "Bash(./configure --prefix=/proj/bash32 --without-bash-malloc)",
+      "Bash(bison --version)",
+      "Bash(make install *)",
+      "Bash(/proj/bash32/bin/bash --version)",
+      "Bash(python -m pytest tests/test_navigation.py -x --tb=short)",
+      "Bash(timeout 3 /proj/bash32/bin/bash -c ' *)",
+      "Bash(/proj/bash32/bin/bash -c 'IFS= read -r -t 0.1 -n1 c; rc=$?; printf \"RC=%d C=|%s|\\\\n\" \"$rc\" \"$c\"')",
+      "Bash(/proj/bash32/bin/bash -c 'IFS= read -r -t 0.1 -n1 c < <\\(printf \"AB\"\\); rc=$?; printf \"RC=%d C=|%s|\\\\n\" \"$rc\" \"$c\"')",
+      "Bash(python *)"
     ]
   }
 }

@@ -57,7 +57,7 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~520 | Terminal primitives, TUI widgets | `_read_key`:98, `_read_key_raw`:141, `select_from_list`:349, `select_multi_from_list`:235, `show_paged`:187 |
+| `tui.sh` | ~518 | Terminal primitives, TUI widgets | `_read_key`:96, `_read_key_raw`:139, `select_from_list`:347, `select_multi_from_list`:233, `show_paged`:185 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~306 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
 | `prompts.sh` | ~391 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:168, `confirm_user_choice`:309 |
@@ -77,13 +77,13 @@ When modifying a module, these are the other files that call its functions:
 ### tui.sh
 
 - `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
-- `_esc_drain`:75 — drains ESC-sequence continuation bytes after the leading `\x1b` has been read; sets `_ESC_TAIL`. Uses `stty min 0 time 1` (100 ms VTIME). Accepts an optional stty restore spec.
-- `_read_key`:98 / `_read_key_nb`:120 / `_read_key_raw`:141 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:177 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:187 — Paginator for long output.
-- `format_menu_label`:212 — Hotkey character highlighting.
-- `select_multi_from_list`:235 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:349 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `_esc_drain`:81 — drains ESC-sequence continuation bytes after the leading `\x1b` has been read; sets `_ESC_TAIL`. Uses `stty min 0 time 1` (100 ms VTIME). Accepts an optional stty restore spec.
+- `_read_key`:96 / `_read_key_nb`:118 / `_read_key_raw`:139 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:175 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:185 — Paginator for long output.
+- `format_menu_label`:210 — Hotkey character highlighting.
+- `select_multi_from_list`:233 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:347 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 

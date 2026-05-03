@@ -67,29 +67,27 @@ _max() { (( $1 >= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 _min() { (( $1 <= $2 )) && printf '%d' "$1" || printf '%d' "$2"; }
 
 # Drain escape-sequence continuation bytes after the leading \x1b has been read.
-# Sets global _ESC_TAIL to the remaining bytes (e.g. "[B" for DOWN, "[21~" for F10).
-# Uses stty min 0 time 1 (100 ms kernel timeout) — compatible with bash 3.2 on macOS.
-# Skip s2 when s1 is empty to avoid a second 100 ms wait on standalone ESC.
+# Sets global _ESC_TAIL to the remaining bytes (e.g. "[B" for DOWN, "[15~" for F5).
+# Uses stty min 0 time 1 (100 ms VTIME kernel timeout) + read -r (no -n).
 # restore_stty: stty flags to re-apply after drain (omit for _read_key, which
 #   restores its full saved state via $_st at the end of the function).
+#
+# Why read -r instead of read -r -n1:
+#   read -r -n1 with VTIME=1 works on macOS bash 3.2 but BLOCKS on Linux bash 3.2
+#   when no bytes are available (the -n count is never satisfied, so bash loops
+#   indefinitely rather than honouring the 100 ms VTIME timeout).
+#   read -r (no -n) reads until newline or EOF; a 0-byte return from read() due to
+#   VTIME expiry is seen as EOF by bash on both platforms — no blocking.
 _esc_drain() {
     local _restore_stty=${1:-}
-    local s1 s2 s3 s4
-    # stty min 0 time 0 (VTIME=0) causes bash 3.2 to block indefinitely when the
-    # kernel returns 0 bytes. Use time 1 (100ms) — same mechanism as the poll loop.
+    local _et=''
     stty min 0 time 1 2>/dev/null || true
-    IFS= read -r -n1 s1 2>/dev/null || s1=''
-    if [[ -n $s1 ]]; then
-        IFS= read -r -n1 s2 2>/dev/null || s2=''
-        if [[ ${s2} =~ ^[0-9]$ ]]; then
-            IFS= read -r -n1 s3 2>/dev/null || s3=''
-            if [[ ${s3} =~ ^[0-9]$ ]]; then
-                IFS= read -r -n1 s4 2>/dev/null || s4=''
-            else s4=''; fi
-        else s3=''; s4=''; fi
-    else s2=''; s3=''; s4=''; fi
+    # Do NOT use '|| _et=''': read -r returns non-zero on EOF even when bytes were
+    # read (VTIME fires after reading [B with no trailing newline), so the OR-branch
+    # would wipe out the bytes that were successfully accumulated.
+    IFS= read -r _et 2>/dev/null
     [[ -n $_restore_stty ]] && stty $_restore_stty 2>/dev/null || true
-    _ESC_TAIL="${s1}${s2}${s3}${s4}"
+    _ESC_TAIL="$_et"
 }
 
 # Read one keypress (blocking). Sets global KEY.

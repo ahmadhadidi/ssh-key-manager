@@ -11,3 +11,4 @@ tests/__pycache__/
 ._.DS_Store
 ._todo1.md
 todo1.md.save
+tests/*.md
