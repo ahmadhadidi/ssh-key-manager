@@ -1,7 +1,7 @@
 # Test: Menu Navigation (hotkeys + arrow keys)
 
 **Python counterpart:** `test_navigation.py`  
-**bash requirement:** `/usr/bin/bash` — bash 3.2 on macOS
+**bash requirement:** `/proj/bash32/bin/bash` — bash 3.2.57 (Linux build)
 
 ## Prerequisites
 
@@ -31,24 +31,24 @@
 
 **Steps (repeat for each row):**
 
-| Hotkey | Expected screen header |
-|--------|------------------------|
-| `G`    | Generate & Install     |
-| `I`    | Install SSH Key        |
-| `T`    | Test SSH Connection    |
-| `D`    | Delete (Remote)        |
-| `P`    | Promote Key            |
-| `Z`    | List Authorized        |
-| `N`    | Add Config Block       |
-| `W`    | Generate (Local)       |
-| `L`    | List Keys (Local)      |
-| `A`    | Append Hostname        |
-| `x`    | Delete (Local)         |
-| `R`    | Remove Config          |
-| `M`    | Import Key             |
-| `H`    | Remove Host            |
-| `V`    | View Config            |
-| `S`    | Best Practices         |
+| Hotkey | Expected screen header      | Returns immediately? |
+|--------|-----------------------------|----------------------|
+| `G`    | Generate & Install          |                      |
+| `I`    | Install SSH Key             |                      |
+| `T`    | Test SSH Connection         |                      |
+| `D`    | Delete Remote SSH Key       |                      |
+| `P`    | Promote Key                 |                      |
+| `Z`    | List Authorized Keys        |                      |
+| `N`    | Add Config Block            |                      |
+| `W`    | Generate Local SSH Key      |                      |
+| `L`    | List Keys                   | pager — press ESC/Q  |
+| `A`    | Append Hostname             |                      |
+| `X`    | Delete Local SSH Key        |                      |
+| `R`    | Remove Config               |                      |
+| `M`    | Import Key                  |                      |
+| `H`    | Remove Host                 |                      |
+| `V`    | View Config                 | pager — press ESC/Q  |
+| `E`    | Edit Config                 | yes (editor exits)   |
 
 For each row:
 1. With the main menu visible, press the hotkey.
