@@ -38,6 +38,7 @@ read_colored_input() {
     _SELECT_CANCELLED=0
     _RCI_RESULT=""
     local buf=""
+    local cur=0
     # Hold raw mode for the entire input session so ESC is never echoed.
     local _rci_st
     _rci_st=$(stty -g 2>/dev/null) || true
@@ -73,27 +74,81 @@ read_colored_input() {
                 _RCI_RESULT=""
                 return 1  # <--- CRITICAL: Exit the function immediately
                 ;;
+            "$KEY_LEFT")
+                if (( cur > 0 )); then
+                    (( cur-- ))
+                    printf '\b' >&2
+                fi
+                ;;
+            "$KEY_RIGHT")
+                if (( cur < ${#buf} )); then
+                    printf '%s' "${buf:$cur:1}" >&2
+                    (( cur++ ))
+                fi
+                ;;
+            "$KEY_HOME"|"$KEY_HOME2")
+                if (( cur > 0 )); then
+                    local _i
+                    for (( _i=0; _i<cur; _i++ )); do printf '\b' >&2; done
+                    cur=0
+                fi
+                ;;
+            "$KEY_END"|"$KEY_END2")
+                if (( cur < ${#buf} )); then
+                    printf '%s' "${buf:$cur}" >&2
+                    cur=${#buf}
+                fi
+                ;;
+            "$KEY_DEL")
+                if (( cur < ${#buf} )); then
+                    local rest="${buf:$(( cur+1 ))}"
+                    buf="${buf:0:$cur}${rest}"
+                    printf '%s ' "${rest}" >&2
+                    local _back=$(( ${#rest} + 1 )) _i
+                    for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
+                fi
+                ;;
             $'\x7f'|$'\x08')
-                if (( ${#buf} > 0 )); then
-                    buf="${buf%?}"
-                    printf '\b \b' >&2
+                if (( cur > 0 )); then
+                    local rest="${buf:$cur}"
+                    buf="${buf:0:$(( cur-1 ))}${rest}"
+                    (( cur-- ))
+                    printf '\b' >&2
+                    printf '%s ' "${rest}" >&2
+                    local _back=$(( ${#rest} + 1 )) _i
+                    for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
                 fi
                 ;;
             $'\x1b\x7f'|$'\x1b\x08'|$'\x17')
-                # ALT+Backspace or Ctrl+W — delete previous word
-                local _tmp="$buf" _cnt=0
-                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" == " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
-                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" != " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
-                if (( _cnt > 0 )); then
-                    local _i; for (( _i=0; _i<_cnt; _i++ )); do printf '\b \b' >&2; done
-                    buf="$_tmp"
+                # ALT+Backspace or Ctrl+W — delete word before cursor
+                if (( cur > 0 )); then
+                    local _old_cur=$cur
+                    while (( cur > 0 )) && [[ "${buf:$(( cur-1 )):1}" == " " ]]; do (( cur-- )); done
+                    while (( cur > 0 )) && [[ "${buf:$(( cur-1 )):1}" != " " ]]; do (( cur-- )); done
+                    local _deleted=$(( _old_cur - cur ))
+                    if (( _deleted > 0 )); then
+                        local rest="${buf:$_old_cur}"
+                        buf="${buf:0:$cur}${rest}"
+                        local _i
+                        for (( _i=0; _i<_deleted; _i++ )); do printf '\b' >&2; done
+                        printf '%s' "${rest}" >&2
+                        for (( _i=0; _i<_deleted; _i++ )); do printf ' ' >&2; done
+                        local _back=$(( ${#rest} + _deleted ))
+                        for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
+                    fi
                 fi
                 ;;
             *)
                 # Accept printable single-byte characters only
                 if [[ ${#k} -eq 1 ]] && (( $(printf '%d' "'$k" 2>/dev/null || echo 0) >= 32 )); then
-                    buf+="$k"
-                    printf '%s' "$k" >&2
+                    local rest="${buf:$cur}"
+                    buf="${buf:0:$cur}${k}${rest}"
+                    (( cur++ ))
+                    printf '%s' "${k}${rest}" >&2
+                    if (( ${#rest} > 0 )); then
+                        local _i
+                        for (( _i=0; _i<${#rest}; _i++ )); do printf '\b' >&2; done
+                    fi
                 fi
                 ;;
         esac
@@ -109,6 +164,7 @@ read_host_with_default() {
     printf '\e[?25h' >&2
 
     local buf="$default"
+    local cur=${#buf}
     while true; do
         _read_key
         local k="$KEY"
@@ -123,26 +179,80 @@ read_host_with_default() {
                 _SELECT_CANCELLED=1
                 return 1  # <--- CRITICAL: Exit the function immediately
                 ;;
+            "$KEY_LEFT")
+                if (( cur > 0 )); then
+                    (( cur-- ))
+                    printf '\b' >&2
+                fi
+                ;;
+            "$KEY_RIGHT")
+                if (( cur < ${#buf} )); then
+                    printf '%s' "${buf:$cur:1}" >&2
+                    (( cur++ ))
+                fi
+                ;;
+            "$KEY_HOME"|"$KEY_HOME2")
+                if (( cur > 0 )); then
+                    local _i
+                    for (( _i=0; _i<cur; _i++ )); do printf '\b' >&2; done
+                    cur=0
+                fi
+                ;;
+            "$KEY_END"|"$KEY_END2")
+                if (( cur < ${#buf} )); then
+                    printf '%s' "${buf:$cur}" >&2
+                    cur=${#buf}
+                fi
+                ;;
+            "$KEY_DEL")
+                if (( cur < ${#buf} )); then
+                    local rest="${buf:$(( cur+1 ))}"
+                    buf="${buf:0:$cur}${rest}"
+                    printf '%s ' "${rest}" >&2
+                    local _back=$(( ${#rest} + 1 )) _i
+                    for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
+                fi
+                ;;
             "$KEY_BACKSPACE"|"$KEY_BACKSPACE2")
-                if (( ${#buf} > 0 )); then
-                    buf="${buf%?}"
-                    printf '\b \b' >&2
+                if (( cur > 0 )); then
+                    local rest="${buf:$cur}"
+                    buf="${buf:0:$(( cur-1 ))}${rest}"
+                    (( cur-- ))
+                    printf '\b' >&2
+                    printf '%s ' "${rest}" >&2
+                    local _back=$(( ${#rest} + 1 )) _i
+                    for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
                 fi
                 ;;
             $'\x1b\x7f'|$'\x1b\x08'|$'\x17')
-                # ALT+Backspace or Ctrl+W — delete previous word
-                local _tmp="$buf" _cnt=0
-                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" == " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
-                while [[ ${#_tmp} -gt 0 && "${_tmp: -1}" != " " ]]; do _tmp="${_tmp%?}"; (( _cnt++ )); done
-                if (( _cnt > 0 )); then
-                    local _i; for (( _i=0; _i<_cnt; _i++ )); do printf '\b \b' >&2; done
-                    buf="$_tmp"
+                # ALT+Backspace or Ctrl+W — delete word before cursor
+                if (( cur > 0 )); then
+                    local _old_cur=$cur
+                    while (( cur > 0 )) && [[ "${buf:$(( cur-1 )):1}" == " " ]]; do (( cur-- )); done
+                    while (( cur > 0 )) && [[ "${buf:$(( cur-1 )):1}" != " " ]]; do (( cur-- )); done
+                    local _deleted=$(( _old_cur - cur ))
+                    if (( _deleted > 0 )); then
+                        local rest="${buf:$_old_cur}"
+                        buf="${buf:0:$cur}${rest}"
+                        local _i
+                        for (( _i=0; _i<_deleted; _i++ )); do printf '\b' >&2; done
+                        printf '%s' "${rest}" >&2
+                        for (( _i=0; _i<_deleted; _i++ )); do printf ' ' >&2; done
+                        local _back=$(( ${#rest} + _deleted ))
+                        for (( _i=0; _i<_back; _i++ )); do printf '\b' >&2; done
+                    fi
                 fi
                 ;;
             *)
                 if [[ ${#k} -eq 1 ]] && (( $(printf '%d' "'$k" 2>/dev/null || echo 0) >= 32 )); then
-                    buf+="$k"
-                    printf '%s' "$k" >&2
+                    local rest="${buf:$cur}"
+                    buf="${buf:0:$cur}${k}${rest}"
+                    (( cur++ ))
+                    printf '%s' "${k}${rest}" >&2
+                    if (( ${#rest} > 0 )); then
+                        local _i
+                        for (( _i=0; _i<${#rest}; _i++ )); do printf '\b' >&2; done
+                    fi
                 fi
                 ;;
         esac

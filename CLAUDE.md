@@ -57,10 +57,10 @@ When modifying a module, these are the other files that call its functions:
 
 | File | Lines | Responsibility | Key functions |
 |------|-------|----------------|---------------|
-| `tui.sh` | ~527 | Terminal primitives, TUI widgets | `_read_key`:96, `_read_key_raw`:139, `select_from_list`:356, `select_multi_from_list`:242, `show_paged`:185 |
+| `tui.sh` | ~530 | Terminal primitives, TUI widgets | `_read_key`:96, `_read_key_raw`:139, `select_from_list`:359, `select_multi_from_list`:245, `show_paged`:188 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
 | `ssh-helpers.sh` | ~306 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
-| `prompts.sh` | ~380 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:157, `confirm_user_choice`:298 |
+| `prompts.sh` | ~490 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:267, `confirm_user_choice`:408 |
 | `ssh-ops.sh` | ~580 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:88, `add_ssh_key_in_host`:256, `import_external_ssh_key`:413 |
 | `config-display.sh` | ~479 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:189, `remove_host_from_ssh_config`:140 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:402 |
@@ -79,11 +79,11 @@ When modifying a module, these are the other files that call its functions:
 - `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
 - `_esc_drain`:81 — drains ESC-sequence continuation bytes after the leading `\x1b` has been read; sets `_ESC_TAIL`. Uses `stty min 0 time 1` (100 ms VTIME). Accepts an optional stty restore spec.
 - `_read_key`:96 / `_read_key_nb`:118 / `_read_key_raw`:139 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
-- `wait_user_acknowledge`:175 — "Press any key" gate (also in menu.sh dispatcher)
-- `show_paged`:185 — Paginator for long output.
-- `format_menu_label`:219 — Hotkey character highlighting.
-- `select_multi_from_list`:242 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
-- `select_from_list`:356 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- `wait_user_acknowledge`:178 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:188 — Paginator for long output.
+- `format_menu_label`:222 — Hotkey character highlighting.
+- `select_multi_from_list`:245 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:359 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
 - ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
 - Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
 
@@ -121,12 +121,12 @@ Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after 
 ### prompts.sh
 
 - `read_colored_input`:25 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
-- `read_host_with_default`:105 `PROMPT DEFAULT` — pre-filled editable input
-- `read_remote_host_address`:157 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
-- `read_remote_user`:152 / `read_remote_host_name`:222 / `read_ssh_key_name`:258 / `read_ssh_key_comment`:292
-- `confirm_user_choice`:298 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
-- `find_config_file`:329 / `find_private_key`:338 / `find_public_key`:343 / `get_public_key`:348
-- `resolve_ssh_target`:363
+- `read_host_with_default`:160 `PROMPT DEFAULT` — pre-filled editable input
+- `read_remote_host_address`:267 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
+- `read_remote_user`:262 / `read_remote_host_name`:332 / `read_ssh_key_name`:368 / `read_ssh_key_comment`:402
+- `confirm_user_choice`:408 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
+- `find_config_file`:439 / `find_private_key`:448 / `find_public_key`:453 / `get_public_key`:458
+- `resolve_ssh_target`:473
 
 ### ssh-ops.sh
 
