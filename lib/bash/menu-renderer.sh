@@ -112,6 +112,7 @@ show_main_menu() {
     _menu_cleanup() {
         (( _MENU_CLEANED_UP )) && return 0
         _MENU_CLEANED_UP=1
+        _spin_stop 2>/dev/null || true
         # Clear the alternate screen before leaving so no content bleeds through,
         # then restore cursor visibility and switch back to the normal screen.
         printf '\e[?25h\e[2J\e[H\e[?1049l' >/dev/tty 2>/dev/null || \

@@ -59,13 +59,13 @@ When modifying a module, these are the other files that call its functions:
 |------|-------|----------------|---------------|
 | `tui.sh` | ~532 | Terminal primitives, TUI widgets | `_read_key`:96, `_read_key_raw`:139, `select_from_list`:360, `select_multi_from_list`:245, `show_paged`:188 |
 | `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
-| `ssh-helpers.sh` | ~306 | Shared SSH utility helpers and output helpers | `_out`:16, `show_op_banner`:52, `_prompt_remote`:294, `_setup_askpass`:227 |
-| `prompts.sh` | ~490 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:267, `confirm_user_choice`:408 |
-| `ssh-ops.sh` | ~580 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:88, `add_ssh_key_in_host`:256, `import_external_ssh_key`:413 |
+| `ssh-helpers.sh` | ~335 | Shared SSH utility helpers and output helpers | `_out`:19, `show_op_banner`:55, `_prompt_remote`:323, `_setup_askpass`:256 |
+| `prompts.sh` | ~519 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:267, `confirm_user_choice`:437 |
+| `ssh-ops.sh` | ~592 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:92, `add_ssh_key_in_host`:268, `import_external_ssh_key`:425 |
 | `config-display.sh` | ~479 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:189, `remove_host_from_ssh_config`:140 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:402 |
 | `menu-support.sh` | ~258 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:63, `_show_menu_help`:174 |
-| `menu-renderer.sh` | ~357 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
+| `menu-renderer.sh` | ~358 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
 
 ### Control flow
 
@@ -103,30 +103,30 @@ Reads `~/.ssh/config` using `perl`, `awk`, `grep`:
 Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after `tui` and `ssh-config` (depends on `_repeat` and `get_alias_for_host_ip`).
 
 **Output helpers:**
-- `_out`:16 `STYLE FORMAT [ARGS...]` — 2-space indented, color-coded line to stdout.
+- `_out`:19 `STYLE FORMAT [ARGS...]` — 2-space indented, color-coded line to stdout.
   Styles: `ok` (green), `warn` (yellow), `error` (red), `info` (cyan), `dim` (gray), `heading` (bright-cyan), `plain` (bright-white).
-- `_out_item`:35 `FORMAT [ARGS...]` — green `+` prefix, plain text.
-- `show_op_banner`:52
-- `_draw_op_header`:147 `label` — teal box header (stream mode: clears screen, prints rows 2-6 box + row 7 blank; buffer mode: set `_OP_HDR_ROW` before calling, reads result from `_OP_HDR_BUF`). Uses `_visual_width` for correct centering. Always sets `_OP_HDR_HEIGHT=7`.
+- `_out_item`:38 `FORMAT [ARGS...]` — green `+` prefix, plain text.
+- `show_op_banner`:55
+- `_draw_op_header`:150 `label` — teal box header (stream mode: clears screen, prints rows 2-6 box + row 7 blank; buffer mode: set `_OP_HDR_ROW` before calling, reads result from `_OP_HDR_BUF`). Uses `_visual_width` for correct centering. Always sets `_OP_HDR_HEIGHT=7`.
 
 **SSH/filesystem helpers:**
-- `_tcp_check`:187 `HOST` — TCP port-22 reachability check
-- `_ssh_fence`:193 `TARGET` / `_ssh_fence_close`:212 — decorative rule printed around SSH sessions
-- `_setup_askpass`:227 / `_destroy_askpass`:243 — temporary `SSH_ASKPASS` script for padded prompts
-- `_ensure_ssh_dir`:251 — `mkdir -p ~/.ssh && chmod 700`
-- `_write_key_pair`:262 `DEST_PRIV DEST_PUB DATA DATA [copy_mode]` — write or copy a key pair with permission enforcement
-- `_print_identity_files`:283 `ID_LOOKUP` — prints IdentityFile entries for a host (dim style)
-- `_prompt_remote`:294 — prompts for host + user, sets `_REMOTE_HOST`, `_REMOTE_USER`, `_REMOTE_ALIAS`
+- `_tcp_check`:190 `HOST` — TCP port-22 reachability check
+- `_ssh_fence`:222 `TARGET` / `_ssh_fence_close`:241 — decorative rule printed around SSH sessions
+- `_setup_askpass`:256 / `_destroy_askpass`:272 — temporary `SSH_ASKPASS` script for padded prompts
+- `_ensure_ssh_dir`:280 — `mkdir -p ~/.ssh && chmod 700`
+- `_write_key_pair`:291 `DEST_PRIV DEST_PUB DATA DATA [copy_mode]` — write or copy a key pair with permission enforcement
+- `_print_identity_files`:312 `ID_LOOKUP` — prints IdentityFile entries for a host (dim style)
+- `_prompt_remote`:323 — prompts for host + user, sets `_REMOTE_HOST`, `_REMOTE_USER`, `_REMOTE_ALIAS`
 
 ### prompts.sh
 
 - `read_colored_input`:25 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
 - `read_host_with_default`:160 `PROMPT DEFAULT` — pre-filled editable input
 - `read_remote_host_address`:267 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
-- `read_remote_user`:262 / `read_remote_host_name`:332 / `read_ssh_key_name`:368 / `read_ssh_key_comment`:402
-- `confirm_user_choice`:408 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
-- `find_config_file`:439 / `find_private_key`:448 / `find_public_key`:453 / `get_public_key`:458
-- `resolve_ssh_target`:473
+- `read_remote_user`:262 / `read_remote_host_name`:361 / `read_ssh_key_name`:397 / `read_ssh_key_comment`:431
+- `confirm_user_choice`:437 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
+- `find_config_file`:468 / `find_private_key`:477 / `find_public_key`:482 / `get_public_key`:487
+- `resolve_ssh_target`:502
 
 ### ssh-ops.sh
 
@@ -134,15 +134,15 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 
 - `deploy_ssh_key_to_remote`:15 `KEYNAME` — generates if missing, then installs
 - `install_ssh_key_on_remote`:33 `KEYNAME` — copies public key to remote `authorized_keys`, then registers config
-- `test_ssh_connection`:88 `USER HOST [IDENTITY]` — uses `-F /dev/null -o IdentitiesOnly=yes -o PreferredAuthentications=publickey` when an identity is given, bypassing the config block entirely to avoid false-positive fallbacks
-- `remove_ssh_key_from_remote`:138 `USER HOST KEYNAME`
-- `deploy_promoted_key`:171 — key rotation (deploy new, remove old)
-- `register_remote_host_config`:196 — connects and matches remote `authorized_keys` against local keys
-- `add_ssh_key_in_host`:256 `KEYNAME COMMENT` — generates an ED25519 key pair
-- `add_ssh_key_to_host_config`:287 `KEYNAME HOST_NAME HOST_ADDR USER` — creates or updates a Host block
-- `remove_identity_file_from_config_block`:349 `KEYNAME HOST_ALIAS`
-- `_add_key_to_hosts`:374 `KEYNAME` — multi-select host checklist, appends `IdentityFile` to chosen blocks
-- `import_external_ssh_key`:413 — import from local path, SCP, or paste
+- `test_ssh_connection`:92 `USER HOST [IDENTITY]` — uses `-F /dev/null -o IdentitiesOnly=yes -o PreferredAuthentications=publickey` when an identity is given, bypassing the config block entirely to avoid false-positive fallbacks
+- `remove_ssh_key_from_remote`:144 `USER HOST KEYNAME`
+- `deploy_promoted_key`:179 — key rotation (deploy new, remove old)
+- `register_remote_host_config`:204 — connects and matches remote `authorized_keys` against local keys
+- `add_ssh_key_in_host`:268 `KEYNAME COMMENT` — generates an ED25519 key pair
+- `add_ssh_key_to_host_config`:299 `KEYNAME HOST_NAME HOST_ADDR USER` — creates or updates a Host block
+- `remove_identity_file_from_config_block`:361 `KEYNAME HOST_ALIAS`
+- `_add_key_to_hosts`:386 `KEYNAME` — multi-select host checklist, appends `IdentityFile` to chosen blocks
+- `import_external_ssh_key`:425 — import from local path, SCP, or paste
 
 ### config-display.sh
 

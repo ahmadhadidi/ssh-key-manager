@@ -3,9 +3,12 @@
 [[ -n "${_SSH_HELPERS_SH_LOADED:-}" ]] && return 0
 _SSH_HELPERS_SH_LOADED=1
 # EXPORTS: _out  _out_item  show_op_banner
-#          _tcp_check  _ssh_fence  _ssh_fence_close
+#          _tcp_check  _spin_start  _spin_stop
+#          _ssh_fence  _ssh_fence_close
 #          _setup_askpass  _destroy_askpass  _ensure_ssh_dir
 #          _write_key_pair  _print_identity_files  _prompt_remote
+
+_SPIN_PID=''
 
 # ─── Output helpers ───────────────────────────────────────────────────────────
 
@@ -187,6 +190,32 @@ _draw_op_header() {
 _tcp_check() {
     local host="$1"
     timeout 3 bash -c "echo >/dev/tcp/$host/22" 2>/dev/null
+}
+
+# Animated spinner at the terminal's last row while a blocking operation runs.
+# Usage: _spin_start "message"; <blocking command>; _spin_stop
+_spin_start() {
+    local _sm="$1"
+    _SPIN_PID=''
+    {
+        local -a _sf=('|' '/' '-' "\\")
+        local _si=0
+        while true; do
+            printf '\e7\e[999;1H\e[2K  \e[36m%s\e[0m  %s\e8' "${_sf[$_si]}" "$_sm" >/dev/tty
+            _si=$(( (_si + 1) % 4 ))
+            sleep 0.12
+        done
+    } &
+    _SPIN_PID=$!
+}
+
+_spin_stop() {
+    if [[ -n ${_SPIN_PID:-} ]]; then
+        kill "$_SPIN_PID" 2>/dev/null || true
+        wait "$_SPIN_PID" 2>/dev/null || true
+        _SPIN_PID=''
+    fi
+    printf '\e7\e[999;1H\e[2K\e8' >/dev/tty 2>/dev/null || true
 }
 
 # Opening fence rule: "── SSH Session user@host ──"

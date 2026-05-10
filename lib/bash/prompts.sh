@@ -268,10 +268,10 @@ read_remote_host_address() {
     local subnet="${1:-$DEFAULT_SUBNET_PREFIX}"
     _LAST_SELECTED_ALIAS=""
 
-    local -a host_entries=()
-    local -a host_aliases=()
+    local -a host_entries=() host_aliases=() host_ips=()
     while IFS='|' read -r alias hn user; do
         host_aliases+=("$alias")
+        host_ips+=("$hn")
         if [[ -n $hn ]]; then
             host_entries+=("$alias  ($hn)")
         else
@@ -280,22 +280,51 @@ read_remote_host_address() {
     done < <(get_configured_ssh_hosts)
 
     if (( ${#host_entries[@]} > 0 )); then
-        select_from_list -p "Select remote host  (Esc = enter manually)" "${host_entries[@]}"
+        # Probe all configured hosts in parallel (2 s timeout per host).
+        local -a _probe_files=() _probe_pids=()
+        local _pi _pf
+        for (( _pi=0; _pi<${#host_ips[@]}; _pi++ )); do
+            _pf=$(mktemp /tmp/.hprobe-XXXXXX 2>/dev/null || \
+                  printf '/tmp/.hprobe-%s-%d' "$$" "$_pi")
+            _probe_files+=("$_pf")
+            ( timeout 2 bash -c "echo >/dev/tcp/${host_ips[$_pi]}/22" 2>/dev/null \
+                && printf 1 || printf 0 ) > "$_pf" &
+            _probe_pids+=($!)
+        done
+        _spin_start "Checking host availability..."
+        for _pi in "${_probe_pids[@]}"; do wait "$_pi" 2>/dev/null || true; done
+        _spin_stop
+
+        # Build display list: green ● for reachable, dim ● for unreachable.
+        local _dot_green=$'\e[32m\xe2\x97\x8f\e[0m '
+        local _dot_dim=$'\e[90m\xe2\x97\x8f\e[0m '
+        local -a _dot_entries=()
+        local _reach _pfc
+        for (( _pi=0; _pi<${#host_ips[@]}; _pi++ )); do
+            _reach=0
+            if [[ -f "${_probe_files[$_pi]}" ]]; then
+                _pfc=$(cat "${_probe_files[$_pi]}" 2>/dev/null)
+                [[ "$_pfc" == "1" ]] && _reach=1
+                rm -f "${_probe_files[$_pi]}" 2>/dev/null || true
+            fi
+            if (( _reach )); then
+                _dot_entries+=("${_dot_green}${host_entries[$_pi]}")
+            else
+                _dot_entries+=("${_dot_dim}${host_entries[$_pi]}")
+            fi
+        done
+
+        select_from_list -p "Select remote host  (Esc = enter manually)" "${_dot_entries[@]}"
         (( _SELECT_CANCELLED )) && return 1
         if [[ -n $_SELECT_RESULT ]]; then
-            local sel="$_SELECT_RESULT"
-            local alias="${sel%%  (*}"
-            alias="${alias%"${alias##*[! ]}"}"
-            local i
-            for (( i=0; i<${#host_aliases[@]}; i++ )); do
-                if [[ "${host_aliases[$i]}" == "$alias" ]]; then
-                    _LAST_SELECTED_ALIAS="$alias"
-                    local hn
-                    hn=$(get_ip_from_host_config "$alias")
-                    if [[ -n $hn ]]; then
-                        printf '%s' "$hn"
+            local _sel_disp="$_SELECT_RESULT"
+            for (( _pi=0; _pi<${#_dot_entries[@]}; _pi++ )); do
+                if [[ "${_dot_entries[$_pi]}" == "$_sel_disp" ]]; then
+                    _LAST_SELECTED_ALIAS="${host_aliases[$_pi]}"
+                    if [[ -n "${host_ips[$_pi]}" ]]; then
+                        printf '%s' "${host_ips[$_pi]}"
                     else
-                        printf '%s' "$alias"
+                        printf '%s' "${host_aliases[$_pi]}"
                     fi
                     return 0
                 fi

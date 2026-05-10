@@ -53,13 +53,17 @@ install_ssh_key_on_remote() {
     local remote_hostname
     if [[ -n $DEFAULT_PASSWORD ]] && command -v sshpass &>/dev/null; then
         _out dim 'Using sshpass with stored password.'
+        _spin_start "Installing on ${target}..."
         remote_hostname=$(printf '%s\n' "$pubkey" | \
             sshpass -p "$DEFAULT_PASSWORD" ssh -o StrictHostKeyChecking=accept-new \
-            "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
+            "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1)
+        local _ik_rc=$?
+        _spin_stop
+        if (( _ik_rc != 0 )); then
             _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
             _dbg "install_ssh_key_on_remote: sshpass failed"
             return 0
-        }
+        fi
     else
         _ssh_fence "$target"
         remote_hostname=$(printf '%s\n' "$pubkey" | \
@@ -113,8 +117,10 @@ test_ssh_connection() {
                "$target" "echo SSH Connection Successful")
 
     _ssh_fence "$target"
+    _spin_start "Testing connection to ${target}..."
     local result
     result=$(ssh "${ssh_args[@]}" 2>&1) || true
+    _spin_stop
     _ssh_fence_close
     _dbg "test_ssh_connection result: $result"
 
@@ -157,8 +163,10 @@ awk 'NR==FNR { keys[\$0]; next } !(\$0 in keys)' \$TMP_FILE ~/.ssh/authorized_ke
 && rm -f \$TMP_FILE"
 
     _ssh_fence "$target"
+    _spin_start "Connecting to ${target}..."
     local _rm_rc=0
     ssh "$target" "$remote_cmd" || _rm_rc=$?
+    _spin_stop
     _ssh_fence_close
 
     if (( _rm_rc == 0 )); then
@@ -200,13 +208,17 @@ register_remote_host_config() {
 
     _out dim 'Connecting to %s to read authorized_keys...' "$target"
     _ssh_fence "$target"
+    _spin_start "Reading authorized_keys from ${target}..."
     local raw_keys
     raw_keys=$(ssh -o StrictHostKeyChecking=accept-new "$target" \
-        "cat ~/.ssh/authorized_keys 2>/dev/null") || {
+        "cat ~/.ssh/authorized_keys 2>/dev/null")
+    local _rrc=$?
+    _spin_stop
+    if (( _rrc != 0 )); then
         _ssh_fence_close
         _out error 'Connection failed.'
         return 1
-    }
+    fi
     _ssh_fence_close
 
     if [[ -z $raw_keys ]]; then
