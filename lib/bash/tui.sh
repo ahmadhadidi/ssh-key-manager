@@ -268,6 +268,7 @@ select_multi_from_list() {
     _term_size
     local start_row=$(( 8 + ${_SFL_BANNER_ROWS:-0} ))
     _SFL_BANNER_ROWS=0
+    (( start_row < 10 )) && start_row=10
     local max_vis=$(( TERM_H - start_row - 2 ))
     (( max_vis < 1 )) && max_vis=1
 
@@ -386,6 +387,7 @@ select_from_list() {
     _term_size
     local start_row=$(( 8 + ${_SFL_BANNER_ROWS:-0} ))
     _SFL_BANNER_ROWS=0
+    (( start_row < 10 )) && start_row=10
     local max_vis=$(( TERM_H - start_row - 2 ))
     (( max_vis < 1 )) && max_vis=1
 
