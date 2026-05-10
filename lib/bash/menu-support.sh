@@ -21,6 +21,42 @@ _sq() {
     printf "'%s'" "$_out"
 }
 
+# ─── Command wrapper ──────────────────────────────────────────────────────────
+
+# Break a shell command into display lines with OS-appropriate continuation.
+# Args: cmd  cont_char  term_cols  first_indent  cont_indent
+# Sets global _WRAP_LINES array.
+_conf_wrap() {
+    local _cw_cmd="$1" _cw_cont="$2" _cw_cols="$3"
+    local _cw_ind="$4" _cw_ci="$5"
+    _WRAP_LINES=()
+    local _cw_rem="$_cw_cmd" _cw_first=1
+    while [[ ${#_cw_rem} -gt 0 ]]; do
+        local _cw_pfx
+        if (( _cw_first )); then _cw_pfx="$_cw_ind"; else _cw_pfx="$_cw_ci"; fi
+        local _cw_avail=$(( _cw_cols - ${#_cw_pfx} ))
+        if (( _cw_avail < 3 )); then _WRAP_LINES+=( "${_cw_pfx}..." ); break; fi
+        if (( ${#_cw_rem} <= _cw_avail )); then
+            _WRAP_LINES+=( "${_cw_pfx}${_cw_rem}" ); break
+        fi
+        local _cw_max=$(( _cw_avail - 1 - ${#_cw_cont} ))
+        (( _cw_max < 1 )) && _cw_max=1
+        local _cw_chunk="${_cw_rem:0:$_cw_max}"
+        local _cw_sp=-1 _cw_i
+        for (( _cw_i = ${#_cw_chunk} - 1; _cw_i >= 0; _cw_i-- )); do
+            [[ "${_cw_chunk:$_cw_i:1}" == " " ]] && { _cw_sp=$_cw_i; break; }
+        done
+        if (( _cw_sp < 0 )); then
+            _WRAP_LINES+=( "${_cw_pfx}${_cw_rem:0:$_cw_max} ${_cw_cont}" )
+            _cw_rem="${_cw_rem:$_cw_max}"
+        else
+            _WRAP_LINES+=( "${_cw_pfx}${_cw_rem:0:$_cw_sp} ${_cw_cont}" )
+            _cw_rem="${_cw_rem:$((_cw_sp+1))}"
+        fi
+        _cw_first=0
+    done
+}
+
 # ─── Conf defaults editor ─────────────────────────────────────────────────────
 
 # Inline TUI editor for Global Defaults.
@@ -75,24 +111,36 @@ _run_conf_editor() {
         local _c2="bash hddssh.sh${_bf}"
         local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/hddssh.ps1\")); & \$sb${_pf}"
         local _c4="& ./hddssh.ps1${_pf}"
-        # Truncate each command to terminal width (account for 4-space indent)
-        local _tw=$(( TERM_W - 6 ))
-        local _t1="$_c1"; (( ${#_t1} > _tw )) && _t1="${_t1:0:$(( _tw - 3 ))}..."
-        local _t2="$_c2"; (( ${#_t2} > _tw )) && _t2="${_t2:0:$(( _tw - 3 ))}..."
-        local _t3="$_c3"; (( ${#_t3} > _tw )) && _t3="${_t3:0:$(( _tw - 3 ))}..."
-        local _t4="$_c4"; (( ${#_t4} > _tw )) && _t4="${_t4:0:$(( _tw - 3 ))}..."
-        cf+="$(printf '\e[11;1H\e[K')"
-        cf+="$(printf '\e[12;1H  \e[90mTo persist across sessions:\e[0m\e[K')"
-        cf+="$(printf '\e[13;1H\e[K')"
-        cf+="$(printf '\e[14;1H  \e[90m☁️  Bash · cloud\e[0m\e[K')"
-        cf+="$(printf '\e[15;1H    \e[33m%s\e[0m\e[K' "$_t1")"
-        cf+="$(printf '\e[16;1H  \e[90m🏠  Bash · local\e[0m\e[K')"
-        cf+="$(printf '\e[17;1H    \e[33m%s\e[0m\e[K' "$_t2")"
-        cf+="$(printf '\e[18;1H\e[K')"
-        cf+="$(printf '\e[19;1H  \e[90m☁️  PowerShell · cloud\e[0m\e[K')"
-        cf+="$(printf '\e[20;1H    \e[36m%s\e[0m\e[K' "$_t3")"
-        cf+="$(printf '\e[21;1H  \e[90m🏠  PowerShell · local\e[0m\e[K')"
-        cf+="$(printf '\e[22;1H    \e[36m%s\e[0m\e[K' "$_t4")"
+        # Wrap each command with OS-appropriate continuation characters
+        local _ln _cur_row=11
+        cf+="$(printf '\e[%d;1H\e[K' "$_cur_row")"; (( _cur_row++ ))
+        cf+="$(printf '\e[%d;1H  \e[90mTo persist across sessions:\e[0m\e[K' "$_cur_row")"; (( _cur_row++ ))
+        cf+="$(printf '\e[%d;1H\e[K' "$_cur_row")"; (( _cur_row++ ))
+        cf+="$(printf '\e[%d;1H  \e[90m☁️  Bash · cloud\e[0m\e[K' "$_cur_row")"; (( _cur_row++ ))
+        _conf_wrap "$_c1" "\\" "$TERM_W" "    " "        "
+        for _ln in "${_WRAP_LINES[@]}"; do
+            (( _cur_row >= TERM_H )) && break
+            cf+="$(printf '\e[%d;1H\e[33m%s\e[0m\e[K' "$_cur_row" "$_ln")"; (( _cur_row++ ))
+        done
+        cf+="$(printf '\e[%d;1H  \e[90m🏠  Bash · local\e[0m\e[K' "$_cur_row")"; (( _cur_row++ ))
+        _conf_wrap "$_c2" "\\" "$TERM_W" "    " "        "
+        for _ln in "${_WRAP_LINES[@]}"; do
+            (( _cur_row >= TERM_H )) && break
+            cf+="$(printf '\e[%d;1H\e[33m%s\e[0m\e[K' "$_cur_row" "$_ln")"; (( _cur_row++ ))
+        done
+        cf+="$(printf '\e[%d;1H\e[K' "$_cur_row")"; (( _cur_row++ ))
+        cf+="$(printf '\e[%d;1H  \e[90m☁️  PowerShell · cloud\e[0m\e[K' "$_cur_row")"; (( _cur_row++ ))
+        _conf_wrap "$_c3" '`' "$TERM_W" "    " "        "
+        for _ln in "${_WRAP_LINES[@]}"; do
+            (( _cur_row >= TERM_H )) && break
+            cf+="$(printf '\e[%d;1H\e[36m%s\e[0m\e[K' "$_cur_row" "$_ln")"; (( _cur_row++ ))
+        done
+        cf+="$(printf '\e[%d;1H  \e[90m🏠  PowerShell · local\e[0m\e[K' "$_cur_row")"; (( _cur_row++ ))
+        _conf_wrap "$_c4" '`' "$TERM_W" "    " "        "
+        for _ln in "${_WRAP_LINES[@]}"; do
+            (( _cur_row >= TERM_H )) && break
+            cf+="$(printf '\e[%d;1H\e[36m%s\e[0m\e[K' "$_cur_row" "$_ln")"; (( _cur_row++ ))
+        done
 
         local hint="  Up/Dn navigate   Enter edit   Q back  "
         local hpad; hpad=$(_repeat ' ' "$(( TERM_W - ${#hint} > 0 ? TERM_W - ${#hint} : 0 ))")

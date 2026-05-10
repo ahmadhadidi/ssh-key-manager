@@ -64,7 +64,7 @@ When modifying a module, these are the other files that call its functions:
 | `ssh-ops.sh` | ~580 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:88, `add_ssh_key_in_host`:256, `import_external_ssh_key`:413 |
 | `config-display.sh` | ~479 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:189, `remove_host_from_ssh_config`:140 |
 | `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:402 |
-| `menu-support.sh` | ~210 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:27, `_show_menu_help`:126 |
+| `menu-support.sh` | ~258 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:63, `_show_menu_help`:174 |
 | `menu-renderer.sh` | ~357 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
 
 ### Control flow
@@ -179,8 +179,8 @@ All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes
 ### menu-support.sh
 
 - `_sq`:13 — single-quote a value for shell command strings (bash 3.2-safe); escapes embedded `'` as `'\''`
-- `_run_conf_editor`:27 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
-- `_show_menu_help`:126 — paginated help text describing every menu item
+- `_run_conf_editor`:63 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
+- `_show_menu_help`:174 — paginated help text describing every menu item
 
 ### menu-renderer.sh
 
