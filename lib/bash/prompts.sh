@@ -46,26 +46,15 @@ read_colored_input() {
     while true; do
         # Read one key using the same multi-byte-aware logic as _read_key,
         # but without the per-call stty save/restore (we own the mode here).
-        local k s1 s2 s3 s4
+        local k
         IFS= read -r -n1 k 2>/dev/null || k=''
         [[ -z $k ]] && k=$'\n'
         if [[ $k == $'\x1b' ]]; then
-            # Use stty min 0 time 1 (100ms kernel timeout) — reliable on macOS bash 3.2.
-            # time 0 (VTIME=0) can block bash 3.2 on a 0-byte return; time 1 avoids this.
-            # Skip s2 when s1 is empty — saves 100ms for the common standalone-ESC case.
-            stty min 0 time 1 2>/dev/null || true
-            IFS= read -r -n1 s1 2>/dev/null || s1=''
-            if [[ -n $s1 ]]; then
-                IFS= read -r -n1 s2 2>/dev/null || s2=''
-                if [[ ${s2:-} =~ ^[0-9]$ ]]; then
-                    IFS= read -r -n1 s3 2>/dev/null || s3=''
-                    if [[ ${s3:-} =~ ^[0-9]$ ]]; then
-                        IFS= read -r -n1 s4 2>/dev/null || s4=''
-                    else s4=''; fi
-                else s3=''; s4=''; fi
-            else s2=''; s3=''; s4=''; fi
+            # Use _esc_drain (read -r, no -n) — read -r -n1 blocks on Linux bash 3.2
+            # because -n prevents the 0-byte VTIME return from being treated as EOF.
+            _esc_drain ""
             stty -echo -icanon min 1 time 0 2>/dev/null || true
-            k="${k}${s1}${s2}${s3}${s4}"
+            k="${k}${_ESC_TAIL}"
         fi
 
         case "$k" in

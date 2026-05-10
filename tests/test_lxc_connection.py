@@ -19,6 +19,8 @@ import time
 import pexpect
 import pytest
 
+pytestmark = pytest.mark.lxc
+
 # ── Constants ────────────────────────────────────────────────────────────────
 
 LXC_HOST  = "192.168.0.213"

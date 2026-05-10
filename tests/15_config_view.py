@@ -1,15 +1,15 @@
-from .constants import ENTER, DOWN
+import pexpect
+import time
+
 
 def test_config_view_file(run_tui):
+    """V hotkey opens the config viewer; Q closes it and returns to main menu."""
     child = run_tui()
-    
-    # Navigate down to the Config section
-    # If "View SSH Config" is the 15th item, we go UP from the top to wrap around
-    child.send("\x1b[A") # Up to 'Exit'
-    child.send("\x1b[A") # Up to 'Edit SSH Config'
-    child.send("\x1b[A") # Up to 'View SSH Config'
-    
-    child.send(ENTER)
-    
-    child.expect("View SSH Config")
-    child.send("q")
+    child.send("V")
+    child.expect("View Config", timeout=5)
+    time.sleep(0.2)
+    child.send("Q")
+    child.expect("HDD SSH Keys Manager", timeout=5)
+    time.sleep(0.15)
+    child.send("Q")
+    child.expect(pexpect.EOF, timeout=5)
