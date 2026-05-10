@@ -296,8 +296,9 @@ read_remote_host_address() {
         _spin_stop
 
         # Build display list: green ● for reachable, dim ● for unreachable.
-        local _dot_green=$'\e[32m\xe2\x97\x8f\e[0m '
-        local _dot_dim=$'\e[90m\xe2\x97\x8f\e[0m '
+        # Use \e[97m (fg reset only) not \e[0m so the teal selection bg is preserved.
+        local _dot_green=$'\e[32m●\e[97m '
+        local _dot_dim=$'\e[90m●\e[97m '
         local -a _dot_entries=()
         local _reach _pfc
         for (( _pi=0; _pi<${#host_ips[@]}; _pi++ )); do
