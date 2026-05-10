@@ -101,8 +101,8 @@ get_hosts_using_key() {
 _block_field() {
     local field="$1" block="$2"
     printf '%s\n' "$block" | \
-        grep -m1 -iE "^\s*${field}\s+" | \
-        sed -E "s/^\s*${field}\s+//i; s/\s+$//"
+        grep -m1 -iE "^[[:space:]]*${field}[[:space:]]+" | \
+        sed -E "s/^[[:space:]]*${field}[[:space:]]+//i; s/[[:space:]]+$//"
 }
 
 # Return the Host alias whose HostName matches a given IP/hostname.

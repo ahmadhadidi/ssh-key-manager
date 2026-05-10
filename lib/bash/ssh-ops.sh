@@ -35,7 +35,10 @@ install_ssh_key_on_remote() {
     _dbg "install_ssh_key_on_remote: keyname='$keyname'"
 
     local pubkey
-    pubkey=$(get_public_key "$keyname") || return 1
+    pubkey=$(get_public_key "$keyname") || {
+        _out error 'Public key for %s not found.' "$keyname"
+        return 0
+    }
 
     _prompt_remote || return 1
     local host_addr="$_REMOTE_HOST" selected_alias="$_REMOTE_ALIAS" remote_user="$_REMOTE_USER"
@@ -55,7 +58,7 @@ install_ssh_key_on_remote() {
             "$target" 'mkdir -p .ssh && cat >> .ssh/authorized_keys && hostname' 2>&1) || {
             _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
             _dbg "install_ssh_key_on_remote: sshpass failed"
-            return 1
+            return 0
         }
     else
         _ssh_fence "$target"
@@ -64,7 +67,7 @@ install_ssh_key_on_remote() {
             _ssh_fence_close
             _out error 'Failed to inject SSH key. Check network, credentials, or host status.'
             _dbg "install_ssh_key_on_remote: ssh failed"
-            return 1
+            return 0
         }
         _ssh_fence_close
     fi
@@ -322,8 +325,19 @@ add_ssh_key_to_host_config() {
             printf '%s\n' "$new_block" >> "$SSH_CONFIG"
         _out ok '✅ IdentityFile added to existing Host %s.' "$host_name"
     else
+        _FORWARD_AGENT_WANTED=0
+        _fa_yes_cb() { _FORWARD_AGENT_WANTED=1; }
+        printf '\n'
+        _out info 'ForwardAgent yes lets the remote machine use your local SSH keys'
+        _out info 'for further connections and deployments (e.g. git clone via SSH).'
+        confirm_user_choice \
+            "  Add 'ForwardAgent yes' to the new host block?" "n" _fa_yes_cb || true
+
+        local fa_line=""
+        (( _FORWARD_AGENT_WANTED )) && fa_line="    ForwardAgent yes\n"
+
         local entry
-        entry=$(printf '\nHost %s\n    HostName %s\n    User %s\n    IdentityFile %s\n' \
+        entry=$(printf "\nHost %s\n    HostName %s\n    User %s\n${fa_line}    IdentityFile %s\n" \
             "$host_name" "$host_addr" "$remote_user" "$keypath")
         printf '%s' "$entry" >> "$SSH_CONFIG"
         _out ok 'SSH config block created for %s.' "$host_name"
@@ -394,14 +408,69 @@ _add_key_to_hosts() {
 }
 
 # Import a key pair (private + public) generated on another machine into ~/.ssh/.
-# Source can be a local path, a remote machine via SCP, or pasted key content.
+# Source can be a local path, a remote machine via SCP, pasted content, or a
+# forwarded SSH agent (when SSH_CONNECTION + SSH_AUTH_SOCK are both set).
 import_external_ssh_key() {
-    select_from_list -s -p "Import source" \
-        "Local file path" \
-        "Remote machine (SCP)" \
-        "Paste key content"
+    local -a _agent_pub_keys=()
+    if [[ -n "${SSH_CONNECTION:-}" && -n "${SSH_AUTH_SOCK:-}" ]]; then
+        while IFS= read -r _ak; do
+            [[ -n "$_ak" ]] && _agent_pub_keys+=("$_ak")
+        done < <(ssh-add -L 2>/dev/null || true)
+    fi
+
+    local -a _import_opts=()
+    (( ${#_agent_pub_keys[@]} > 0 )) && \
+        _import_opts+=("SSH Agent (ForwardAgent keys from origin machine)")
+    _import_opts+=("Local file path" "Remote machine (SCP)" "Paste key content")
+
+    select_from_list -s -p "Import source" "${_import_opts[@]}"
     (( _SELECT_CANCELLED )) && return 1
     local choice="$_SELECT_RESULT"
+
+    if [[ $choice == "SSH Agent"* ]]; then
+        local -a _agent_labels=()
+        local _ak
+        for _ak in "${_agent_pub_keys[@]}"; do
+            local _comment _type
+            _comment=$(printf '%s' "$_ak" | awk '{$1=$2=""; sub(/^[[:space:]]+/,""); print}')
+            _type=$(printf '%s' "$_ak" | awk '{print $1}')
+            _agent_labels+=("${_comment}  [${_type}]")
+        done
+
+        select_from_list -s -p "Select key from forwarded agent" "${_agent_labels[@]}"
+        (( _SELECT_CANCELLED )) && return 1
+
+        local _sel_idx=-1 _si
+        for (( _si=0; _si<${#_agent_labels[@]}; _si++ )); do
+            [[ "${_agent_labels[$_si]}" == "$_SELECT_RESULT" ]] && _sel_idx=$_si && break
+        done
+        (( _sel_idx < 0 )) && return 1
+
+        local _selected_pub="${_agent_pub_keys[$_sel_idx]}"
+        local _default_name
+        _default_name=$(printf '%s' "$_selected_pub" | awk '{print $NF}' | \
+            tr '/@:.' '-' | tr -cd 'a-zA-Z0-9_-')
+
+        local key_name
+        key_name=$(read_host_with_default "Key name:" "$_default_name") || return 1
+        [[ -z $key_name ]] && _out error 'Key name is required.' && return 1
+
+        _ensure_ssh_dir
+        local dest_pub="$SSH_DIR/${key_name}.pub"
+        if [[ -f $dest_pub ]]; then
+            _out warn 'File already exists: %s' "$dest_pub"
+            _do_fa_overwrite() { printf '%s\n' "$_selected_pub" > "$dest_pub"; }
+            confirm_user_choice "  Overwrite?" "n" _do_fa_overwrite || return 0
+        else
+            printf '%s\n' "$_selected_pub" > "$dest_pub"
+        fi
+        chmod 644 "$dest_pub" 2>/dev/null || true
+        _out ok 'Public key imported: %s' "$dest_pub"
+        _out info 'The private key stays on your origin machine.'
+        _out dim 'SSH from here will use the forwarded agent (SSH_AUTH_SOCK) for auth.'
+        _add_key_to_hosts "$key_name"
+        return 0
+    fi
 
     local priv_src pub_src key_name
 

@@ -220,7 +220,7 @@ show_main_menu() {
                 local wpad; wpad=$(_repeat ' ' "$(( term_w - ${#wmsg} > 0 ? term_w - ${#wmsg} : 0 ))")
                 f+="$(printf '\e[%d;1H\e[41m\e[1;97m%s%s\e[0m' "$(( term_h - 1 ))" "$wmsg" "$wpad")"
             else
-                local fmsg="  F1 Best Practices   F2 SSH Config   F5 Conf Defaults   ? Help"
+                local fmsg="  F1 Best Practices   F5 Conf Defaults   ? Help"
                 local fpad; fpad=$(_repeat ' ' "$(( term_w - ${#fmsg} > 0 ? term_w - ${#fmsg} : 0 ))")
                 f+="$(printf '\e[%d;1H\e[2m%s%s\e[0m' "$(( term_h - 1 ))" "$fmsg" "$fpad")"
             fi
@@ -322,7 +322,7 @@ show_main_menu() {
             "$KEY_F5")
                 _invoke_choice "11" "Conf: Global Defaults"
                 ;;
-            q|Q|"$KEY_ESC")
+            q|Q)
                 running=0 ;;
             's'|'S')
                 _invoke_choice "13" "SSH Config"

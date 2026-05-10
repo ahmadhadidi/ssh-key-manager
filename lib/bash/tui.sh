@@ -204,6 +204,15 @@ show_paged() {
             [[ $KEY == 'q' || $KEY == 'Q' || $KEY == "$KEY_ESC" ]] && break
         fi
     done
+    # After showing all content, stay until the user explicitly closes (Q or Esc).
+    # (When Q/Esc was pressed mid-stream, i < total and we skip this wait.)
+    if (( i >= total )); then
+        printf '\e[90m-- Esc/Q to close --\e[0m'
+        while true; do
+            _read_key
+            [[ $KEY == 'q' || $KEY == 'Q' || $KEY == "$KEY_ESC" ]] && break
+        done
+    fi
 }
 
 # Return a label with the hotkey letter wrapped in bold+underline ANSI codes.

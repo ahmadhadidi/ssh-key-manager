@@ -48,10 +48,14 @@ def test_ctrl_c_exits_cleanly(run_tui):
     child.expect(pexpect.EOF, timeout=5)
 
 
-def test_esc_exits_main_menu(run_tui):
-    """ESC at the main menu exits (same as Q)."""
-    child = run_tui()
+def test_esc_ignored_at_main_menu(run_tui):
+    """ESC at the main menu is a no-op; the process does not exit until Q."""
+    child = run_tui()  # fixture already synced to "HDD SSH Keys Manager"
     child.send(ESC)
+    time.sleep(0.3)
+    # Process should still be running (isalive=True); Q terminates it.
+    assert child.isalive(), "Process exited on ESC — should have been a no-op"
+    child.send("Q")
     child.expect(pexpect.EOF, timeout=5)
 
 

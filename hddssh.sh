@@ -70,14 +70,19 @@ _source_lib() {
         # Use a temp file to avoid nested process substitution FD conflicts
         # (nested source <(curl ...) inside bash <(curl ...) fails on macOS)
         local tmp
-        tmp="$(mktemp /tmp/ssh-key-manager-XXXXXX.sh)"
-        if curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh" -o "$tmp"; then
+        tmp="$(mktemp /tmp/ssh-key-manager-XXXXXX.sh 2>/dev/null \
+               || mktemp 2>/dev/null \
+               || printf '/tmp/hddssh-%s-%s.sh' "$$" "$name")"
+        if curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh" -o "$tmp" 2>/dev/null \
+           && [[ -s "$tmp" ]]; then
             # shellcheck source=/dev/null
             source "$tmp"
             rm -f "$tmp"
         else
             rm -f "$tmp"
-            printf 'Error: failed to load lib/bash/%s.sh from %s\n' "$name" "$_BASE_URL" >&2
+            printf '\e[31mError: could not download lib/bash/%s.sh from:\e[0m\n  %s\n' \
+                "$name" "$_BASE_URL" >&2
+            printf 'Check network connectivity or run from a local clone.\n' >&2
             exit 1
         fi
     fi
