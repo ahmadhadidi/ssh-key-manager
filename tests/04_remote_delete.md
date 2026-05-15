@@ -15,13 +15,13 @@ the local key pair.
 
 - LXC at `192.168.0.213`, user `testuser`, password `testpass`.
 - One key (`del-test`) deployed to LXC and present locally.
-- `~/.ssh/config` has `Host hddssh-test` with `IdentityFile ~/.ssh/del-test`.
+- `~/.ssh/config` has `Host sshhdd-test` with `IdentityFile ~/.ssh/del-test`.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -37,7 +37,7 @@ ssh-copy-id -i ~/.ssh/del-test.pub testuser@192.168.0.213
 **Steps:**
 1. Press **`D`**.
 2. Verify "Delete (Remote)" header.
-3. At host selector, type `hddssh-test`, **Enter**.
+3. At host selector, type `sshhdd-test`, **Enter**.
 4. Accept username `testuser`, **Enter**.
 5. If SSH password prompt appears, enter `testpass`, **Enter**.
 6. In the key list fetched from remote, select `del-test`, **Enter**.
@@ -48,7 +48,7 @@ ssh-copy-id -i ~/.ssh/del-test.pub testuser@192.168.0.213
 
 **Expected:**
 - `del-test.pub` is no longer in LXC `authorized_keys`.
-- `IdentityFile ~/.ssh/del-test` line removed from `hddssh-test` block.
+- `IdentityFile ~/.ssh/del-test` line removed from `sshhdd-test` block.
 - `~/.ssh/del-test` and `~/.ssh/del-test.pub` deleted.
 
 ---
@@ -75,7 +75,7 @@ ssh-copy-id -i ~/.ssh/del-test.pub testuser@192.168.0.213
 
 **Steps:**
 1. Press **`D`**.
-2. Select host `hddssh-test`, **Enter**.
+2. Select host `sshhdd-test`, **Enter**.
 3. Accept username.
 4. Handle SSH connection.
 5. When the key list appears, press **ESC**.
@@ -90,7 +90,7 @@ ssh-copy-id -i ~/.ssh/del-test.pub testuser@192.168.0.213
 
 **Steps:**
 1. Press **`D`**.
-2. Select `hddssh-test`.
+2. Select `sshhdd-test`.
 3. Accept username / password.
 
 **Expected:** TUI shows "no matching local keys found" (or similar) and

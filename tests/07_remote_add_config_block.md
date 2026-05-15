@@ -20,7 +20,7 @@ against local `.pub` files, then writes a new `Host` block.
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---

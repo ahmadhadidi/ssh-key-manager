@@ -1,5 +1,5 @@
 # lib/ps/menu-renderer.ps1 — TUI event loop and operation runner
-# Dot-sourced by hddssh.ps1 — do not execute directly.
+# Dot-sourced by sshhdd.ps1 — do not execute directly.
 # Depends on menu.ps1 (Invoke-MenuChoice).
 # EXPORTS: Show-MainMenu  _InvokeMenuAction
 

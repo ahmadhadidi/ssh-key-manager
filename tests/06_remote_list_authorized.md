@@ -19,7 +19,7 @@ Read-only — no modifications.
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -31,7 +31,7 @@ Read-only — no modifications.
 **Steps:**
 1. Press **`Z`**.
 2. Verify "List Authorized" header.
-3. Select `hddssh-test`, **Enter**.
+3. Select `sshhdd-test`, **Enter**.
 4. Accept username `testuser`, **Enter**.
 5. If password prompted, enter `testpass`, **Enter**.
 6. Observe numbered list of keys.

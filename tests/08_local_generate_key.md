@@ -18,7 +18,7 @@ interactively; an optional passphrase is set.
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh
+/usr/bin/bash sshhdd.sh
 ```
 
 ---

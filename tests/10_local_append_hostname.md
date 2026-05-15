@@ -13,14 +13,14 @@ to the named `Host` block in `~/.ssh/config`.
 ## Prerequisites
 
 - LXC at `192.168.0.213`, user `testuser`, password `testpass`.
-- `~/.ssh/config` has `Host hddssh-test`.
+- `~/.ssh/config` has `Host sshhdd-test`.
 - A key (`append-test`) deployed to LXC and present locally.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh --user testuser --subnet 192.168.0
+/proj/bash32/bin/bash sshhdd.sh --user testuser --subnet 192.168.0
 ```
 
 ---
@@ -31,23 +31,23 @@ to the named `Host` block in `~/.ssh/config`.
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/append-test -N "" -C "append-test"
 ssh-copy-id -i ~/.ssh/append-test.pub testuser@192.168.0.213
-# Ensure hddssh-test block does NOT yet have IdentityFile ~/.ssh/append-test
+# Ensure sshhdd-test block does NOT yet have IdentityFile ~/.ssh/append-test
 ```
 
 **Steps:**
 1. Press **`A`**.
 2. Verify "Append Hostname" header.
 3. In key selector, type `append-test`, **Enter**.
-4. In host selector, type `hddssh-test`, **Enter**.
+4. In host selector, type `sshhdd-test`, **Enter**.
 5. SSH test runs — observe "connection successful" confirmation.
 6. Observe "IdentityFile added" confirmation.
 7. Acknowledge with any key.
 
-**Expected:** `~/.ssh/config` `hddssh-test` block now contains
+**Expected:** `~/.ssh/config` `sshhdd-test` block now contains
 `IdentityFile ~/.ssh/append-test`.
 
 **Cleanup:**
-- Remove `IdentityFile ~/.ssh/append-test` line from `hddssh-test` block.
+- Remove `IdentityFile ~/.ssh/append-test` line from `sshhdd-test` block.
 - `rm -f ~/.ssh/append-test ~/.ssh/append-test.pub`
 
 ---
@@ -59,7 +59,7 @@ ssh-copy-id -i ~/.ssh/append-test.pub testuser@192.168.0.213
 **Steps:**
 1. Press **`A`**.
 2. Select `append-bad`, **Enter**.
-3. Select `hddssh-test`, **Enter**.
+3. Select `sshhdd-test`, **Enter**.
 4. SSH test runs and fails.
 
 **Expected:** TUI shows "key not authorized" error. `IdentityFile` line is NOT

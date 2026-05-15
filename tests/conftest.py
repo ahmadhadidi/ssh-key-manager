@@ -9,7 +9,7 @@ BASH32 = "/proj/bash32/bin/bash"
 @pytest.fixture
 def run_tui():
     def _run(args=""):
-        script_path = "./hddssh.sh"
+        script_path = "./sshhdd.sh"
         env = os.environ.copy()
         env.update({"TERM": "xterm-256color", "LANG": "en_US.UTF-8", "EDITOR": "/bin/true", "VISUAL": ""})
 
@@ -47,7 +47,7 @@ def run_tui_no_keys(tmp_path):
             "HOME":   str(tmp_path),
         })
         child = pexpect.spawn(
-            f"{BASH32} ./hddssh.sh {args}", env=env, encoding='utf-8', timeout=10
+            f"{BASH32} ./sshhdd.sh {args}", env=env, encoding='utf-8', timeout=10
         )
         child.setwinsize(40, 100)
         child.logfile = sys.stdout

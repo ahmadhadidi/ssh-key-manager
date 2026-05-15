@@ -22,7 +22,7 @@ After import, offers to add the key to one or more host config blocks via
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh --user testuser --subnet 192.168.0
+/proj/bash32/bin/bash sshhdd.sh --user testuser --subnet 192.168.0
 ```
 
 ---

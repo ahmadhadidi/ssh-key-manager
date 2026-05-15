@@ -19,7 +19,7 @@ so the main menu reappears immediately on ESC/Q.
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh
+/proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---

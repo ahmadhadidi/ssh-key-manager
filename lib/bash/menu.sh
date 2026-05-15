@@ -1,5 +1,5 @@
 # lib/menu.sh — Menu dispatcher and all _menu_* handlers
-# Sourced by hddssh.sh — do not execute directly.
+# Sourced by sshhdd.sh — do not execute directly.
 [[ -n "${_MENU_SH_LOADED:-}" ]] && return 0
 _MENU_SH_LOADED=1
 # EXPORTS: invoke_menu_choice

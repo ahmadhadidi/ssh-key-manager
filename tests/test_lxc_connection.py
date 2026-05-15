@@ -159,7 +159,7 @@ def _run_tui(args=""):
     env = os.environ.copy()
     env.update({"TERM": "xterm-256color", "LANG": "en_US.UTF-8", "EDITOR": "/bin/true", "VISUAL": ""})
     child = pexpect.spawn(
-        f"/usr/bin/bash ./hddssh.sh --user {LXC_USER} {args}",
+        f"/usr/bin/bash ./sshhdd.sh --user {LXC_USER} {args}",
         env=env, encoding="utf-8", timeout=20,
     )
     child.setwinsize(40, 100)

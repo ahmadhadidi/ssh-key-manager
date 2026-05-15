@@ -5,7 +5,7 @@
 
 ## Prerequisites
 
-- `hddssh.sh` is executable in the project root.
+- `sshhdd.sh` is executable in the project root.
 - Terminal is at least 40 rows × 100 columns.
 - `~/.ssh/config` exists (create it if not — the TUI will offer on startup).
 
@@ -22,7 +22,7 @@
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user <user> --subnet 192.168.0
+/usr/bin/bash sshhdd.sh --user <user> --subnet 192.168.0
 ```
 
 ---

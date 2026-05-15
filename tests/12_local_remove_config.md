@@ -12,20 +12,20 @@ that single line from `~/.ssh/config`. Does not delete key files.
 
 ## Prerequisites
 
-- `~/.ssh/config` has `Host hddssh-test` with at least one `IdentityFile` line.
+- `~/.ssh/config` has `Host sshhdd-test` with at least one `IdentityFile` line.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh
+/proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---
 
 ## TC-1: Remove one IdentityFile from a host block
 
-**Setup:** `~/.ssh/config` `hddssh-test` block contains:
+**Setup:** `~/.ssh/config` `sshhdd-test` block contains:
 ```
 IdentityFile ~/.ssh/rmcfg-a
 IdentityFile ~/.ssh/rmcfg-b
@@ -34,13 +34,13 @@ IdentityFile ~/.ssh/rmcfg-b
 **Steps:**
 1. Press **`R`**.
 2. Verify "Remove Config" header.
-3. In host selector, type `hddssh-test`, **Enter**.
+3. In host selector, type `sshhdd-test`, **Enter**.
 4. In IdentityFile selector, choose `rmcfg-a`, **Enter**.
 5. At confirmation prompt, confirm `y` **Enter**.
 6. Observe "removed" confirmation.
 7. Acknowledge with any key.
 
-**Expected:** `hddssh-test` block in `~/.ssh/config` no longer contains
+**Expected:** `sshhdd-test` block in `~/.ssh/config` no longer contains
 `IdentityFile ~/.ssh/rmcfg-a`; `rmcfg-b` line is untouched.
 Local key files are NOT deleted.
 
@@ -73,7 +73,7 @@ returns cleanly.
 
 **Steps:**
 1. Press **`R`**.
-2. Select `hddssh-test`.
+2. Select `sshhdd-test`.
 3. Press **ESC** at the IdentityFile selector.
 
 **Expected:** Returns to main menu. Config unchanged.

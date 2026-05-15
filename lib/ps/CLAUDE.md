@@ -4,7 +4,7 @@ See root `CLAUDE.md` for project overview and running instructions.
 
 ## Architecture (PowerShell)
 
-`hddssh.ps1` sets globals, then dot-sources the lib modules in order and calls `Show-MainMenu`. The lib modules are loaded locally from `lib/ps/` when the directory exists, or fetched via `Invoke-RestMethod` from the GitHub raw URL when run remotely.
+`sshhdd.ps1` sets globals, then dot-sources the lib modules in order and calls `Show-MainMenu`. The lib modules are loaded locally from `lib/ps/` when the directory exists, or fetched via `Invoke-RestMethod` from the GitHub raw URL when run remotely.
 
 ### Library load order
 

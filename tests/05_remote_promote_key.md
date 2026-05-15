@@ -20,7 +20,7 @@ operation.
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -38,7 +38,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/promote-new -N "" -C "promote-new"
 1. Press **`P`**.
 2. Verify "Promote Key" header.
 3. In the old-key selector, type `promote-old`, **Enter**.
-4. In the host selector, type `hddssh-test`, **Enter**.
+4. In the host selector, type `sshhdd-test`, **Enter**.
 5. Accept username `testuser`, **Enter**.
 6. In the new-key selector, type `promote-new`, **Enter**.
 7. Handle SSH password if prompted (`testpass`).
@@ -76,7 +76,7 @@ rm -f ~/.ssh/promote-old ~/.ssh/promote-old.pub ~/.ssh/promote-new ~/.ssh/promot
 **Steps:**
 1. Press **`P`**.
 2. Select `promote-old` as the old key.
-3. Select host `hddssh-test`.
+3. Select host `sshhdd-test`.
 4. Select `promote-old` again as the new key.
 
 **Expected:** TUI shows an error ("new and old key are the same") and does not

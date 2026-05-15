@@ -1,5 +1,5 @@
 # lib/bash/menu-support.sh — Conf defaults editor TUI and menu help screen
-# Sourced by hddssh.sh — do not execute directly.
+# Sourced by sshhdd.sh — do not execute directly.
 # Depends on: tui.sh (_read_key, _term_size, _repeat, show_paged)
 #             prompts.sh (read_colored_input)
 [[ -n "${_MENU_SUPPORT_SH_LOADED:-}" ]] && return 0
@@ -107,10 +107,10 @@ _run_conf_editor() {
         [[ -n $DEFAULT_SUBNET_PREFIX  ]] && _bf+=" --subnet $(_sq "$DEFAULT_SUBNET_PREFIX")" && _pf+=" -DefaultSubnetPrefix \"$DEFAULT_SUBNET_PREFIX\""
         [[ -n $DEFAULT_COMMENT_SUFFIX ]] && _bf+=" --comment-suffix $(_sq "$DEFAULT_COMMENT_SUFFIX")" && _pf+=" -DefaultCommentSuffix \"$DEFAULT_COMMENT_SUFFIX\""
         [[ -n $DEFAULT_PASSWORD       ]] && _bf+=" --password $(_sq "$DEFAULT_PASSWORD")"    && _pf+=" -DefaultPassword \"$DEFAULT_PASSWORD\""
-        local _c1="bash <(curl -fsSL ${_raw_url}/hddssh.sh)${_bf}"
-        local _c2="bash hddssh.sh${_bf}"
-        local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/hddssh.ps1\")); & \$sb${_pf}"
-        local _c4="& ./hddssh.ps1${_pf}"
+        local _c1="bash <(curl -fsSL ${_raw_url}/sshhdd.sh)${_bf}"
+        local _c2="bash sshhdd.sh${_bf}"
+        local _c3="\$sb=[scriptblock]::Create((irm \"${_raw_url}/sshhdd.ps1\")); & \$sb${_pf}"
+        local _c4="& ./sshhdd.ps1${_pf}"
         # Wrap each command with OS-appropriate continuation characters
         local _ln _cur_row=11
         cf+="$(printf '\e[%d;1H\e[K' "$_cur_row")"; (( _cur_row++ ))

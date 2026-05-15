@@ -13,15 +13,15 @@ installs the public key on the remote host's `authorized_keys`.
 ## Prerequisites
 
 - LXC at `192.168.0.213`, user `testuser`, password `testpass`.
-- `~/.ssh/config` has a `Host hddssh-test` block pointing to `192.168.0.213`.
+- `~/.ssh/config` has a `Host sshhdd-test` block pointing to `192.168.0.213`.
 - `sshpass` available locally for cleanup SSH commands.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 \
-  --comment-suffix -[hddssh-dev] --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 \
+  --comment-suffix -[sshhdd-dev] --password testpass
 ```
 
 ---
@@ -35,10 +35,10 @@ installs the public key on the remote host's `authorized_keys`.
 2. Verify the "Generate & Install" header appears (teal box).
 3. In the key-name selector (`select_from_list`, non-strict mode), type `gi-nopass`.
 4. Press **Enter** — creates the key name from the typed text.
-5. The comment field pre-fills as `gi-nopass-[hddssh-dev]`. Press **Enter** to accept.
+5. The comment field pre-fills as `gi-nopass-[sshhdd-dev]`. Press **Enter** to accept.
 6. At "Passphrase:" prompt, press **Enter** (empty passphrase).
 7. At "Confirm passphrase:", press **Enter** again.
-8. In the host selector, type `hddssh-test`, press **Enter**.
+8. In the host selector, type `sshhdd-test`, press **Enter**.
 9. At "Remote username:" (pre-filled `testuser`), press **Enter**.
 10. If a password prompt appears (SSH askpass), enter `testpass` and **Enter**.
 11. Observe "installed successfully" in the output.
@@ -72,7 +72,7 @@ rm -f ~/.ssh/gi-nopass ~/.ssh/gi-nopass.pub
 3. Accept default comment with **Enter**.
 4. At "Passphrase:", type `testpass123` **Enter**.
 5. At "Confirm passphrase:", type `testpass123` **Enter**.
-6. Select `hddssh-test`, press **Enter**.
+6. Select `sshhdd-test`, press **Enter**.
 7. Accept username `testuser` with **Enter**.
 8. Handle SSH password if prompted (`testpass`).
 9. Observe "installed successfully".
@@ -98,7 +98,7 @@ ssh-keygen -y -f ~/.ssh/gi-passphrase  # should prompt for passphrase
 1. Press **`G`**.
 2. Type `gi-nopass`, **Enter**.
 3. Accept defaults through to host selection.
-4. Select `hddssh-test`.
+4. Select `sshhdd-test`.
 5. Observe that no new `ssh-keygen` is run — output shows "Key already exists, using existing".
 
 **Expected:** Existing key is re-installed (or skipped if already authorized).

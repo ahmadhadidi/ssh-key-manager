@@ -18,7 +18,7 @@ then deletes the local private and public key files after confirmation.
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/proj/bash32/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -49,14 +49,14 @@ ssh-keygen -t ed25519 -f ~/.ssh/del-local -N "" -C "del-local"
 **Setup:**
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/del-cfg -N "" -C "del-cfg"
-# Add IdentityFile ~/.ssh/del-cfg to hddssh-test block in ~/.ssh/config
+# Add IdentityFile ~/.ssh/del-cfg to sshhdd-test block in ~/.ssh/config
 ssh-copy-id -i ~/.ssh/del-cfg.pub testuser@192.168.0.213
 ```
 
 **Steps:**
 1. Press **`x`**.
 2. Select `del-cfg`, **Enter**.
-3. TUI lists `hddssh-test` as a host referencing this key.
+3. TUI lists `sshhdd-test` as a host referencing this key.
 4. At "Remove from remote?" confirm `y` **Enter**.
 5. SSH password prompt if needed: `testpass`, **Enter**.
 6. At "Remove IdentityFile from config block?" confirm `y` **Enter**.
@@ -64,7 +64,7 @@ ssh-copy-id -i ~/.ssh/del-cfg.pub testuser@192.168.0.213
 8. Acknowledge.
 
 **Expected:** Key removed from LXC `authorized_keys`, `IdentityFile` line
-removed from `hddssh-test` block, local files deleted.
+removed from `sshhdd-test` block, local files deleted.
 
 ---
 

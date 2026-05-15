@@ -51,7 +51,8 @@
       "Bash(timeout 3 /proj/bash32/bin/bash -c ' *)",
       "Bash(/proj/bash32/bin/bash -c 'IFS= read -r -t 0.1 -n1 c; rc=$?; printf \"RC=%d C=|%s|\\\\n\" \"$rc\" \"$c\"')",
       "Bash(/proj/bash32/bin/bash -c 'IFS= read -r -t 0.1 -n1 c < <\\(printf \"AB\"\\); rc=$?; printf \"RC=%d C=|%s|\\\\n\" \"$rc\" \"$c\"')",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(xargs sed -i 's/sshhdd/sshhdd/g')"
     ]
   }
 }

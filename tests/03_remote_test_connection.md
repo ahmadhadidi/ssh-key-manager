@@ -16,13 +16,13 @@ prompts are not blocked.
 
 - LXC at `192.168.0.213`, user `testuser`.
 - One key deployed (`lxc-test-key`) and one key NOT deployed (`bad-key`).
-- `~/.ssh/config` has `Host hddssh-test`.
+- `~/.ssh/config` has `Host sshhdd-test`.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0
 ```
 
 ---
@@ -39,7 +39,7 @@ ssh-copy-id -i ~/.ssh/lxc-test-key.pub testuser@192.168.0.213
 **Steps:**
 1. Press **`T`**.
 2. Verify "Test SSH Connection" header.
-3. In host selector, type `hddssh-test`, **Enter**.
+3. In host selector, type `sshhdd-test`, **Enter**.
 4. In key selector, type `lxc-test-key`, **Enter**.
 
 **Expected:** Output line "SSH connection … is successful" (green `ok` style).
@@ -56,7 +56,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/bad-key -N "" -C "bad-key"
 
 **Steps:**
 1. Press **`T`**.
-2. Select `hddssh-test`.
+2. Select `sshhdd-test`.
 3. Select `bad-key`.
 
 **Expected:** Output line containing "not authorized on" or "Permission denied"
@@ -73,7 +73,7 @@ fallback keys from config are tried.
 
 **Steps:**
 1. Press **`T`**.
-2. Select `hddssh-test`.
+2. Select `sshhdd-test`.
 3. In key selector, choose "Test ALL" option (if available).
 
 **Expected:** TUI tests each key in sequence; one succeeds, one fails. Both

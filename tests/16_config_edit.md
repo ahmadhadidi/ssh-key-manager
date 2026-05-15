@@ -20,7 +20,7 @@ exits — no `wait_user_acknowledge` bar. Editor fallback order:
 ## Launch
 
 ```
-EDITOR=/bin/true /proj/bash32/bin/bash hddssh.sh
+EDITOR=/bin/true /proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---

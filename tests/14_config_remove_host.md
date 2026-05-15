@@ -19,7 +19,7 @@ rewrite the config file.
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh
+/proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---

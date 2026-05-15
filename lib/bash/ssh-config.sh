@@ -1,5 +1,5 @@
 # lib/ssh-config.sh — SSH config parsing
-# Sourced by hddssh.sh — do not execute directly.
+# Sourced by sshhdd.sh — do not execute directly.
 [[ -n "${_SSH_CONFIG_SH_LOADED:-}" ]] && return 0
 _SSH_CONFIG_SH_LOADED=1
 # EXPORTS: get_configured_ssh_hosts  get_available_ssh_keys

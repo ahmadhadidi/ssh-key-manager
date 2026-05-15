@@ -1,5 +1,5 @@
 # lib/menu-renderer.sh — TUI event loop and operation runner
-# Sourced by hddssh.sh — do not execute directly.
+# Sourced by sshhdd.sh — do not execute directly.
 # Depends on menu.sh (invoke_menu_choice, _check_config_at_start,
 #                      _show_menu_help, _do_create_config).
 [[ -n "${_MENU_RENDERER_SH_LOADED:-}" ]] && return 0

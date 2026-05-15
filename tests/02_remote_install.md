@@ -13,13 +13,13 @@ locally — does not generate.
 ## Prerequisites
 
 - LXC at `192.168.0.213`, user `testuser`, password `testpass`.
-- `~/.ssh/config` has `Host hddssh-test` → `192.168.0.213`.
+- `~/.ssh/config` has `Host sshhdd-test` → `192.168.0.213`.
 - Terminal ≥ 40 rows × 100 columns.
 
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -35,7 +35,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/install-test -N "" -C "install-test"
 1. Press **`I`**.
 2. Verify "Install SSH Key" header.
 3. In key selector, type `install-test`, **Enter**.
-4. Select host `hddssh-test`, **Enter**.
+4. Select host `sshhdd-test`, **Enter**.
 5. Accept username `testuser`, **Enter**.
 6. If password prompt appears, enter `testpass`, **Enter**.
 7. Observe "installed successfully".

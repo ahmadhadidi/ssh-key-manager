@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# hddssh.sh — SSH Key Manager TUI
+# sshhdd.sh — SSH Key Manager TUI
 #
 # Usage:
-#   bash hddssh.sh [OPTIONS]
-#   bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/hddssh.sh) [OPTIONS]
+#   bash sshhdd.sh [OPTIONS]
+#   bash <(curl -fsSL https://raw.githubusercontent.com/ahmadhadidi/ssh-key-manager/refs/heads/main/sshhdd.sh) [OPTIONS]
 #
 # Options:
 #   --user NAME           Default remote username        (default: default_non_root_username)
@@ -72,7 +72,7 @@ _source_lib() {
         local tmp
         tmp="$(mktemp /tmp/ssh-key-manager-XXXXXX.sh 2>/dev/null \
                || mktemp 2>/dev/null \
-               || printf '/tmp/hddssh-%s-%s.sh' "$$" "$name")"
+               || printf '/tmp/sshhdd-%s-%s.sh' "$$" "$name")"
         if curl -fsSL "${_BASE_URL}/lib/bash/${name}.sh" -o "$tmp" 2>/dev/null \
            && [[ -s "$tmp" ]]; then
             # shellcheck source=/dev/null

@@ -18,7 +18,7 @@ The EXIT trap in `_menu_cleanup` runs exactly once (guarded by
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh
+/proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---

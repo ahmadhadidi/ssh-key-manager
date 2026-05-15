@@ -19,7 +19,7 @@ or ESC exits straight to main menu.
 ## Launch
 
 ```
-/proj/bash32/bin/bash hddssh.sh
+/proj/bash32/bin/bash sshhdd.sh
 ```
 
 ---

@@ -26,7 +26,7 @@ operation-level tests.
 ## Launch
 
 ```
-/usr/bin/bash hddssh.sh --user testuser --subnet 192.168.0 --password testpass
+/usr/bin/bash sshhdd.sh --user testuser --subnet 192.168.0 --password testpass
 ```
 
 ---
@@ -94,7 +94,7 @@ ssh-copy-id -i ~/.ssh/lxc-test-key.pub -o StrictHostKeyChecking=no testuser@192.
 **Steps:**
 1. Inside the running TUI, in a separate terminal:
    ```bash
-   ps aux | grep hddssh
+   ps aux | grep sshhdd
    ```
 2. Confirm the process shows `/usr/bin/bash` as the interpreter (not `/bin/bash`,
    not `/usr/local/bin/bash`).

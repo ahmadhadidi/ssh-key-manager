@@ -4,7 +4,7 @@ See root `CLAUDE.md` for project overview and running instructions.
 
 ## Architecture (Bash)
 
-`hddssh.sh` parses CLI args, sets globals, then sources the lib modules in order and calls `show_main_menu()`. The lib modules are loaded locally from `lib/bash/` when the directory exists, or fetched via `curl` from the GitHub raw URL when run remotely.
+`sshhdd.sh` parses CLI args, sets globals, then sources the lib modules in order and calls `show_main_menu()`. The lib modules are loaded locally from `lib/bash/` when the directory exists, or fetched via `curl` from the GitHub raw URL when run remotely.
 
 ### Library load order
 

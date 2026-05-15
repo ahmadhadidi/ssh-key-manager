@@ -33,7 +33,7 @@ ENTER = "\r"
 TUI_ARGS = (
     "--user testuser "
     "--subnet 192.168.0 "
-    "--comment-suffix -[hddssh-dev] "
+    "--comment-suffix -[sshhdd-dev] "
     "--password testpass"
 )
 
@@ -96,7 +96,7 @@ def _run_tui() -> pexpect.spawn:
     env = os.environ.copy()
     env.update({"TERM": "xterm-256color", "LANG": "en_US.UTF-8", "EDITOR": "/bin/true", "VISUAL": ""})
     child = pexpect.spawn(
-        f"/usr/bin/bash ./hddssh.sh {TUI_ARGS}",
+        f"/usr/bin/bash ./sshhdd.sh {TUI_ARGS}",
         env=env, encoding="utf-8", timeout=30,
     )
     child.setwinsize(40, 100)
@@ -144,7 +144,7 @@ def _navigate_gen_install(child: pexpect.spawn, key_name: str, passphrase: str):
     time.sleep(0.2)
     child.send(ENTER)
 
-    # 3. Key comment — pre-filled as "<key_name>-[hddssh-dev]" — accept default
+    # 3. Key comment — pre-filled as "<key_name>-[sshhdd-dev]" — accept default
     child.expect("comment", timeout=5)
     time.sleep(0.15)
     child.send(ENTER)
@@ -158,7 +158,7 @@ def _navigate_gen_install(child: pexpect.spawn, key_name: str, passphrase: str):
     #    through to manual entry (non-strict select_from_list creates from filter text)
     child.expect("Select remote host", timeout=10)
     time.sleep(0.15)
-    child.send("hddssh-test")
+    child.send("sshhdd-test")
     time.sleep(0.2)
     child.send(ENTER)
 
@@ -171,7 +171,7 @@ def _navigate_gen_install(child: pexpect.spawn, key_name: str, passphrase: str):
 def _complete_install(child: pexpect.spawn):
     """
     Handle the SSH installation step:
-      - If existing keys in the hddssh-test config block are authorized, SSH
+      - If existing keys in the sshhdd-test config block are authorized, SSH
         connects silently and no password prompt appears.
       - Otherwise the TUI's askpass script prompts for the LXC password.
     Then decline adding IdentityFile (to avoid modifying ~/.ssh/config) and
@@ -202,7 +202,7 @@ def _complete_install(child: pexpect.spawn):
 
 
 def test_gen_install_passphraseless(gi_nopass):
-    """G → gi-nopass (no passphrase) → hddssh-test → SSH Public Key installed successfully."""
+    """G → gi-nopass (no passphrase) → sshhdd-test → SSH Public Key installed successfully."""
     child = _run_tui()
     _navigate_gen_install(child, gi_nopass, "")
     _complete_install(child)
@@ -212,7 +212,7 @@ def test_gen_install_passphraseless(gi_nopass):
 
 
 def test_gen_install_passphrased(gi_passphrase):
-    """G → gi-passphrase (passphrase = testpass123) → hddssh-test → installed successfully."""
+    """G → gi-passphrase (passphrase = testpass123) → sshhdd-test → installed successfully."""
     child = _run_tui()
     _navigate_gen_install(child, gi_passphrase, "testpass123")
     _complete_install(child)
