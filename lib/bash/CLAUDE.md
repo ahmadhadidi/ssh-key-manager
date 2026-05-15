@@ -1,0 +1,218 @@
+# Bash Implementation
+
+See root `CLAUDE.md` for project overview and running instructions.
+
+## Architecture (Bash)
+
+`hddssh.sh` parses CLI args, sets globals, then sources the lib modules in order and calls `show_main_menu()`. The lib modules are loaded locally from `lib/bash/` when the directory exists, or fetched via `curl` from the GitHub raw URL when run remotely.
+
+### Library load order
+
+```
+tui → ssh-config → ssh-helpers → prompts → ssh-ops → config-display → menu → menu-support → menu-renderer
+```
+
+Each module has a guard variable (`_<MODULE>_SH_LOADED`) to prevent double-sourcing.
+
+### Cross-file dependencies
+
+When modifying a module, these are the other files that call its functions:
+
+| Modified module | Must also check | Key cross-module calls |
+|---|---|---|
+| `tui.sh` | all 5 others | `_repeat`, `_term_size`, `_regex_escape`, `_dbg` used everywhere; `select_from_list` called from prompts/ssh-ops/config-display/menu; `_read_key`/`_read_key_nb` used by prompts/config-display/menu |
+| `ssh-config.sh` | ssh-helpers, prompts, ssh-ops, config-display, menu | `get_configured_ssh_hosts` (prompts×2, ssh-ops×2, config-display, menu×2); `_get_host_block`/`_replace_host_block` (ssh-ops×3, config-display, menu); `get_alias_for_host_ip` (ssh-helpers); `get_identity_files_for_host` (ssh-helpers, menu) |
+| `ssh-helpers.sh` | ssh-ops, config-display, menu | `_out`/`_out_item` called throughout ssh-ops and menu; `show_op_banner` (config-display×3, menu×9); `_prompt_remote` (ssh-ops×2, menu×3); `_ssh_fence`/`_ssh_fence_close` (ssh-ops×4, menu×4); `_setup_askpass`/`_destroy_askpass` (menu only) |
+| `prompts.sh` | ssh-ops, config-display, menu | `read_ssh_key_name` (ssh-ops×2, menu×3); `find_private_key` (ssh-ops, menu×2); `resolve_ssh_target` (ssh-ops×2, menu×2); `confirm_user_choice` (ssh-ops×2, config-display, menu×2); `read_colored_input` (ssh-ops×3, config-display×2, menu×2) |
+| `ssh-ops.sh` | menu only | All 11 public functions called exclusively from `_menu_*` handlers in menu.sh |
+| `config-display.sh` | menu only | `show_ssh_config_file`, `edit_ssh_config_file`, `show_ssh_key_inventory`, `remove_host_from_ssh_config` called from `_menu_*` handlers in menu.sh |
+| `menu.sh` | menu-renderer only | `invoke_menu_choice` called from `_invoke_choice` in menu-renderer.sh; `_check_config_at_start`, `_do_create_config` called from `show_main_menu` in menu-renderer.sh |
+| `menu-support.sh` | menu-renderer only | `_run_conf_editor` called from `_menu_conf_defaults` in menu.sh; `_show_menu_help` called from `show_main_menu` in menu-renderer.sh |
+
+### Module breakdown
+
+| File | Lines | Responsibility | Key functions |
+|------|-------|----------------|---------------|
+| `tui.sh` | ~532 | Terminal primitives, TUI widgets | `_read_key`:96, `_read_key_raw`:139, `select_from_list`:360, `select_multi_from_list`:245, `show_paged`:188 |
+| `ssh-config.sh` | ~156 | `~/.ssh/config` parsing | `get_configured_ssh_hosts`:14, `_get_host_block`:49, `_replace_host_block`:143, `get_alias_for_host_ip`:109 |
+| `ssh-helpers.sh` | ~335 | Shared SSH utility helpers and output helpers | `_out`:19, `show_op_banner`:55, `_prompt_remote`:323, `_setup_askpass`:256 |
+| `prompts.sh` | ~520 | Input prompts and host/key finders | `read_colored_input`:25, `read_remote_host_address`:267, `confirm_user_choice`:438 |
+| `ssh-ops.sh` | ~592 | SSH key operations | `deploy_ssh_key_to_remote`:15, `test_ssh_connection`:92, `add_ssh_key_in_host`:268, `import_external_ssh_key`:425 |
+| `config-display.sh` | ~479 | SSH config viewer, key inventory display, host removal | `show_ssh_config_file`:12, `show_ssh_key_inventory`:189, `remove_host_from_ssh_config`:140 |
+| `menu.sh` | ~437 | Menu dispatcher and all 18 `_menu_*` handlers | `invoke_menu_choice`:17, `_menu_generate_and_install`:44, `_do_create_config`:402 |
+| `menu-support.sh` | ~258 | Conf defaults editor TUI and menu help screen | `_run_conf_editor`:63, `_show_menu_help`:174 |
+| `menu-renderer.sh` | ~358 | TUI event loop, operation runner | `_invoke_choice`:13, `show_main_menu`:38 |
+
+### Control flow
+
+1. Parse CLI args → set defaults
+2. `show_main_menu()` enters the event loop (raw terminal, non-blocking key reads with ~50ms timeout for resize detection)
+3. User selects one of 17 menu options → `invoke_menu_choice()` dispatches to the appropriate function
+4. Operation completes → `wait_user_acknowledge()` → return to menu
+
+### tui.sh
+
+- `_dbg`:12, `_term_size`:19, `_visual_width`:37, `_regex_escape`:55, `_repeat`:60, `_max`:66, `_min`:67
+- `_esc_drain`:81 — drains ESC-sequence continuation bytes after the leading `\x1b` has been read; sets `_ESC_TAIL`. Uses `stty min 0 time 1` (100 ms VTIME). Accepts an optional stty restore spec.
+- `_read_key`:96 / `_read_key_nb`:118 / `_read_key_raw`:139 — Raw terminal key capture, handles multi-byte escape sequences (arrow keys). Uses `stty` raw mode; avoid adding subprocess forks inside the render loop.
+- `wait_user_acknowledge`:178 — "Press any key" gate (also in menu.sh dispatcher)
+- `show_paged`:188 — Paginator for long output.
+- `format_menu_label`:222 — Hotkey character highlighting.
+- `select_multi_from_list`:245 — Checkbox list with Space toggle, Enter confirm, ESC cancel.
+- `select_from_list`:360 — Core combo-box widget with incremental filtering — used for picking hosts, keys, and users throughout. Render loop uses `printf -v` (zero-fork) instead of `$(printf ...)`.
+- ANSI escape sequences used directly (cursor positioning, colors, bold, hide/show cursor).
+- Terminal resize detected by comparing `tput cols/lines` between key-read cycles.
+
+### ssh-config.sh
+
+Reads `~/.ssh/config` using `perl`, `awk`, `grep`:
+- `get_configured_ssh_hosts`:14 — emits `alias|hostname|user` tuples
+- `get_available_ssh_keys`:28 — lists private keys in `~/.ssh`
+- `_get_host_block`:49 / `_replace_host_block`:143 — multiline Host block read/write
+- `_block_field`:101 — extract a single field from a Host block
+- `get_identity_files_for_host`:60 / `get_hosts_using_key`:87 — cross-reference keys and hosts
+- `get_alias_for_host_ip`:109 — reverse-lookup Host alias from a HostName IP
+- `get_ip_from_host_config`:118, `get_user_from_host_config`:124, `get_identity_file_from_host_config`:130
+
+### ssh-helpers.sh
+
+Shared helpers sourced by both `ssh-ops.sh` and `menu.sh`. Must be loaded after `tui` and `ssh-config` (depends on `_repeat` and `get_alias_for_host_ip`).
+
+**Output helpers:**
+- `_out`:19 `STYLE FORMAT [ARGS...]` — 2-space indented, color-coded line to stdout.
+  Styles: `ok` (green), `warn` (yellow), `error` (red), `info` (cyan), `dim` (gray), `heading` (bright-cyan), `plain` (bright-white).
+- `_out_item`:38 `FORMAT [ARGS...]` — green `+` prefix, plain text.
+- `show_op_banner`:55
+- `_draw_op_header`:150 `label` — teal box header (stream mode: clears screen, prints rows 2-6 box + row 7 blank; buffer mode: set `_OP_HDR_ROW` before calling, reads result from `_OP_HDR_BUF`). Uses `_visual_width` for correct centering. Always sets `_OP_HDR_HEIGHT=7`.
+
+**SSH/filesystem helpers:**
+- `_tcp_check`:190 `HOST` — TCP port-22 reachability check
+- `_ssh_fence`:222 `TARGET` / `_ssh_fence_close`:241 — decorative rule printed around SSH sessions
+- `_setup_askpass`:256 / `_destroy_askpass`:272 — temporary `SSH_ASKPASS` script for padded prompts
+- `_ensure_ssh_dir`:280 — `mkdir -p ~/.ssh && chmod 700`
+- `_write_key_pair`:291 `DEST_PRIV DEST_PUB DATA DATA [copy_mode]` — write or copy a key pair with permission enforcement
+- `_print_identity_files`:312 `ID_LOOKUP` — prints IdentityFile entries for a host (dim style)
+- `_prompt_remote`:323 — prompts for host + user, sets `_REMOTE_HOST`, `_REMOTE_USER`, `_REMOTE_ALIAS`
+
+### prompts.sh
+
+- `read_colored_input`:25 `PROMPT COLOR` — single-line text input with ESC cancel, Ctrl+W word-delete
+- `read_host_with_default`:160 `PROMPT DEFAULT` — pre-filled editable input
+- `read_remote_host_address`:267 — shows host selector or accepts manual IP/subnet shorthand (e.g. `"10"` → `"192.168.0.10"`)
+- `read_remote_user`:262 / `read_remote_host_name`:362 / `read_ssh_key_name`:398 / `read_ssh_key_comment`:432
+- `confirm_user_choice`:438 `MESSAGE DEFAULT ACTION_FN` — y/N confirmation that calls a callback
+- `find_config_file`:469 / `find_private_key`:478 / `find_public_key`:483 / `get_public_key`:488
+- `resolve_ssh_target`:503
+
+### ssh-ops.sh
+
+All status/feedback output uses `_out`/`_out_item` — no raw `\e[` escape codes.
+
+- `deploy_ssh_key_to_remote`:15 `KEYNAME` — generates if missing, then installs
+- `install_ssh_key_on_remote`:33 `KEYNAME` — copies public key to remote `authorized_keys`, then registers config
+- `test_ssh_connection`:92 `USER HOST [IDENTITY]` — uses `-F /dev/null -o IdentitiesOnly=yes -o PreferredAuthentications=publickey` when an identity is given, bypassing the config block entirely to avoid false-positive fallbacks
+- `remove_ssh_key_from_remote`:144 `USER HOST KEYNAME`
+- `deploy_promoted_key`:179 — key rotation (deploy new, remove old)
+- `register_remote_host_config`:204 — connects and matches remote `authorized_keys` against local keys
+- `add_ssh_key_in_host`:268 `KEYNAME COMMENT` — generates an ED25519 key pair
+- `add_ssh_key_to_host_config`:299 `KEYNAME HOST_NAME HOST_ADDR USER` — creates or updates a Host block
+- `remove_identity_file_from_config_block`:361 `KEYNAME HOST_ALIAS`
+- `_add_key_to_hosts`:386 `KEYNAME` — multi-select host checklist, appends `IdentityFile` to chosen blocks
+- `import_external_ssh_key`:425 — import from local path, SCP, or paste
+
+### config-display.sh
+
+- `show_ssh_config_file`:12 — paginated SSH config viewer with inline editor launch
+- `edit_ssh_config_file`:116
+- `remove_host_from_ssh_config`:140 — removes a Host block after confirmation
+- `show_ssh_key_inventory`:189 — lists local keys, their fingerprints, and which hosts reference them
+- `_view_ssh_key`:375 / `_display_key_file`:415
+
+### menu.sh
+
+- `invoke_menu_choice`:17 — 22-line pure dispatcher; each case calls a `_menu_*` handler
+- `_menu_generate_and_install`:44 — prompts key name, generates if missing, deploys to remote (`deploy_ssh_key_to_remote`)
+- `_menu_install_key`:50 — same but requires key to already exist locally; aborts with message if not found
+- `_menu_test_connection`:60 — picks key from host config or all local keys; supports "Test ALL" multi-key sweep
+- `_menu_delete_remote_key`:118 — fetches remote `authorized_keys`, cross-matches local `.pub` files, removes selected; offers to strip IdentityFile from config and delete local key pair
+- `_menu_promote_key`:201 — delegates to `deploy_promoted_key` (installs new key, removes old in one operation)
+- `_menu_generate_key`:206 — prompts key name + comment, generates ED25519 pair locally without deploying
+- `_menu_append_key_to_config`:213 — verifies key is accepted by remote via SSH test, then adds IdentityFile to host config block
+- `_menu_delete_local_key`:242 — cross-references key against configured hosts, optionally removes from remote(s), then deletes local key files
+- `_menu_remove_key_from_config`:296 — picks host then IdentityFile entry, removes that line from the config block
+- `_menu_show_best_practices`:328 — prints the 4-rule key-naming guide (LAN shared vs WAN individual); no interactive input
+- `_menu_list_keys`:338 — calls `show_ssh_key_inventory`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_conf_defaults`:343 — launches `_run_conf_editor` TUI; returns 1 to skip `wait_user_acknowledge`
+- `_menu_remove_host`:348 — delegates to `remove_host_from_ssh_config`
+- `_menu_view_config`:352 — calls `show_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_edit_config`:357 — calls `edit_ssh_config_file`; returns 1 to skip `wait_user_acknowledge`
+- `_menu_list_authorized_keys`:362 — SSHes to target, fetches `authorized_keys`, displays numbered list
+- `_menu_add_config_block`:389 — delegates to `register_remote_host_config` (reads remote auth_keys, creates host config entry)
+- `_menu_import_key`:394 — delegates to `import_external_ssh_key` (local path / SCP / paste)
+- `_do_create_config`:402 — creates `~/.ssh/config` with 600 permissions; sets `_CONFIG_MISSING=0`
+- `_check_config_at_start`:412 — full-screen prompt on startup when config absent; offers to create it
+
+### menu-support.sh
+
+- `_sq`:13 — single-quote a value for shell command strings (bash 3.2-safe); escapes embedded `'` as `'\''`
+- `_run_conf_editor`:63 — inline TUI for editing DEFAULT_USER/SUBNET/COMMENT_SUFFIX/PASSWORD; shows 4 copy-paste launch commands with current flag values
+- `_show_menu_help`:174 — paginated help text describing every menu item
+
+### menu-renderer.sh
+
+- `_invoke_choice`:13 — clears screen, renders centered op title box, calls `invoke_menu_choice`, waits for ack. Sets `need_full=1` via bash dynamic scoping into `show_main_menu`'s local frame.
+- `show_main_menu`:38 — scrolling viewport, differential rendering, hotkey support, resize detection. Alternate screen buffer (`\e[?1049h/l`).
+- `_menu_cleanup` — defined inside `show_main_menu`; restores terminal state; guarded by `_MENU_CLEANED_UP` flag to prevent double-execution on Ctrl+C (INT trap → `exit` → EXIT trap)
+
+## Key implementation notes
+
+- **Remote lib loading uses temp files, not nested process substitution.** `source <(curl ...)` nested inside `bash <(curl ...)` fails on macOS — the outer process substitution holds a `/dev/fd` FD, and opening more FDs for inner substitutions causes curl to get a closed pipe (`Failure writing output to destination`). Fix: `_source_lib` downloads each lib to a `mktemp` file, sources it, then deletes it.
+- **`format_menu_label` uses pure bash regex, not `sed`.** BSD sed (macOS) does not support `\x1b` in replacements, and embedding a raw ESC byte in the sed replacement string is unreliable across platforms. The function uses `[[ =~ ]]` with `BASH_REMATCH` — `^([^lo_up]*)(char)(.*)$` finds the first hotkey occurrence — then `printf '\e[1;4m...\e[0;97m'` wraps it. No subprocess, no platform differences.
+- **No subprocess forks in render loops.** `$(printf ...)` costs ~1ms per call. Use `printf -v varname` instead.
+
+## bash 3.2 rules (macOS system shell — only supported version)
+
+The bash implementation targets bash 3.2 exclusively (macOS system shell, GPL v2). Do not use any bash 4+ construct — they silently break on 3.2, usually with no error, just wrong behavior.
+
+**Banned — never use these:**
+
+| Banned | Replace with |
+|---|---|
+| `${var,,}` / `${var^^}` | `tr 'A-Z' 'a-z' <<< "$var"` / `tr`; or `[yY]` glob / `[[ =~ [yY] ]]` for y/n checks |
+| `local -A` / `declare -A` (associative arrays) | Parallel indexed arrays (`local -a keys=() vals=()`); or direct file checks; or `sort -u` pipeline for set-union |
+| `${var@Q}` (quoting operator) | Avoid; use `_sq` (single-quote wrapper in `menu-support.sh`) or manual escaping |
+| `printf '%q'` (bash builtin `%q`) | Use `_sq "$value"` — wraps in single quotes, escapes embedded `'` as `'\''` |
+
+**Specific patterns established in this codebase:**
+
+- **Case-insensitive comparisons** — use `shopt -s nocasematch; [[ "$a" == "$b" ]]; shopt -u nocasematch` (available bash 3.1+), or expand both cases explicitly (`[yY]`, `y|Y|yes|Yes|YES`).
+- **Hotkey uppercasing for menu dispatch** — `k_up=$(tr 'a-z' 'A-Z' <<< "$k")` once before the loop; compare against the stored uppercase hotkey directly.
+- **Associative maps with string keys** — use two parallel `local -a` arrays (`_umap_keys` / `_umap_vals`) with O(n) linear search. Key counts in this app are always < 20 so this is fast enough.
+- **Key inventory set-union** — replace `"${!assoc[@]}"` iteration with a `{ list_source_a; list_source_b; } | sort -u` pipeline fed into a `while read` loop.
+
+**Non-blocking terminal reads — the `_read_key_nb` contract:**
+
+bash 3.2 does not reliably implement `read -t 0.05` for poll-style non-blocking reads. Use stty VTIME instead:
+
+- `stty -echo -icanon min 0 time 1` — kernel returns 0 bytes after 100 ms with no input; bash `read` sees a 0-byte read as EOF and returns exit code 1. This is the correct "timeout, no key" signal.
+- `_read_key_nb` drops `-t` from the initial `read` call entirely; timeout is owned by the kernel.
+- After reading an ESC byte, drain remaining escape-sequence bytes using `_esc_drain`. Uses `stty min 0 time 1` + `read -r` (no `-n`). Do NOT use `read -r -n1`: on Linux bash 3.2, `-n` prevents the 0-byte VTIME return from being treated as EOF, causing an indefinite block on standalone-ESC. `read -r` (no -n) treats the 0-byte return as EOF on both platforms. Do NOT use `|| var=''` after `read -r` in drain context: `read -r` returns non-zero even when bytes were successfully accumulated (VTIME fires after reading `[B` with no trailing newline), so the OR-branch wipes out the valid drain result. Use `local _et=''` initialisation instead and drop the fallback. `_esc_drain` accepts a stty restore spec so callers can reset their mode after the drain.
+- Do NOT use `min 0 time 0` as the main loop stty setting — it makes the fd look permanently readable to `select()`, which breaks bash's own `-t` implementation and causes the poll loop to spin or freeze.
+- `min 1 time 0` (block until 1 char) is correct for `_read_key` and `_read_key_raw` (used in blocking contexts), but wrong for the non-blocking poll loop.
+- **SSH test isolation.** `-F /dev/null` bypasses `~/.ssh/config` entirely; `-o IdentitiesOnly=yes` alone is insufficient because it still allows keys from the matching config block.
+- **Passphrase-protected keys.** Never use `-o BatchMode=yes` when testing keys — it blocks passphrase prompts. Use `-o PreferredAuthentications=publickey` to restrict to key auth without silencing prompts.
+- **`_LAST_SELECTED_ALIAS` subshell loss.** Any global set inside `$()` is discarded. Use `get_alias_for_host_ip` as a reverse-lookup after the subshell returns, or use `_prompt_remote` which handles this correctly.
+- **Ctrl+C guard.** The INT/TERM/TSTP traps only set the exit code; cleanup lives exclusively in the EXIT trap. The `_MENU_CLEANED_UP=1` flag prevents a second cleanup run.
+- **Terminal resize.** `trap 'need_full=1' WINCH` in `show_main_menu` triggers a full redraw on the next loop iteration. The poll-based resize detection alone is insufficient — if a key arrives during a resize, the poll branch is skipped and only a differential update runs, leaving static elements (rules, title, hint bar) unredrawn.
+- **`authorized_keys` newline.** `printf '%s'` (not `printf '%s\n'`) when writing the public key — the `.pub` file already ends with `\n`.
+- **`_read_key_raw` vs `_read_key` vs `_read_key_nb`.** `_read_key_raw` and `_read_key_nb` both skip `stty` save/restore (2 subprocess forks each). `_read_key_nb` is used exclusively by the `show_main_menu` poll loop which already holds raw mode. `_read_key_raw` is used inside `select_from_list`/`select_multi_from_list` render loops which also hold raw mode. `_read_key` manages its own stty mode and is safe to call from anywhere else. All three call `_esc_drain` to handle ESC continuation bytes.
+- **Pexpect test ESC timing.** If a test sends ESC and immediately sends the next key (within the ~100 ms `_esc_drain` window), that key can be consumed by the drain read. Mitigation: `time.sleep(0.15)` after each "back at main menu" expect in the test loop.
+- **`select_from_list` writes to `/dev/tty`, result in `_SELECT_RESULT`.** All TUI rendering goes to `/dev/tty` (fallback: `/proc/self/fd/2`) so the widget works correctly inside `$(...)` subshells. Never capture the return value with `$(select_from_list ...)` — it will be empty. Read `_SELECT_RESULT` and check `_SELECT_CANCELLED` after the call returns.
+- **`_HOST_BLOCK` global is overwritten on every `_get_host_block` call.** Consume `_HOST_BLOCK` immediately after calling `_get_host_block`; any subsequent call (including those inside helpers like `_block_field` callers) will clobber it.
+- **`show_op_banner` dual mode.** Default (stream) prints directly to stdout. Buffer mode: set `_OP_BANNER_ROW` to the starting row before calling — output goes into `_OP_BANNER_BUF` for the caller to append to its frame. Always sets `_SFL_BANNER_ROWS=5` so `select_from_list`/`select_multi_from_list` offset their start row below the banner.
+- **`_draw_op_header` dual mode.** Same pattern as `show_op_banner`. Stream mode (default): clears screen and prints the teal box directly — used by `_invoke_choice`. Buffer mode: set `_OP_HDR_ROW=1` before calling — writes absolute-positioned ANSI to `_OP_HDR_BUF` at rows 2-7 — used by `show_ssh_config_file` and `show_ssh_key_inventory` inside their render loops. Always sets `_OP_HDR_HEIGHT=7`. `_OP_BANNER_ROW` for those screens must be 8 (box occupies rows 2-7).
+- **`_visual_width` emoji correction.** `${#str}` counts Unicode code points, not terminal columns. Non-BMP emoji (4-byte UTF-8, e.g. 🔌🔑📤) = 1 bash char but 2 display cols → add 1. Variation selectors U+FE0F/FE0E = 1 bash char but 0 display cols → subtract 1. These cancel for emoji+VS pairs (🗑️👁️✏️) — no correction needed. Wide BMP symbols ✨➕❌ also need +1. Detection: 4-byte lead bytes via `LC_ALL=C tr`; BMP wide chars by string substitution loop.
+- **`_replace_host_block` silent failure.** Uses `perl` with `python3` fallback. If neither is present it returns 1 and the config block is not updated — callers must handle this or changes are silently lost.
+- **`select_from_list` strict mode (`-s`).** Enter is a no-op unless exactly one filtered item remains. Without `-s`, Enter with a non-empty filter string creates a new item from the typed text — intentional for key-name and host-name inputs.
+- **`_write_key_pair` public key normalization.** In non-copy mode it writes `"${pub_data%$'\n'}"` then appends `\n` — strips any trailing newline from the passed string and adds exactly one back, so `.pub` files always end with exactly one newline regardless of source.
+- **`get_identity_file_from_host_config` expands `~` and `$HOME`.** Other `ssh-config.sh` getters return raw strings. Only this function substitutes `~` → `$HOME` in the returned path; callers of other getters must expand paths themselves if needed.
